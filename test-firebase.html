@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Firebase Test</title>
+</head>
+<body>
+    <h1>Testing Firebase Connection...</h1>
+    <div id="status"></div>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
+        import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+        
+        const firebaseConfig = {
+          apiKey: "AIzaSyCpLC5lDG8gQinBSIS1mCdGc5zkLQHC_sY",
+          authDomain: "dealership-ops-pro.firebaseapp.com",
+          projectId: "dealership-ops-pro",
+          storageBucket: "dealership-ops-pro.firebasestorage.app",
+          messagingSenderId: "177028391946",
+          appId: "1:177028391946:web:b5ae83622d2ba86fc7ebf3"
+        };
+        
+        const statusEl = document.getElementById('status');
+        
+        try {
+            statusEl.innerHTML = "Initializing Firebase...";
+            const app = initializeApp(firebaseConfig);
+            const db = getFirestore(app);
+            
+            statusEl.innerHTML = "Fetching employees...";
+            const snapshot = await getDocs(collection(db, 'employees'));
+            
+            statusEl.innerHTML = `✅ Success! Found ${snapshot.docs.length} employees`;
+            console.log("Employees:", snapshot.docs.map(d => d.data()));
+        } catch (error) {
+            statusEl.innerHTML = `❌ Error: ${error.message}`;
+            console.error("Firebase Error:", error);
+        }
+    </script>
+</body>
+</html>

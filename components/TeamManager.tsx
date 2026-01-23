@@ -1,0 +1,328 @@
+
+import React, { useState, useEffect } from 'react';
+import { Employee, UserRole, RewardConfig } from '../types';
+import { UserPlus, UserMinus, User, ShieldCheck, Phone, Trophy, Target, Star, Medal, RefreshCw, Wifi } from 'lucide-react';
+import { supabase } from '../src/lib/supabase';
+
+interface TeamManagerProps {
+  employees: Employee[];
+  onAddEmployee: (name: string, mobile: string, role: UserRole) => void;
+  onRemoveEmployee: (id: string) => void;
+  rewardConfig: RewardConfig;
+  onUpdateRewardConfig: (config: RewardConfig) => void;
+}
+
+const TeamManager: React.FC<TeamManagerProps> = ({ employees, onAddEmployee, onRemoveEmployee, rewardConfig, onUpdateRewardConfig }) => {
+  const [newName, setNewName] = useState('');
+  const [newMobile, setNewMobile] = useState('');
+  const [newRole, setNewRole] = useState<UserRole>('staff');
+  const [targetPoints, setTargetPoints] = useState(rewardConfig.targetPoints.toString());
+  const [rewardName, setRewardName] = useState(rewardConfig.rewardName);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [teamMembers, setTeamMembers] = useState<Employee[]>([]);
+
+  // Fetch team members on mount
+  useEffect(() => {
+    const fetchTeamMembers = async () => {
+      try {
+        console.log('🔍 Fetching team members...');
+        const { data, error } = await supabase
+          .from('employees')
+          .select('*');
+        
+        if (error) {
+          console.error('❌ Failed to fetch team members:', error);
+          setConnectionError(`Error: ${JSON.stringify(error, null, 2)}`);
+        } else {
+          console.log('✅ Successfully fetched team members:', data);
+          setTeamMembers(data || []);
+          setConnectionError(null);
+        }
+      } catch (err) {
+        console.error('🚨 Unexpected Error fetching team members:', err);
+        setConnectionError(`Unexpected: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      }
+    };
+
+    fetchTeamMembers();
+  }, []);
+
+  const handleRefresh = () => {
+    window.location.reload();
+  };
+
+  const handleTestConnection = async () => {
+    try {
+      console.log('🔍 Testing database connection...');
+      const { data, error } = await supabase
+        .from('employees')
+        .select('*')
+        .limit(1); // Just test with 1 record
+      
+      if (error) {
+        console.error('❌ Connection Test Failed:', error);
+        setConnectionError(`Error: ${JSON.stringify(error, null, 2)}`);
+      } else {
+        console.log('✅ Connection Test Success:', data);
+        setConnectionError(null);
+        alert(`Success! Found ${data.length} staff.`);
+      }
+    } catch (err) {
+      console.error('🚨 Unexpected Error:', err);
+      setConnectionError(`Unexpected: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newName.trim() || !newMobile.trim()) return;
+    
+    // Basic mobile validation
+    if (newMobile.length < 10) {
+      alert("Please enter a valid 10-digit mobile number");
+      return;
+    }
+
+    onAddEmployee(newName.trim(), newMobile.trim(), newRole);
+    setNewName('');
+    setNewMobile('');
+    setNewRole('staff');
+  };
+
+  const handleRewardConfigUpdate = (e: React.FormEvent) => {
+    e.preventDefault();
+    const target = parseInt(targetPoints);
+    if (target > 0 && rewardName.trim()) {
+      onUpdateRewardConfig({
+        targetPoints: target,
+        rewardName: rewardName.trim()
+      });
+    }
+  };
+
+  // Sort employees by points for leaderboard
+  const sortedEmployees = [...teamMembers].sort((a, b) => b.points - a.points);
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-3xl text-white shadow-xl">
+        <div className="flex items-center gap-2 mb-2">
+          <ShieldCheck className="w-5 h-5 text-blue-400" />
+          <h2 className="text-xl font-bold italic">Team</h2>
+        </div>
+        <p className="text-slate-400 text-sm">
+          Manage staff members and assign their access permissions.
+        </p>
+      </div>
+
+      <section className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+        <h3 className="text-xs font-bold text-slate-500 mb-3 uppercase tracking-wider">Add Staff Member</h3>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <input 
+            type="text" 
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="Full Name..."
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+            required
+          />
+          <div className="relative">
+            <input 
+              type="tel" 
+              value={newMobile}
+              onChange={(e) => {
+                const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                setNewMobile(val);
+              }}
+              placeholder="Mobile Number (Login ID)"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+              required
+            />
+            <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          </div>
+          <div className="flex gap-2">
+            <select 
+              value={newRole}
+              onChange={(e) => setNewRole(e.target.value as UserRole)}
+              className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 outline-none"
+            >
+              <option value="staff" className="text-slate-900">Staff</option>
+              <option value="manager" className="text-slate-900">Manager</option>
+            </select>
+            <button 
+              type="submit"
+              className="bg-blue-600 text-white p-3 px-6 rounded-xl active:scale-95 transition-transform flex items-center gap-2 font-bold text-sm"
+            >
+              <UserPlus className="w-5 h-5" />
+              Add
+            </button>
+          </div>
+        </form>
+      </section>
+
+      {/* Reward Settings */}
+      <section className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+        <h3 className="text-xs font-bold text-slate-500 mb-3 uppercase tracking-wider flex items-center gap-2">
+          <Trophy className="w-4 h-4 text-yellow-500" />
+          Reward Settings
+        </h3>
+        <form onSubmit={handleRewardConfigUpdate} className="space-y-3">
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <label className="text-xs text-slate-600 font-medium mb-1 block">Target Points</label>
+              <input 
+                type="number" 
+                value={targetPoints}
+                onChange={(e) => setTargetPoints(e.target.value)}
+                min="1"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                required
+              />
+            </div>
+            <div className="flex-1">
+              <label className="text-xs text-slate-600 font-medium mb-1 block">Reward Name</label>
+              <input 
+                type="text" 
+                value={rewardName}
+                onChange={(e) => setRewardName(e.target.value)}
+                placeholder="e.g., Bonus Day Off"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                required
+              />
+            </div>
+          </div>
+          <button 
+            type="submit"
+            className="w-full bg-purple-600 text-white py-3 rounded-xl active:scale-95 transition-transform flex items-center justify-center gap-2 shadow-lg shadow-purple-100 font-bold"
+          >
+            <Target className="w-5 h-5" />
+            Update Reward
+          </button>
+        </form>
+      </section>
+
+      {/* Leaderboard */}
+      <section className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+        <h3 className="text-xs font-bold text-slate-500 mb-3 uppercase tracking-wider flex items-center gap-2">
+          <Medal className="w-4 h-4 text-amber-500" />
+          Points Leaderboard
+        </h3>
+        {teamMembers.length > 0 ? (
+          <div className="space-y-2">
+            {sortedEmployees.map((emp, index) => (
+              <div 
+                key={emp.id} 
+                className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200"
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+                    index === 0 ? 'bg-yellow-400 text-yellow-900' :
+                    index === 1 ? 'bg-gray-300 text-gray-700' :
+                    index === 2 ? 'bg-amber-600 text-amber-100' :
+                    'bg-slate-200 text-slate-600'
+                  }`}>
+                    {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : index + 1}
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-700">{emp.name}</p>
+                    <p className="text-xs text-slate-500">{emp.role}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="font-bold text-lg text-purple-600">{emp.points}</p>
+                  <p className="text-xs text-slate-500">points</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 bg-slate-100/50 rounded-xl border border-dashed border-slate-200">
+            <RefreshCw className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+            <p className="text-sm text-slate-500 mb-4">No team members yet.</p>
+            <button 
+              onClick={handleRefresh}
+              className="bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-700 active:scale-95 transition-all flex items-center gap-2 mx-auto mb-4"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Refresh List
+            </button>
+            <button 
+              onClick={handleTestConnection}
+              className="bg-green-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-green-700 active:scale-95 transition-all flex items-center gap-2 mx-auto"
+            >
+              <Wifi className="w-4 h-4" />
+              Test Connection
+            </button>
+          </div>
+        )}
+      </section>
+
+      <div className="space-y-2">
+        {/* Connection Error Display */}
+        {connectionError && (
+          <div className="bg-red-600 p-4 rounded-2xl border border-red-700 mb-4">
+            <h3 className="text-white text-lg font-bold mb-2">Connection Debugger</h3>
+            <div className="bg-red-800 rounded-lg p-3">
+              <p className="text-red-100 text-sm font-mono break-all">{connectionError}</p>
+            </div>
+            <p className="text-red-100 text-sm">This will help identify if the issue is Permissions (RLS), Network, or Invalid URL.</p>
+          </div>
+        )}
+        
+        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider px-1">Registered Team ({teamMembers.length})</h3>
+        {teamMembers.length > 0 ? (
+          teamMembers.map((emp) => (
+            <div 
+              key={emp.id} 
+              className="bg-white p-4 rounded-2xl border border-slate-200 flex items-center justify-between group transition-all active:bg-slate-50"
+            >
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${emp.role === 'manager' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
+                  {emp.name.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <p className="font-semibold text-slate-700">{emp.name}</p>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${emp.role === 'manager' ? 'bg-amber-500 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                      {emp.role}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-medium">{emp.mobile}</span>
+                    <span className="text-[9px] font-black text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded">
+                      {emp.points} pts
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <button 
+                onClick={() => onRemoveEmployee(emp.id)}
+                className="p-2 text-slate-300 hover:text-red-500 active:scale-90 transition-all"
+              >
+                <UserMinus className="w-5 h-5" />
+              </button>
+            </div>
+          ))
+        ) : (
+          <div className="text-center py-12 bg-slate-100/50 rounded-3xl border border-dashed border-slate-200">
+            <User className="w-10 h-10 mx-auto mb-2 text-slate-300" />
+            <p className="text-sm text-slate-500">No staff members registered yet.</p>
+          </div>
+        )}
+        
+        {/* Database Connection Status */}
+        <div className="bg-slate-800 p-4 rounded-2xl border border-slate-700">
+          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Database Status</h4>
+          <div className="space-y-1">
+            <p className="text-sm text-green-400">
+              Connected to Database: {teamMembers.length > 0 ? 'Yes' : 'No'}
+            </p>
+            <p className="text-sm text-slate-300">
+              Total Staff: {teamMembers.length}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default TeamManager;

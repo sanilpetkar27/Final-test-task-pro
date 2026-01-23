@@ -1,0 +1,7 @@
+{
+  "name": "Copy of Dealership Ops Log",
+  "description": "A mobile-first dealership operational task tracker with AI-powered assistance for vehicle management.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
