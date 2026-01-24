@@ -24,8 +24,6 @@ const App: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<AppTab>(AppTab.TASKS);
   const [appReady, setAppReady] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [notification, setNotification] = useState<{ title: string, message: string } | null>(null);
 
   // --- 2. DEMO DATA ---
@@ -173,9 +171,6 @@ const App: React.FC = () => {
 
   // --- 4. EFFECTS ---
   useEffect(() => {
-    if ("Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission();
-    }
     setAppReady(true);
   }, []);
 
