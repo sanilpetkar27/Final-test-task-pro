@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { AppTab, DealershipTask, Employee, UserRole, TaskStatus, RewardConfig } from './types';
 import Dashboard from './components/Dashboard-demo';
 import StatsScreen from './components/StatsScreen';
-import TeamManager from './components/TeamManager';
+import TeamManager from './components/TeamManager-demo';
 import LoginScreen from './components/LoginScreen';
 import {
   ClipboardList,
