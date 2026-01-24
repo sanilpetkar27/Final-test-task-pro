@@ -127,18 +127,9 @@ const App: React.FC = () => {
     const pollingInterval = setInterval(() => {
       loadInitialData(true).then(data => {
         if (data) {
-          // Check if data actually changed before forcing re-render
-          const currentTasksString = JSON.stringify(tasks.map(t => ({ id: t.id, status: t.status, assignedTo: t.assignedTo })));
-          const newTasksString = JSON.stringify(data.tasks.map(t => ({ id: t.id, status: t.status, assignedTo: t.assignedTo })));
-          
-          // Force re-render by creating new arrays
-          setEmployees([...data.employees]);
-          setTasks([...data.tasks]);
-          
-          // Only increment sync counter if data actually changed
-          if (currentTasksString !== newTasksString) {
-            setSyncCounter(prev => prev + 1);
-          }
+          // Just update the data normally - let React handle re-rendering naturally
+          setEmployees(data.employees);
+          setTasks(data.tasks);
           
           // Brief sync indicator
           setIsSyncing(true);
@@ -697,7 +688,6 @@ const App: React.FC = () => {
 
         {activeTab === AppTab.TASKS && (
           <Dashboard
-            key={`dashboard-${syncCounter}`}
             tasks={tasks}
             employees={employees}
             currentUser={currentUser}
