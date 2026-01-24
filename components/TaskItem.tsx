@@ -1,7 +1,6 @@
-
 import React, { useState } from 'react';
 import { DealershipTask, Employee } from '../types';
-import { Check, Camera, Maximize2, User, UserCheck, GitFork, ChevronDown, ChevronRight, Layers, Trash2, AlertTriangle, Clock, ArrowRight, Play, RotateCcw, CheckCircle } from 'lucide-react';
+import { Check, Camera, Maximize2, User, UserCheck, GitFork, ChevronDown, ChevronRight, Layers, Trash2, AlertTriangle, Clock, ArrowRight, Play, RotateCcw, CheckCircle, UserPlus, X } from 'lucide-react';
 import { supabase } from '../src/lib/supabase';
 
 interface TaskItemProps {
@@ -46,19 +45,11 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const [isUploading, setIsUploading] = useState(false);
 
   const isManager = currentUser.role === 'manager';
-  // Allow deletion if the current user created the task OR is a manager
   const canDelete = currentUser.id === task.assignedBy || isManager;
-  
-  console.log(`🔍 TaskItem Debug - Task ID: ${task.id}`);
-  console.log(`🔍 TaskItem Debug - Current User ID: ${currentUser.id}, Role: ${currentUser.role}`);
-  console.log(`🔍 TaskItem Debug - Task Assigned By: ${task.assignedBy}`);
-  console.log(`🔍 TaskItem Debug - Is Manager: ${isManager}, Can Delete: ${canDelete}`);
   
   const completedSubTasks = subTasks.filter(st => st.status === 'completed');
   const hasSubTasks = subTasks.length > 0;
-  
   const allSubTasksDone = hasSubTasks && completedSubTasks.length === subTasks.length;
-
   const isOverdue = task.status === 'pending' && task.deadline && Date.now() > task.deadline;
 
   // Name lookup logic
@@ -71,12 +62,10 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const assignerNameDisplay = getEmployeeName(task.assignedBy || task.assigner_id);
   const assigneeNameDisplay = getEmployeeName(task.assignedTo || task.assignee_id);
 
-  // Handle photo upload for tasks that require photos
   const handlePhotoUpload = async (file: File) => {
     setIsUploading(true);
     try {
-      alert('Uploading photo...');
-      console.log('📸 Uploading photo for task:', task.id);
+      console.log('📸 Starting photo upload for task:', task.id);
       
       // Upload to Supabase Storage
       const fileName = `task-proof-${task.id}-${Date.now()}.jpg`;
@@ -84,39 +73,36 @@ const TaskItem: React.FC<TaskItemProps> = ({
         .from('task-proofs')
         .upload(fileName, file, {
           contentType: 'image/jpeg',
-          upsert: true
+          cacheControl: '3600',
+          upsert: false
         });
 
       if (error) {
-        console.error('❌ Photo upload failed:', error);
-        alert('Error: ' + error.message);
+        console.error('❌ Photo upload error:', error);
+        alert('Failed to upload photo: ' + error.message);
         return;
       }
+
+      console.log('✅ Photo uploaded successfully:', data);
 
       // Get public URL
       const { data: { publicUrl } } = supabase.storage
         .from('task-proofs')
         .getPublicUrl(fileName);
 
-      console.log('✅ Photo uploaded successfully:', publicUrl);
-      alert('Upload success! Saving task...');
-
-      // Complete task with photo proof
-      if (onCompleteWithPhoto) {
-        onCompleteWithPhoto(publicUrl);
-      }
-
-    } catch (err) {
-      console.error('🚨 Unexpected error uploading photo:', err);
-      alert('Error: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      console.log('🔗 Public URL:', publicUrl);
+      alert('Photo uploaded successfully!');
+      onCompleteWithPhoto?.(publicUrl);
+      
+    } catch (error) {
+      console.error('❌ Photo upload error:', error);
+      alert('Failed to upload photo');
     } finally {
       setIsUploading(false);
     }
   };
 
-  // Trigger photo upload
   const triggerPhotoUpload = () => {
-    console.log('📸 Photo required, opening camera...');
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
@@ -164,23 +150,19 @@ const TaskItem: React.FC<TaskItemProps> = ({
                 Part of: {parentTask.description}
               </span>
             )}
-            {assigneeName && (
-              <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border border-blue-100">
-                <User className="w-3 h-3" />
-                {assigneeName}
-              </span>
-            )}
-            {assignerName && (
-              <span className="inline-flex items-center gap-1 bg-slate-50 text-slate-500 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border border-slate-200">
-                <UserCheck className="w-3 h-3 text-slate-400" />
-                By {assignerName}
-              </span>
-            )}
             {hasSubTasks && (
               <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${allSubTasksDone ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>
                 {completedSubTasks.length}/{subTasks.length} DONE
               </span>
             )}
+            {/* Minimal Assignment Info */}
+            <span className="text-[8px] text-gray-400 font-medium">
+              {assignerNameDisplay && assigneeNameDisplay ? 
+                `${assignerNameDisplay}→${assigneeNameDisplay}` : 
+                assignerNameDisplay ? `by ${assignerNameDisplay}` : 
+                assigneeNameDisplay ? `to ${assigneeNameDisplay}` : ''
+              }
+            </span>
           </div>
           
           <div className="flex items-start gap-2">
@@ -220,15 +202,6 @@ const TaskItem: React.FC<TaskItemProps> = ({
           </div>
         </div>
 
-        {/* Small Ticker / Footer */}
-        <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 mb-2">
-          <div className="text-xs text-gray-500 font-medium flex items-center gap-2">
-            <span>👤 {assignerNameDisplay}</span>
-            <span className="text-gray-400">➝</span>
-            <span>🎯 {assigneeNameDisplay || 'Unassigned'}</span>
-          </div>
-        </div>
-
         <div className="flex flex-col gap-2 shrink-0">
           {task.status === 'pending' && (
             <>
@@ -244,30 +217,28 @@ const TaskItem: React.FC<TaskItemProps> = ({
               {isManager && (
                 <>
                   <button 
-                    onClick={() => {
-                      console.log('🍴 Delegate clicked for:', task.id);
-                      console.log('🍴 onDelegate function exists:', typeof onDelegate === 'function');
-                      onDelegate?.();
-                    }}
-                    className="bg-amber-50 border border-amber-200 text-amber-700 px-4 py-2 rounded-xl font-bold text-[10px] uppercase shadow-sm active:scale-95 transition-all flex items-center justify-center gap-1.5"
-                    title="Create sub-task for someone else"
+                    onClick={onDelegate}
+                    className="bg-purple-600 text-white px-4 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all flex flex-col items-center justify-center min-w-[80px]"
+                    title="Delegate this task"
                   >
-                    <GitFork className="w-3.5 h-3.5" />
-                    Sub-Task
+                    <UserPlus className="w-5 h-5 mb-0.5" />
+                    <span className="text-[10px] font-black uppercase">Delegate</span>
                   </button>
                   
-                  <button 
-                    onClick={() => {
-                      console.log('➡️ Reassign clicked for:', task.id);
-                      console.log('➡️ onReassign function exists:', typeof onReassign === 'function');
-                      onReassign?.();
-                    }}
-                    className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-2 rounded-xl font-bold text-[10px] uppercase shadow-sm active:scale-95 transition-all flex items-center justify-center gap-1.5"
-                    title="Reassign this task to someone else"
-                  >
-                    <ArrowRight className="w-3.5 h-3.5" />
-                    Delegate
-                  </button>
+                  {canDelete && (
+                    <button 
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        console.log('🗑️ Delete clicked for:', task.id);
+                        console.log('🗑️ onDelete function exists:', typeof onDelete === 'function');
+                        onDelete?.(); 
+                      }}
+                      className="bg-red-50 text-red-400 p-2 rounded-xl active:scale-95 transition-all flex items-center justify-center hover:bg-red-100"
+                      title="Delete Task"
+                     >
+                       <Trash2 className="w-4 h-4" />
+                     </button>
+                  )}
                 </>
               )}
             </>
@@ -277,17 +248,14 @@ const TaskItem: React.FC<TaskItemProps> = ({
             <>
               {task.requirePhoto ? (
                 <button 
-                  onClick={() => {
-                    console.log('📸 Photo required, triggering upload...');
-                    triggerPhotoUpload();
-                  }}
+                  onClick={triggerPhotoUpload}
                   disabled={isUploading}
-                  className={`${isUploading ? 'bg-orange-500' : 'bg-green-600'} text-white px-4 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all flex flex-col items-center justify-center min-w-[80px]`}
-                  title="Photo proof required to complete"
+                  className="bg-green-600 text-white px-4 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all flex flex-col items-center justify-center min-w-[80px] disabled:opacity-50"
+                  title="Complete with photo proof"
                 >
                   {isUploading ? (
                     <>
-                      <div className="w-5 h-5 mb-0.5 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                      <div className="w-5 h-5 mb-0.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                       <span className="text-[10px] font-black uppercase">Uploading...</span>
                     </>
                   ) : (
@@ -299,12 +267,9 @@ const TaskItem: React.FC<TaskItemProps> = ({
                 </button>
               ) : (
                 <button 
-                  onClick={() => {
-                    console.log('✅ Completing task without photo...');
-                    onCompleteTaskWithoutPhoto?.();
-                  }}
+                  onClick={() => onCompleteTaskWithoutPhoto?.()}
                   className="bg-green-600 text-white px-4 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all flex flex-col items-center justify-center min-w-[80px]"
-                  title="Complete this task"
+                  title="Mark as completed"
                 >
                   <Check className="w-5 h-5 mb-0.5" />
                   <span className="text-[10px] font-black uppercase">Complete</span>
@@ -314,94 +279,55 @@ const TaskItem: React.FC<TaskItemProps> = ({
           )}
 
           {task.status === 'completed' && (
-            <button 
-              onClick={() => {
-                console.log('🔄 Reopen clicked for:', task.id);
-                console.log('🔄 onReopenTask function exists:', typeof onReopenTask === 'function');
-                onReopenTask?.();
-              }}
-              className="bg-amber-600 text-white px-4 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all flex flex-col items-center justify-center min-w-[80px]"
-              title="Reopen this task"
-            >
-              <RotateCcw className="w-5 h-5 mb-0.5" />
-              <span className="text-[10px] font-black uppercase">Reopen</span>
-            </button>
-          )}
-
-          {task.status === 'completed' && task.proof?.imageUrl && (
-            <div 
-              onClick={() => setShowFullImage(true)}
-              className="w-14 h-14 rounded-xl overflow-hidden border-2 border-green-200 cursor-pointer active:scale-90 transition-transform relative"
-            >
-              <img src={task.proof.imageUrl} alt="Proof" className="w-full h-full object-cover" />
-              <div className="absolute inset-0 bg-black/10 flex items-center justify-center">
-                <Maximize2 className="w-4 h-4 text-white drop-shadow" />
-              </div>
-            </div>
-          )}
-
-          {canDelete && (
-             <button 
-                onClick={(e) => { 
-                  e.stopPropagation(); 
-                  console.log('🗑️ Delete clicked for:', task.id);
-                  console.log('🗑️ onDelete function exists:', typeof onDelete === 'function');
-                  onDelete?.(); 
-                }}
-                className="bg-red-50 text-red-400 p-2 rounded-xl active:scale-95 transition-all flex items-center justify-center hover:bg-red-100"
-                title="Delete Task"
-             >
-               <Trash2 className="w-4 h-4" />
-             </button>
+            <>
+              {task.proof && (
+                <button 
+                  onClick={() => setShowFullImage(true)}
+                  className="bg-purple-100 text-purple-700 px-4 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all flex flex-col items-center justify-center min-w-[80px]"
+                  title="View proof"
+                >
+                  <Camera className="w-5 h-5 mb-0.5" />
+                  <span className="text-[10px] font-black uppercase">Proof</span>
+                </button>
+              )}
+              
+              {isManager && (
+                <button 
+                  onClick={onReopenTask}
+                  className="bg-amber-600 text-white px-4 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all flex flex-col items-center justify-center min-w-[80px]"
+                  title="Reopen this task"
+                >
+                  <RotateCcw className="w-5 h-5 mb-0.5" />
+                  <span className="text-[10px] font-black uppercase">Reopen</span>
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
 
-      {/* Sub-tasks Render - Recursive */}
-      {isExpanded && hasSubTasks && (
-        <div className="ml-6 space-y-2 border-l-2 border-slate-200 pl-4 animate-in slide-in-from-left-2 duration-200">
-          {subTasks.map(st => (
-            <TaskItem 
-              key={st.id}
-              task={st}
-              subTasks={[]} 
-              employees={employees}
-              currentUser={currentUser}
-              assigneeName={employees.find(e => e.id === st.assignedTo)?.name}
-              assignerName={employees.find(e => e.id === st.assignedBy)?.name}
-              onMarkComplete={() => onSubTaskComplete?.(st.id)} 
-              onDelegate={() => {}} 
-              onDelete={() => onDelete?.()}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* Full Screen Image Modal */}
-      {showFullImage && task.proof?.imageUrl && (
-        <div 
-          className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4"
-          onClick={() => setShowFullImage(false)}
-        >
-          <div className="relative w-full max-w-lg">
-            <img 
-              src={task.proof.imageUrl} 
-              alt="Proof Full Size" 
-              className="w-full h-auto rounded-lg shadow-2xl border-4 border-white/10"
-            />
-            <button 
-              className="absolute -top-12 right-0 text-white font-bold p-2 bg-white/10 rounded-full"
-              onClick={() => setShowFullImage(false)}
-            >
-              <Maximize2 className="w-6 h-6 rotate-45" />
-            </button>
-            <div className="text-white text-center mt-6 space-y-2">
-               <p className="font-bold text-xl tracking-tight">{task.description}</p>
-               <div className="flex flex-col items-center gap-1 text-xs opacity-60 font-medium">
-                 {assigneeName && <p>Completed by: {assigneeName}</p>}
-                 {assignerName && <p>Alloted by: {assignerName}</p>}
-                 {task.completedAt && <p>Verified on: {new Date(task.completedAt).toLocaleString()}</p>}
-               </div>
+      {/* Proof Image Modal */}
+      {showFullImage && task.proof && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-hidden">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+              <h3 className="font-semibold text-slate-800">Task Proof</h3>
+              <button 
+                onClick={() => setShowFullImage(false)}
+                className="p-1 hover:bg-slate-100 rounded-lg"
+              >
+                <X className="w-5 h-5 text-slate-500" />
+              </button>
+            </div>
+            <div className="p-4">
+              <img 
+                src={task.proof.imageUrl} 
+                alt="Task proof" 
+                className="w-full rounded-lg"
+              />
+              <p className="text-sm text-slate-500 mt-2">
+                Completed: {new Date(task.proof.timestamp).toLocaleString()}
+              </p>
             </div>
           </div>
         </div>
