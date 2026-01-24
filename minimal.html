@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minimal Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            margin: 0;
+            padding: 40px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            text-align: center;
+            background: rgba(255,255,255,0.1);
+            padding: 40px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+        }
+        h1 {
+            font-size: 3em;
+            margin-bottom: 20px;
+        }
+        .status {
+            font-size: 1.2em;
+            margin: 10px 0;
+        }
+        .success { color: #4ade80; }
+        .error { color: #f87171; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Universal Task App</h1>
+        <div id="status">
+            <div class="status">Initializing...</div>
+        </div>
+    </div>
+
+    <script>
+        console.log('🟢 Script loaded successfully');
+        
+        const statusDiv = document.getElementById('status');
+        
+        // Test basic functionality
+        try {
+            statusDiv.innerHTML += '<div class="status success">✅ HTML loaded</div>';
+            
+            // Test DOM manipulation
+            setTimeout(() => {
+                statusDiv.innerHTML += '<div class="status success">✅ JavaScript working</div>';
+                
+                // Test if we can fetch
+                fetch('/index.html')
+                    .then(() => {
+                        statusDiv.innerHTML += '<div class="status success">✅ Network working</div>';
+                        statusDiv.innerHTML += '<div class="status success">🎉 Basic deployment is working!</div>';
+                    })
+                    .catch(err => {
+                        statusDiv.innerHTML += '<div class="status error">❌ Network error: ' + err.message + '</div>';
+                    });
+            }, 1000);
+            
+        } catch (error) {
+            statusDiv.innerHTML += '<div class="status error">❌ Error: ' + error.message + '</div>';
+        }
+    </script>
+</body>
+</html>

@@ -1,76 +1,81 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Minimal Test</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0F172A">
+    <title>Universal Task App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         body {
-            font-family: Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            margin: 0;
-            padding: 40px;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            background-color: #0F172A;
         }
-        .container {
-            text-align: center;
-            background: rgba(255,255,255,0.1);
-            padding: 40px;
-            border-radius: 20px;
-            backdrop-filter: blur(10px);
+        .safe-bottom {
+            padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem);
         }
-        h1 {
-            font-size: 3em;
-            margin-bottom: 20px;
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
         }
-        .status {
-            font-size: 1.2em;
-            margin: 10px 0;
+        .animate-pulse-slow {
+            animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
-        .success { color: #4ade80; }
-        .error { color: #f87171; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+        
+        /* Fix for date/datetime inputs on mobile (iOS Safari) */
+        input[type="date"],
+        input[type="datetime-local"],
+        input[type="time"] {
+            -webkit-appearance: none !important;
+            -moz-appearance: none !important;
+            appearance: none !important;
+            background-color: #ffffff !important;
+            color: #1e293b !important;
+            font-size: 16px !important;
+            font-weight: 600 !important;
+            border: 2px solid #cbd5e1 !important;
+            min-height: 48px !important;
+            padding: 12px !important;
+        }
+        
+        input[type="date"]:focus,
+        input[type="datetime-local"]:focus,
+        input[type="time"]:focus {
+            border-color: #3b82f6 !important;
+            outline: none !important;
+        }
+        
+        /* Ensure date picker icon is visible on iOS */
+        input[type="date"]::-webkit-calendar-picker-indicator,
+        input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+            opacity: 1;
+            cursor: pointer;
+            filter: invert(0);
+            background: transparent;
+            color: #64748b;
+            font-size: 18px;
+        }
+        
+        /* Style the date value when shown */
+        input[type="datetime-local"]::-webkit-datetime-edit {
+            color: #1e293b;
+            font-weight: 600;
+        }
+        
+        input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
+            color: #1e293b;
+        }
     </style>
 </head>
-<body>
-    <div class="container">
-        <h1>🚀 Universal Task App</h1>
-        <div id="status">
-            <div class="status">Initializing...</div>
-        </div>
-    </div>
-
-    <script>
-        console.log('🟢 Script loaded successfully');
-        
-        const statusDiv = document.getElementById('status');
-        
-        // Test basic functionality
-        try {
-            statusDiv.innerHTML += '<div class="status success">✅ HTML loaded</div>';
-            
-            // Test DOM manipulation
-            setTimeout(() => {
-                statusDiv.innerHTML += '<div class="status success">✅ JavaScript working</div>';
-                
-                // Test if we can fetch
-                fetch('/index.html')
-                    .then(() => {
-                        statusDiv.innerHTML += '<div class="status success">✅ Network working</div>';
-                        statusDiv.innerHTML += '<div class="status success">🎉 Basic deployment is working!</div>';
-                    })
-                    .catch(err => {
-                        statusDiv.innerHTML += '<div class="status error">❌ Network error: ' + err.message + '</div>';
-                    });
-            }, 1000);
-            
-        } catch (error) {
-            statusDiv.innerHTML += '<div class="status error">❌ Error: ' + error.message + '</div>';
-        }
-    </script>
+<body class="bg-[#0F172A]">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
 </body>
 </html>
