@@ -1,20 +1,33 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Universal Task App
 
-# Run and deploy your AI Studio app
+## Deployment Status
+
+**Current Issue**: Blue screen on Vercel deployment
+
+### Test URLs
+- Main site: https://universal-task-app-final.vercel.app/
+- Static test: https://universal-task-app-final.vercel.app/static.html
+- Minimal test: https://universal-task-app-final.vercel.app/index-minimal.html
+
+### Troubleshooting Steps Taken
+1. ✅ Removed broken CSS links
+2. ✅ Removed import maps
+3. ✅ Added Supabase fallbacks
+4. ✅ Created minimal HTML test
+5. ✅ Removed all build configurations
+6. ✅ Simplified package.json
+
+### Next Steps
+If static.html works, the issue is with the main index.html configuration.
+If static.html doesn't work, it's a fundamental Vercel deployment issue.
+
+## Original Instructions
 
 This contains everything you need to run your app locally.
 
-View your app in AI Studio: https://ai.studio/apps/drive/1Klx3CZeGl3ereyi8zlswh_GwYzJqZ4Hb
+### Run Locally
+**Prerequisites:** Node.js
 
-## Run Locally
-
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+1. Install dependencies: `npm install`
+2. Set environment variables in .env.local
+3. Run the app: `npm run dev`
