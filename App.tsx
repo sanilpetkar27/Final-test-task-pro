@@ -29,6 +29,7 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [notification, setNotification] = useState<{ title: string, message: string } | null>(null);
+  const [syncCounter, setSyncCounter] = useState(0);
 
   // --- 2. UPDATED EMPLOYEES LIST (With Your Number) ---
   const DEFAULT_EMPLOYEES: Employee[] = [
@@ -126,8 +127,11 @@ const App: React.FC = () => {
     const pollingInterval = setInterval(() => {
       loadInitialData(true).then(data => {
         if (data) {
-          setEmployees(data.employees);
-          setTasks(data.tasks);
+          // Force re-render by creating new arrays
+          setEmployees([...data.employees]);
+          setTasks([...data.tasks]);
+          // Increment sync counter to force component re-render
+          setSyncCounter(prev => prev + 1);
           // Brief sync indicator
           setIsSyncing(true);
           setTimeout(() => setIsSyncing(false), 500);
@@ -685,6 +689,7 @@ const App: React.FC = () => {
 
         {activeTab === AppTab.TASKS && (
           <Dashboard
+            key={`dashboard-${syncCounter}`}
             tasks={tasks}
             employees={employees}
             currentUser={currentUser}
