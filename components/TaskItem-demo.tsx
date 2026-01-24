@@ -1,0 +1,326 @@
+import React, { useState } from 'react';
+import { DealershipTask, Employee } from '../types';
+import { Play, Check, RotateCcw, Trash2, UserPlus, Users, Camera, AlertTriangle, Clock, Check as CheckIcon, Layers, User, UserCheck, ChevronDown, ChevronRight, X } from 'lucide-react';
+
+interface TaskItemProps {
+  task: DealershipTask;
+  subTasks?: DealershipTask[];
+  parentTask?: DealershipTask;
+  employees: Employee[];
+  currentUser: Employee;
+  assigneeName?: string;
+  assignerName?: string;
+  onStartTask: () => void;
+  onReopenTask: () => void;
+  onCompleteTask: (proof: { imageUrl: string, timestamp: number }) => void;
+  onCompleteTaskWithoutPhoto: () => void;
+  onDelegate?: () => void;
+  onReassign?: () => void;
+  onDelete?: () => void;
+}
+
+const TaskItem: React.FC<TaskItemProps> = ({ 
+  task, 
+  subTasks = [], 
+  parentTask,
+  employees, 
+  currentUser, 
+  assigneeName, 
+  assignerName, 
+  onStartTask,
+  onReopenTask,
+  onCompleteTask,
+  onCompleteTaskWithoutPhoto,
+  onDelegate,
+  onReassign,
+  onDelete
+}) => {
+  const [showFullImage, setShowFullImage] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const isManager = currentUser.role === 'manager';
+  const canDelete = currentUser.id === task.assignedBy || isManager;
+  
+  const completedSubTasks = subTasks.filter(st => st.status === 'completed');
+  const hasSubTasks = subTasks.length > 0;
+  const allSubTasksDone = hasSubTasks && completedSubTasks.length === subTasks.length;
+  const isOverdue = task.status === 'pending' && task.deadline && Date.now() > task.deadline;
+
+  // Name lookup logic
+  const getEmployeeName = (employeeId: string | null | undefined) => {
+    if (!employeeId) return 'Unknown';
+    const employee = employees.find(emp => emp.id === employeeId);
+    return employee?.name || 'Unknown';
+  };
+
+  const assignerNameDisplay = getEmployeeName(task.assignedBy || task.assigner_id);
+  const assigneeNameDisplay = getEmployeeName(task.assignedTo || task.assignee_id);
+
+  // Mock photo upload for demo
+  const handlePhotoUpload = async (file: File) => {
+    setIsUploading(true);
+    try {
+      alert('Demo mode: Photo upload simulated');
+      console.log('📸 Demo photo upload for task:', task.id);
+      
+      // Simulate upload delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Mock public URL
+      const publicUrl = 'https://via.placeholder.com/300x200/4F46E5/FFFFFF?text=Demo+Photo';
+      
+      alert('Demo: Photo uploaded successfully!');
+      onCompleteTask({ imageUrl: publicUrl, timestamp: Date.now() });
+    } catch (error) {
+      console.error('Demo photo upload error:', error);
+      alert('Demo: Photo upload failed');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const triggerPhotoUpload = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.capture = 'environment';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        handlePhotoUpload(file);
+      }
+    };
+    input.click();
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className={`bg-white rounded-2xl p-4 shadow-sm border ${isOverdue ? 'border-red-500 bg-red-50' : (task.status === 'completed' ? 'border-green-100' : (task.status === 'in-progress' ? 'border-blue-500' : 'border-slate-200'))} flex items-center justify-between gap-4 transition-all relative overflow-hidden`}>
+        
+        {/* Overdue Warning Stripe */}
+        {isOverdue && <div className="absolute top-0 left-0 w-1 h-full bg-red-500" />}
+
+        <div className="flex-1 min-w-0 pl-1">
+          {/* Context Labels */}
+          <div className="flex flex-wrap items-center gap-2 mb-1.5">
+             {isOverdue && (
+              <span className="inline-flex items-center gap-1 bg-red-500 text-white px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider animate-pulse">
+                <AlertTriangle className="w-3 h-3" />
+                Overdue
+              </span>
+            )}
+            {task.status === 'in-progress' && (
+              <span className="inline-flex items-center gap-1 bg-blue-500 text-white px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider">
+                <Play className="w-3 h-3" />
+                In Progress
+              </span>
+            )}
+            {task.requirePhoto && (
+              <span className="inline-flex items-center gap-1 bg-purple-500 text-white px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider">
+                <Camera className="w-3 h-3" />
+                Photo Required
+              </span>
+            )}
+            {parentTask && (
+              <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider border border-amber-100">
+                <Layers className="w-2.5 h-2.5" />
+                Part of: {parentTask.description}
+              </span>
+            )}
+            {assigneeName && (
+              <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border border-blue-100">
+                <User className="w-3 h-3" />
+                {assigneeName}
+              </span>
+            )}
+            {assignerName && (
+              <span className="inline-flex items-center gap-1 bg-slate-50 text-slate-500 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border border-slate-200">
+                <UserCheck className="w-3 h-3 text-slate-400" />
+                By {assignerName}
+              </span>
+            )}
+            {hasSubTasks && (
+              <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${allSubTasksDone ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>
+                {completedSubTasks.length}/{subTasks.length} DONE
+              </span>
+            )}
+          </div>
+          
+          <div className="flex items-start gap-2">
+            <p className={`text-base font-semibold break-words leading-tight flex-1 ${task.status === 'completed' ? 'text-slate-400 line-through decoration-slate-300' : (isOverdue ? 'text-red-700' : 'text-slate-800')}`}>
+              {task.description}
+            </p>
+            {hasSubTasks && (
+              <button 
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="p-1 hover:bg-slate-50 rounded-lg text-slate-400"
+              >
+                {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+            <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">
+              Created: {new Date(task.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+            
+            {task.deadline && task.status === 'pending' && (
+               <span className={`flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest ${isOverdue ? 'text-red-600' : 'text-amber-600'}`}>
+                 <Clock className="w-3 h-3" />
+                 Due: {new Date(task.deadline).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'})}
+               </span>
+            )}
+
+            {task.status === 'completed' && task.completedAt && (
+              <div className="flex items-center gap-1">
+                <CheckIcon className="w-3 h-3 text-green-500" />
+                <span className="text-[10px] text-green-500 font-black uppercase tracking-tighter">
+                  VERIFIED
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Small Ticker / Footer */}
+        <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 mb-2">
+          <div className="text-xs text-gray-500 font-medium flex items-center gap-2">
+            <span>👤 {assignerNameDisplay}</span>
+            <span className="text-gray-400">➝</span>
+            <span>🎯 {assigneeNameDisplay || 'Unassigned'}</span>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2 shrink-0">
+          {task.status === 'pending' && (
+            <>
+              <button 
+                onClick={onStartTask}
+                className="bg-blue-600 text-white px-4 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all flex flex-col items-center justify-center min-w-[80px]"
+                title="Start working on this task"
+              >
+                <Play className="w-5 h-5 mb-0.5" />
+                <span className="text-[10px] font-black uppercase">Start</span>
+              </button>
+              
+              {isManager && (
+                <>
+                  <button 
+                    onClick={onDelegate}
+                    className="bg-purple-600 text-white px-4 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all flex flex-col items-center justify-center min-w-[80px]"
+                    title="Delegate this task"
+                  >
+                    <UserPlus className="w-5 h-5 mb-0.5" />
+                    <span className="text-[10px] font-black uppercase">Delegate</span>
+                  </button>
+                  
+                  {canDelete && (
+                    <button 
+                      onClick={onDelete}
+                      className="bg-red-600 text-white px-4 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all flex flex-col items-center justify-center min-w-[80px]"
+                      title="Delete this task"
+                    >
+                      <Trash2 className="w-5 h-5 mb-0.5" />
+                      <span className="text-[10px] font-black uppercase">Delete</span>
+                    </button>
+                  )}
+                </>
+              )}
+            </>
+          )}
+
+          {task.status === 'in-progress' && (
+            <>
+              {task.requirePhoto ? (
+                <button 
+                  onClick={triggerPhotoUpload}
+                  disabled={isUploading}
+                  className="bg-green-600 text-white px-4 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all flex flex-col items-center justify-center min-w-[80px] disabled:opacity-50"
+                  title="Complete with photo proof"
+                >
+                  {isUploading ? (
+                    <>
+                      <div className="w-5 h-5 mb-0.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span className="text-[10px] font-black uppercase">Uploading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Camera className="w-5 h-5 mb-0.5" />
+                      <span className="text-[10px] font-black uppercase">Complete</span>
+                    </>
+                  )}
+                </button>
+              ) : (
+                <button 
+                  onClick={() => onCompleteTaskWithoutPhoto()}
+                  className="bg-green-600 text-white px-4 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all flex flex-col items-center justify-center min-w-[80px]"
+                  title="Mark as completed"
+                >
+                  <Check className="w-5 h-5 mb-0.5" />
+                  <span className="text-[10px] font-black uppercase">Complete</span>
+                </button>
+              )}
+            </>
+          )}
+
+          {task.status === 'completed' && (
+            <>
+              {task.proof && (
+                <button 
+                  onClick={() => setShowFullImage(true)}
+                  className="bg-purple-100 text-purple-700 px-4 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all flex flex-col items-center justify-center min-w-[80px]"
+                  title="View proof"
+                >
+                  <Camera className="w-5 h-5 mb-0.5" />
+                  <span className="text-[10px] font-black uppercase">Proof</span>
+                </button>
+              )}
+              
+              {isManager && (
+                <button 
+                  onClick={onReopenTask}
+                  className="bg-amber-600 text-white px-4 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all flex flex-col items-center justify-center min-w-[80px]"
+                  title="Reopen this task"
+                >
+                  <RotateCcw className="w-5 h-5 mb-0.5" />
+                  <span className="text-[10px] font-black uppercase">Reopen</span>
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Proof Image Modal */}
+      {showFullImage && task.proof && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-hidden">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+              <h3 className="font-semibold text-slate-800">Task Proof</h3>
+              <button 
+                onClick={() => setShowFullImage(false)}
+                className="p-1 hover:bg-slate-100 rounded-lg"
+              >
+                <X className="w-5 h-5 text-slate-500" />
+              </button>
+            </div>
+            <div className="p-4">
+              <img 
+                src={task.proof.imageUrl} 
+                alt="Task proof" 
+                className="w-full rounded-lg"
+              />
+              <p className="text-sm text-slate-500 mt-2">
+                Completed: {new Date(task.proof.timestamp).toLocaleString()}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default TaskItem;
