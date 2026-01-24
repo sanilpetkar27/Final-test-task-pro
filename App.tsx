@@ -122,54 +122,22 @@ const App: React.FC = () => {
       }
     });
 
-    // Polling Interval: Silent refresh every 2 seconds
+    // Polling Interval: Simple refresh every 3 seconds for real-time sync
     const pollingInterval = setInterval(() => {
       loadInitialData(true).then(data => {
         if (data) {
           setEmployees(data.employees);
           setTasks(data.tasks);
+          // Brief sync indicator
+          setIsSyncing(true);
+          setTimeout(() => setIsSyncing(false), 500);
         }
       });
-    }, 2000);
+    }, 3000);
 
-    // Realtime Listeners: Keep as backup
-    const tasksChannel = supabase
-      .channel('tasks-sync')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'tasks'
-      }, () => {
-        loadInitialData(true).then(data => {
-          if (data) {
-            setEmployees(data.employees);
-            setTasks(data.tasks);
-          }
-        });
-      })
-      .subscribe();
-
-    const employeesChannel = supabase
-      .channel('employees-sync')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'employees'
-      }, () => {
-        loadInitialData(true).then(data => {
-          if (data) {
-            setEmployees(data.employees);
-            setTasks(data.tasks);
-          }
-        });
-      })
-      .subscribe();
-
-    // Cleanup: Clear all intervals and channels on unmount
+    // Cleanup: Clear interval on unmount
     return () => {
       clearInterval(pollingInterval);
-      supabase.removeChannel(tasksChannel);
-      supabase.removeChannel(employeesChannel);
     };
   }, []);
 
@@ -682,8 +650,10 @@ const App: React.FC = () => {
           <div>
             <h1 className="text-lg font-black tracking-tighter italic leading-none">Universal Tasker</h1>
             <div className="flex items-center gap-1.5 mt-1">
-              <div className={`w-1.5 h-1.5 rounded-full bg-emerald-500`} />
-              <span className="text-[7px] font-black uppercase tracking-widest text-slate-400">Online</span>
+              <div className={`w-1.5 h-1.5 rounded-full ${isSyncing ? 'bg-blue-500 animate-pulse' : 'bg-emerald-500'}`} />
+              <span className="text-[7px] font-black uppercase tracking-widest text-slate-400">
+                {isSyncing ? 'Syncing...' : 'Online'}
+              </span>
             </div>
           </div>
         </div>
