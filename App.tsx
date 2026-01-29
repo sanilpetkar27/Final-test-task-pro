@@ -131,6 +131,9 @@ const App: React.FC = () => {
           setEmployees(data.employees);
           setTasks(data.tasks);
           
+          // Force a minimal re-render by updating a timestamp
+          setSyncCounter(prev => prev + 1);
+          
           // Brief sync indicator
           setIsSyncing(true);
           setTimeout(() => setIsSyncing(false), 500);
@@ -688,6 +691,7 @@ const App: React.FC = () => {
 
         {activeTab === AppTab.TASKS && (
           <Dashboard
+            key={`dashboard-${syncCounter}`}
             tasks={tasks}
             employees={employees}
             currentUser={currentUser}
