@@ -74,10 +74,11 @@ const App: React.FC = () => {
         .from('employees')
         .select('*');
 
-      // Fetch tasks from Supabase
+      // Fetch tasks from Supabase (newest first)
       const { data: tasksData, error: tasksError } = await supabase
         .from('tasks')
-        .select('*');
+        .select('*')
+        .order('created_at', { ascending: false });
 
       // Check if we have valid data or if there were errors
       // If errors or empty data, use defaults
@@ -87,7 +88,7 @@ const App: React.FC = () => {
 
       const finalTasks = (tasksData && tasksData.length > 0)
         ? tasksData
-        : DEFAULT_TASKS;
+        : DEFAULT_TASKS.sort((a, b) => b.createdAt - a.createdAt); // Newest first
 
       if (employeesError || tasksError) {
         console.warn('⚠️ using fallback data due to Supabase error');
