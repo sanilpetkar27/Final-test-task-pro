@@ -127,12 +127,18 @@ const App: React.FC = () => {
     const pollingInterval = setInterval(() => {
       loadInitialData(true).then(data => {
         if (data) {
-          // Always update the data to ensure React detects changes
+          // Check if data actually changed
+          const currentTasksStr = JSON.stringify(tasks);
+          const newTasksStr = JSON.stringify(data.tasks);
+          
+          // Always update data for React state
           setEmployees(data.employees);
           setTasks(data.tasks);
           
-          // Force a minimal re-render by updating a timestamp
-          setSyncCounter(prev => prev + 1);
+          // Only force re-render if data actually changed
+          if (currentTasksStr !== newTasksStr) {
+            setSyncCounter(prev => prev + 1);
+          }
           
           // Brief sync indicator
           setIsSyncing(true);
