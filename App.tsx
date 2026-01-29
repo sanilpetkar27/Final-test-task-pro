@@ -123,7 +123,7 @@ const App: React.FC = () => {
       }
     });
 
-    // Polling Interval: Simple refresh every 3 seconds for real-time sync
+    // Polling Interval: Refresh every 20 seconds for real-time sync
     const pollingInterval = setInterval(() => {
       loadInitialData(true).then(data => {
         if (data) {
@@ -135,7 +135,7 @@ const App: React.FC = () => {
           setEmployees(data.employees);
           setTasks(data.tasks);
           
-          // Only force re-render if data actually changed
+          // Only force re-render if data actually changed (20 sec interval prevents typing issues)
           if (currentTasksStr !== newTasksStr) {
             setSyncCounter(prev => prev + 1);
           }
@@ -145,7 +145,7 @@ const App: React.FC = () => {
           setTimeout(() => setIsSyncing(false), 500);
         }
       });
-    }, 3000);
+    }, 20000); // 20 seconds
 
     // Cleanup: Clear interval on unmount
     return () => {
