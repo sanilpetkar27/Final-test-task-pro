@@ -78,7 +78,7 @@ const App: React.FC = () => {
       const { data: tasksData, error: tasksError } = await supabase
         .from('tasks')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('createdAt', { ascending: false });
 
       // Check if we have valid data or if there were errors
       // If errors or empty data, use defaults
@@ -88,7 +88,7 @@ const App: React.FC = () => {
 
       const finalTasks = (tasksData && tasksData.length > 0)
         ? tasksData
-        : DEFAULT_TASKS.sort((a, b) => b.createdAt - a.createdAt); // Newest first
+        : DEFAULT_TASKS;
 
       if (employeesError || tasksError) {
         console.warn('⚠️ using fallback data due to Supabase error');
@@ -124,33 +124,57 @@ const App: React.FC = () => {
       }
     });
 
-    // Polling Interval: Refresh every 20 seconds for real-time sync
-    const pollingInterval = setInterval(() => {
-      loadInitialData(true).then(data => {
-        if (data) {
-          // Check if data actually changed
-          const currentTasksStr = JSON.stringify(tasks);
-          const newTasksStr = JSON.stringify(data.tasks);
+    // Supabase Realtime Subscription for instant updates
+    const tasksSubscription = supabase
+      .channel('tasks-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'tasks'
+        },
+        async (payload) => {
+          console.log('� Realtime update received:', payload.eventType, payload.new?.id);
           
-          // Always update data for React state
-          setEmployees(data.employees);
-          setTasks(data.tasks);
-          
-          // Only force re-render if data actually changed (20 sec interval prevents typing issues)
-          if (currentTasksStr !== newTasksStr) {
-            setSyncCounter(prev => prev + 1);
+          if (payload.eventType === 'INSERT') {
+            // New task added - fetch fresh data and merge
+            const { data: newTask } = await supabase
+              .from('tasks')
+              .select('*')
+              .eq('id', payload.new.id)
+              .single();
+            
+            if (newTask) {
+              setTasks(prev => [newTask, ...prev]);
+              console.log('✅ New task added to state');
+            }
+          } else if (payload.eventType === 'UPDATE') {
+            // Task updated - fetch fresh data and merge
+            const { data: updatedTask } = await supabase
+              .from('tasks')
+              .select('*')
+              .eq('id', payload.new.id)
+              .single();
+            
+            if (updatedTask) {
+              setTasks(prev => prev.map(task => 
+                task.id === updatedTask.id ? updatedTask : task
+              ));
+              console.log('✅ Task updated in state');
+            }
+          } else if (payload.eventType === 'DELETE') {
+            // Task deleted - remove from state
+            setTasks(prev => prev.filter(task => task.id !== payload.old.id));
+            console.log('✅ Task removed from state');
           }
-          
-          // Brief sync indicator
-          setIsSyncing(true);
-          setTimeout(() => setIsSyncing(false), 500);
         }
-      });
-    }, 20000); // 20 seconds
+      )
+      .subscribe();
 
-    // Cleanup: Clear interval on unmount
+    // Cleanup: Remove subscription on unmount
     return () => {
-      clearInterval(pollingInterval);
+      supabase.removeChannel(tasksSubscription);
     };
   }, []);
 

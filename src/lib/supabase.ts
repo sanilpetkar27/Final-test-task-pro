@@ -50,11 +50,23 @@ const createMockClient = () => {
         })
       })
     }),
-    channel: () => ({
-      on: () => ({ 
-        subscribe: () => ({}) 
-      })
-    }),
+    channel: (channelName: string) => {
+      console.log('📡 Mock channel created:', channelName);
+      return {
+        on: (event: string, config: any, callback?: Function) => {
+          console.log('📡 Mock subscription setup:', event, config);
+          // Simulate a subscription that does nothing
+          return {
+            subscribe: () => {
+              console.log('📡 Mock subscription active');
+              return {
+                unsubscribe: () => console.log('📡 Mock subscription unsubscribed')
+              };
+            }
+          };
+        }
+      };
+    },
     removeChannel: () => {},
     storage: {
       from: () => ({
