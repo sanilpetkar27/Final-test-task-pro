@@ -23,14 +23,50 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, onAddTask, onStartTask, onReopenTask, onCompleteTask, onCompleteTaskWithoutPhoto, onReassignTask, onDeleteTask }) => {
   const [view, setView] = useState<'pending' | 'in-progress' | 'completed'>('pending');
-  const [newTaskDesc, setNewTaskDesc] = useState('');
-  const [assigneeId, setAssigneeId] = useState('none');
-  const [deadline, setDeadline] = useState('');
-  const [requirePhoto, setRequirePhoto] = useState(false);
+  
+  // Form state with localStorage persistence
+  const [newTaskDesc, setNewTaskDesc] = useState(() => {
+    return localStorage.getItem('task_form_desc') || '';
+  });
+  const [assigneeId, setAssigneeId] = useState(() => {
+    return localStorage.getItem('task_form_assignee') || 'none';
+  });
+  const [deadline, setDeadline] = useState(() => {
+    return localStorage.getItem('task_form_deadline') || '';
+  });
+  const [requirePhoto, setRequirePhoto] = useState(() => {
+    return localStorage.getItem('task_form_photo') === 'true';
+  });
+  
+  // Persist form state to localStorage
+  useEffect(() => {
+    localStorage.setItem('task_form_desc', newTaskDesc);
+  }, [newTaskDesc]);
+  
+  useEffect(() => {
+    localStorage.setItem('task_form_assignee', assigneeId);
+  }, [assigneeId]);
+  
+  useEffect(() => {
+    localStorage.setItem('task_form_deadline', deadline);
+  }, [deadline]);
+  
+  useEffect(() => {
+    localStorage.setItem('task_form_photo', String(requirePhoto));
+  }, [requirePhoto]);
+  
+  const clearForm = () => {
+    setNewTaskDesc('');
+    setAssigneeId('none');
+    setDeadline('');
+    setRequirePhoto(false);
+    localStorage.removeItem('task_form_desc');
+    localStorage.removeItem('task_form_assignee');
+    localStorage.removeItem('task_form_deadline');
+    localStorage.removeItem('task_form_photo');
+  };
   const [directEmployees, setDirectEmployees] = useState<Employee[]>([]);
   const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
-  const [directTasks, setDirectTasks] = useState<DealershipTask[]>([]);
-  const [isLoadingTasks, setIsLoadingTasks] = useState(true);
   const [selectedPersonFilter, setSelectedPersonFilter] = useState('ALL');
   
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
@@ -75,12 +111,12 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
           console.error('❌ Dashboard: Failed to fetch tasks:', error);
         } else {
           console.log('✅ Dashboard: Successfully fetched tasks:', data);
-          setDirectTasks(data || []);
+          // setTasks(data || []);
         }
       } catch (err) {
         console.error('🚨 Dashboard: Unexpected error fetching tasks:', err);
       } finally {
-        setIsLoadingTasks(false);
+        // setIsLoadingTasks(false);
       }
     };
 
@@ -133,17 +169,14 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
         console.log('✅ Task created successfully:', data);
         // Update local state immediately
         if (data && data.length > 0) {
-          setDirectTasks(prev => [data[0], ...prev]);
+          // setTasks(prev => [data[0], ...prev]);
         }
         
         // Auto-reset filter to show new task
         setSelectedPersonFilter('ALL');
         
-        // Reset form
-        setNewTaskDesc('');
-        setAssigneeId('none');
-        setDeadline('');
-        setRequirePhoto(false);
+        // Reset form and clear localStorage
+        clearForm();
       }
     } catch (err) {
       console.error('🚨 Unexpected error creating task:', err);
@@ -176,7 +209,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
         console.log('✅ Delegated task created successfully:', data);
         // Update local state immediately
         if (data && data.length > 0) {
-          setDirectTasks(prev => [data[0], ...prev]);
+          // setTasks(prev => [data[0], ...prev]);
         }
         
         // Auto-reset filter to show new task
@@ -219,15 +252,13 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
         
         // Award points for completed tasks
         if (newStatus === 'completed') {
-          // Find task to get assignee info
-          const completedTask = directTasks.find(t => t.id === taskId);
-          console.log('Task Object:', completedTask); // Loud debugging
+          const completedTask = tasks.find(t => t.id === taskId);
+          console.log('Task Object:', completedTask);
           
-          const assigneeId = completedTask?.assignee_id || completedTask?.assignedTo;
+          const assigneeId = completedTask?.assignedTo;
           if (assigneeId) {
             console.log(`🏆 Awarding 10 points to user: ${assigneeId}`);
             
-            // Call RPC function to increment points in database
             const { error: pointsError } = await supabase.rpc('increment_points', { 
               user_id: assigneeId, 
               amount: 10 
@@ -235,12 +266,10 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
             
             if (pointsError) {
               console.error('❌ Failed to award points:', pointsError);
-              // Don't alert for points error - task completion is more important
             } else {
               console.log('✅ Points awarded successfully');
-              alert('Points awarded!'); // Loud debugging
+              alert('Points awarded!');
               
-              // Update local leaderboard instantly
               setDirectEmployees(prev => prev.map(emp => 
                 emp.id === assigneeId 
                   ? { ...emp, points: (emp.points || 0) + 10 }
@@ -250,17 +279,18 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
           }
         }
         
-        // Update local state immediately for instant UI response
-        setDirectTasks(prev => prev.map(task => 
-          task.id === taskId ? { 
-            ...task, 
-            status: newStatus,
-            ...(proofUrl ? { 
-              completedAt: Date.now(),
-              proof: { imageUrl: proofUrl, timestamp: Date.now() }
-            } : {})
-          } : task
-        ));
+        // Call parent handler to update global state
+        if (newStatus === 'in-progress') {
+          onStartTask(taskId);
+        } else if (newStatus === 'completed') {
+          if (proofUrl) {
+            onCompleteTask(taskId, { imageUrl: proofUrl, timestamp: Date.now() });
+          } else {
+            onCompleteTaskWithoutPhoto(taskId);
+          }
+        } else if (newStatus === 'pending') {
+          onReopenTask(taskId);
+        }
       }
     } catch (err) {
       console.error('🚨 Unexpected error updating task:', err);
@@ -286,15 +316,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
         alert(`Photo Completion Error: ${error.message}`);
       } else {
         console.log('✅ Task completed with photo successfully');
-        // Update local state immediately for instant UI response
-        setDirectTasks(prev => prev.map(task => 
-          task.id === taskId ? { 
-            ...task, 
-            status: 'completed',
-            completedAt: Date.now(),
-            proof: { imageUrl: photoUrl, timestamp: Date.now() }
-          } : task
-        ));
+        onCompleteTask(taskId, { imageUrl: photoUrl, timestamp: Date.now() });
       }
     } catch (err) {
       console.error('🚨 Unexpected error completing task with photo:', err);
@@ -316,8 +338,8 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
         alert(`Delete Error: ${error.message}`);
       } else {
         console.log('✅ Task deleted successfully');
-        // Remove from local state immediately for instant UI response
-        setDirectTasks(prev => prev.filter(task => task.id !== taskId));
+        // Call parent handler to update global state
+        onDeleteTask(taskId);
       }
     } catch (err) {
       console.error('🚨 Unexpected error deleting task:', err);
@@ -326,17 +348,17 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   };
 
   console.log("📋 Dashboard - Current User:", currentUser.name, currentUser.role);
-  console.log("📋 Dashboard - Total tasks from database:", directTasks.length);
-  console.log("📋 Dashboard - All tasks detail:", directTasks.map(t => ({ 
+  console.log("📋 Dashboard - Total tasks from database:", tasks.length);
+  console.log("📋 Dashboard - All tasks detail:", tasks.map(t => ({ 
     id: t.id, 
     desc: t.description, 
     assignedTo: directEmployees.find(e => e.id === t.assignedTo)?.name || 'Unassigned',
     assignedBy: directEmployees.find(e => e.id === t.assignedBy)?.name || 'Unknown'
   })));
 
-  const pendingTasks = directTasks.filter(t => t.status === 'pending');
-  const inProgressTasks = directTasks.filter(t => t.status === 'in-progress');
-  const completedTasks = directTasks.filter(t => t.status === 'completed');
+  const pendingTasks = tasks.filter(t => t.status === 'pending');
+  const inProgressTasks = tasks.filter(t => t.status === 'in-progress');
+  const completedTasks = tasks.filter(t => t.status === 'completed');
 
   // Person Filter Logic
   // Get filter options based on user role
@@ -350,7 +372,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
       }));
     } else {
       // Staff can filter by managers (assigners)
-      const uniqueManagers = directTasks
+      const uniqueManagers = tasks
         .filter(task => task.assignedBy)
         .map(task => task.assignedBy!)
         .filter((managerId, index, self) => self.indexOf(managerId) === index) // unique
@@ -514,8 +536,8 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
           <TaskItem 
             key={task.id} 
             task={task} 
-            subTasks={directTasks.filter(t => t.parentTaskId === task.id)}
-            parentTask={directTasks.find(t => t.id === task.parentTaskId)}
+            subTasks={tasks.filter(t => t.parentTaskId === task.id)}
+            parentTask={tasks.find(t => t.id === task.parentTaskId)}
             employees={directEmployees}
             currentUser={currentUser}
             onMarkComplete={() => updateTaskStatus(task.id, 'completed')}

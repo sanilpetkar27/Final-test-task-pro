@@ -29,7 +29,7 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [notification, setNotification] = useState<{ title: string, message: string } | null>(null);
-  const [syncCounter, setSyncCounter] = useState(0);
+  const [lastSyncTime, setLastSyncTime] = useState<number>(Date.now());
 
   // --- 2. UPDATED EMPLOYEES LIST (With Your Number) ---
   const DEFAULT_EMPLOYEES: Employee[] = [
@@ -116,7 +116,7 @@ const App: React.FC = () => {
 
   // --- ROBUST SYNCHRONIZATION EFFECT ---
   useEffect(() => {
-    // Initial Load: Show spinner initially and set state
+    // Initial Load
     loadInitialData(false).then(data => {
       if (data) {
         setEmployees(data.employees);
@@ -124,58 +124,52 @@ const App: React.FC = () => {
       }
     });
 
-    // Supabase Realtime Subscription for instant updates
-    const tasksSubscription = supabase
-      .channel('tasks-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'tasks'
-        },
-        async (payload) => {
-          console.log('� Realtime update received:', payload.eventType, payload.new?.id);
-          
-          if (payload.eventType === 'INSERT') {
-            // New task added - fetch fresh data and merge
-            const { data: newTask } = await supabase
-              .from('tasks')
-              .select('*')
-              .eq('id', payload.new.id)
-              .single();
-            
-            if (newTask) {
-              setTasks(prev => [newTask, ...prev]);
-              console.log('✅ New task added to state');
-            }
-          } else if (payload.eventType === 'UPDATE') {
-            // Task updated - fetch fresh data and merge
-            const { data: updatedTask } = await supabase
-              .from('tasks')
-              .select('*')
-              .eq('id', payload.new.id)
-              .single();
-            
-            if (updatedTask) {
-              setTasks(prev => prev.map(task => 
-                task.id === updatedTask.id ? updatedTask : task
-              ));
-              console.log('✅ Task updated in state');
-            }
-          } else if (payload.eventType === 'DELETE') {
-            // Task deleted - remove from state
-            setTasks(prev => prev.filter(task => task.id !== payload.old.id));
-            console.log('✅ Task removed from state');
-          }
-        }
-      )
-      .subscribe();
+    // Smart Sync: Check for changes every 3 seconds without disrupting UI
+    const syncInterval = setInterval(async () => {
+      try {
+        const { data: freshTasks, error } = await supabase
+          .from('tasks')
+          .select('*')
+          .order('createdAt', { ascending: false });
+        
+        if (error || !freshTasks) return;
 
-    // Cleanup: Remove subscription on unmount
-    return () => {
-      supabase.removeChannel(tasksSubscription);
-    };
+        // Compare with current tasks - only update if different
+        setTasks(prev => {
+          // Check if counts differ
+          if (prev.length !== freshTasks.length) {
+            console.log('📊 New task detected, updating...');
+            setLastSyncTime(Date.now());
+            return freshTasks;
+          }
+          
+          // Check if first task (newest) is different
+          if (prev[0]?.id !== freshTasks[0]?.id) {
+            console.log('📊 New task at top, updating...');
+            setLastSyncTime(Date.now());
+            return freshTasks;
+          }
+          
+          // Check for status changes
+          const hasChanges = freshTasks.some((freshTask, index) => {
+            const prevTask = prev.find(p => p.id === freshTask.id);
+            return !prevTask || prevTask.status !== freshTask.status;
+          });
+          
+          if (hasChanges) {
+            console.log('📊 Task status changed, updating...');
+            setLastSyncTime(Date.now());
+            return freshTasks;
+          }
+          
+          return prev; // No changes, keep current state
+        });
+      } catch (err) {
+        console.log('⚠️ Sync check failed:', err);
+      }
+    }, 3000); // Check every 3 seconds
+
+    return () => clearInterval(syncInterval);
   }, []);
 
   // --- 3. EFFECTS (Notifications & Auto-Save) ---
@@ -722,7 +716,6 @@ const App: React.FC = () => {
 
         {activeTab === AppTab.TASKS && (
           <Dashboard
-            key={`dashboard-${syncCounter}`}
             tasks={tasks}
             employees={employees}
             currentUser={currentUser}
