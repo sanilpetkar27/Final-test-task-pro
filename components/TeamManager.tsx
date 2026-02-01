@@ -19,33 +19,8 @@ const TeamManager: React.FC<TeamManagerProps> = ({ employees, onAddEmployee, onR
   const [targetPoints, setTargetPoints] = useState(rewardConfig.targetPoints.toString());
   const [rewardName, setRewardName] = useState(rewardConfig.rewardName);
   const [connectionError, setConnectionError] = useState<string | null>(null);
-  const [teamMembers, setTeamMembers] = useState<Employee[]>([]);
 
-  // Fetch team members on mount
-  useEffect(() => {
-    const fetchTeamMembers = async () => {
-      try {
-        console.log('🔍 Fetching team members...');
-        const { data, error } = await supabase
-          .from('employees')
-          .select('*');
-        
-        if (error) {
-          console.error('❌ Failed to fetch team members:', error);
-          setConnectionError(`Error: ${JSON.stringify(error, null, 2)}`);
-        } else {
-          console.log('✅ Successfully fetched team members:', data);
-          setTeamMembers(data || []);
-          setConnectionError(null);
-        }
-      } catch (err) {
-        console.error('🚨 Unexpected Error fetching team members:', err);
-        setConnectionError(`Unexpected: ${err instanceof Error ? err.message : 'Unknown error'}`);
-      }
-    };
-
-    fetchTeamMembers();
-  }, []);
+  // Use employees prop from parent (App.tsx)
 
   const handleRefresh = () => {
     window.location.reload();
@@ -56,8 +31,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({ employees, onAddEmployee, onR
       console.log('🔍 Testing database connection...');
       const { data, error } = await supabase
         .from('employees')
-        .select('*')
-        .limit(1); // Just test with 1 record
+        .select('*');
       
       if (error) {
         console.error('❌ Connection Test Failed:', error);
@@ -101,7 +75,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({ employees, onAddEmployee, onR
   };
 
   // Sort employees by points for leaderboard
-  const sortedEmployees = [...teamMembers].sort((a, b) => b.points - a.points);
+  const sortedEmployees = [...employees].sort((a, b) => b.points - a.points);
 
   return (
     <div className="space-y-6">
@@ -207,7 +181,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({ employees, onAddEmployee, onR
           <Medal className="w-4 h-4 text-amber-500" />
           Points Leaderboard
         </h3>
-        {teamMembers.length > 0 ? (
+        {employees.length > 0 ? (
           <div className="space-y-2">
             {sortedEmployees.map((emp, index) => (
               <div 
@@ -269,9 +243,9 @@ const TeamManager: React.FC<TeamManagerProps> = ({ employees, onAddEmployee, onR
           </div>
         )}
         
-        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider px-1">Registered Team ({teamMembers.length})</h3>
-        {teamMembers.length > 0 ? (
-          teamMembers.map((emp) => (
+        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider px-1">Registered Team ({employees.length})</h3>
+        {employees.length > 0 ? (
+          employees.map((emp) => (
             <div 
               key={emp.id} 
               className="bg-white p-4 rounded-2xl border border-slate-200 flex items-center justify-between group transition-all active:bg-slate-50"
@@ -313,10 +287,10 @@ const TeamManager: React.FC<TeamManagerProps> = ({ employees, onAddEmployee, onR
           <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Database Status</h4>
           <div className="space-y-1">
             <p className="text-sm text-green-400">
-              Connected to Database: {teamMembers.length > 0 ? 'Yes' : 'No'}
+              Connected to Database: {employees.length > 0 ? 'Yes' : 'No'}
             </p>
             <p className="text-sm text-slate-300">
-              Total Staff: {teamMembers.length}
+              Total Staff: {employees.length}
             </p>
           </div>
         </div>
