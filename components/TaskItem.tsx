@@ -44,7 +44,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const [isExpanded, setIsExpanded] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
-  const isManager = currentUser.role === 'manager';
+  const isManager = currentUser.role === 'manager' || currentUser.role === 'super_admin';
   const canDelete = currentUser.id === task.assignedBy || isManager;
   
   const completedSubTasks = subTasks.filter(st => st.status === 'completed');
@@ -292,14 +292,31 @@ const TaskItem: React.FC<TaskItemProps> = ({
               )}
               
               {isManager && (
-                <button 
-                  onClick={onReopenTask}
-                  className="bg-amber-600 text-white px-4 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all flex flex-col items-center justify-center min-w-[80px]"
-                  title="Reopen this task"
-                >
-                  <RotateCcw className="w-5 h-5 mb-0.5" />
-                  <span className="text-[10px] font-black uppercase">Reopen</span>
-                </button>
+                <>
+                  <button 
+                    onClick={onReopenTask}
+                    className="bg-amber-600 text-white px-4 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all flex flex-col items-center justify-center min-w-[80px]"
+                    title="Reopen this task"
+                  >
+                    <RotateCcw className="w-5 h-5 mb-0.5" />
+                    <span className="text-[10px] font-black uppercase">Reopen</span>
+                  </button>
+                  
+                  {canDelete && (
+                    <button 
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        console.log('🗑️ Delete clicked for completed task:', task.id);
+                        console.log('🗑️ onDelete function exists:', typeof onDelete === 'function');
+                        onDelete?.(); 
+                      }}
+                      className="bg-red-50 text-red-400 p-2 rounded-xl active:scale-95 transition-all flex items-center justify-center hover:bg-red-100"
+                      title="Delete Task"
+                     >
+                       <Trash2 className="w-4 h-4" />
+                     </button>
+                  )}
+                </>
               )}
             </>
           )}

@@ -10,12 +10,15 @@ interface StatsScreenProps {
 }
 
 const StatsScreen: React.FC<StatsScreenProps> = ({ tasks, currentUser, employees, rewardConfig }) => {
+  // Feature flag - set to true to show points system
+  const SHOW_POINTS_SYSTEM = false;
+  
   const totalTasks = tasks.length;
   const pendingTasks = tasks.filter(t => t.status === 'pending').length;
   const inProgressTasks = tasks.filter(t => t.status === 'in-progress').length;
   const completedTasks = tasks.filter(t => t.status === 'completed').length;
 
-  const isManager = currentUser.role === 'manager';
+  const isManager = currentUser.role === 'manager' || currentUser.role === 'super_admin';
   const userPoints = currentUser.points;
   const progressPercentage = Math.min((userPoints / rewardConfig.targetPoints) * 100, 100);
   const pointsToReward = Math.max(rewardConfig.targetPoints - userPoints, 0);
@@ -82,7 +85,8 @@ const StatsScreen: React.FC<StatsScreenProps> = ({ tasks, currentUser, employees
         </div>
       )}
 
-      {/* My Rewards - All Users */}
+      {/* My Rewards - All Users - Hidden */}
+      {SHOW_POINTS_SYSTEM && (
       <div className="bg-gradient-to-br from-purple-600 to-purple-700 p-6 rounded-3xl text-white shadow-xl">
         <div className="flex items-center gap-2 mb-4">
           <Trophy className="w-5 h-5 text-yellow-300" />
@@ -125,6 +129,7 @@ const StatsScreen: React.FC<StatsScreenProps> = ({ tasks, currentUser, employees
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 };

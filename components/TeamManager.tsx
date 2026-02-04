@@ -13,6 +13,12 @@ interface TeamManagerProps {
 }
 
 const TeamManager: React.FC<TeamManagerProps> = ({ employees, onAddEmployee, onRemoveEmployee, rewardConfig, onUpdateRewardConfig }) => {
+  // Feature flag - set to true to show points system
+  const SHOW_POINTS_SYSTEM = false;
+  
+  // Log every render
+  console.log('🔄 TeamManager RENDERING, employees count:', employees.length);
+  
   const [newName, setNewName] = useState('');
   const [newMobile, setNewMobile] = useState('');
   const [newRole, setNewRole] = useState<UserRole>('staff');
@@ -21,6 +27,10 @@ const TeamManager: React.FC<TeamManagerProps> = ({ employees, onAddEmployee, onR
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
   // Use employees prop from parent (App.tsx)
+  useEffect(() => {
+    console.log('👥 TeamManager: employees prop updated, count:', employees.length);
+    console.log('👥 TeamManager: employees data:', employees.map(e => ({ id: e.id, name: e.name })));
+  }, [employees]);
 
   const handleRefresh = () => {
     window.location.reload();
@@ -134,7 +144,8 @@ const TeamManager: React.FC<TeamManagerProps> = ({ employees, onAddEmployee, onR
         </form>
       </section>
 
-      {/* Reward Settings */}
+      {/* Reward Settings - Hidden */}
+      {SHOW_POINTS_SYSTEM && (
       <section className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
         <h3 className="text-xs font-bold text-slate-500 mb-3 uppercase tracking-wider flex items-center gap-2">
           <Trophy className="w-4 h-4 text-yellow-500" />
@@ -174,8 +185,10 @@ const TeamManager: React.FC<TeamManagerProps> = ({ employees, onAddEmployee, onR
           </button>
         </form>
       </section>
+      )}
 
-      {/* Leaderboard */}
+      {/* Leaderboard - Hidden */}
+      {SHOW_POINTS_SYSTEM && (
       <section className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
         <h3 className="text-xs font-bold text-slate-500 mb-3 uppercase tracking-wider flex items-center gap-2">
           <Medal className="w-4 h-4 text-amber-500" />
@@ -230,6 +243,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({ employees, onAddEmployee, onR
           </div>
         )}
       </section>
+      )}
 
       <div className="space-y-2">
         {/* Connection Error Display */}
@@ -261,9 +275,11 @@ const TeamManager: React.FC<TeamManagerProps> = ({ employees, onAddEmployee, onR
                       {emp.role}
                     </span>
                     <span className="text-[10px] text-slate-400 font-medium">{emp.mobile}</span>
+                    {SHOW_POINTS_SYSTEM && (
                     <span className="text-[9px] font-black text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded">
                       {emp.points} pts
                     </span>
+                    )}
                   </div>
                 </div>
               </div>

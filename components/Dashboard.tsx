@@ -123,7 +123,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
     fetchTasks();
   }, []);
 
-  const isManager = currentUser.role === 'manager';
+  const isManager = currentUser.role === 'manager' || currentUser.role === 'super_admin';
 
   const handleAddTask = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -356,9 +356,15 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
     assignedBy: directEmployees.find(e => e.id === t.assignedBy)?.name || 'Unknown'
   })));
 
-  const pendingTasks = tasks.filter(t => t.status === 'pending');
-  const inProgressTasks = tasks.filter(t => t.status === 'in-progress');
-  const completedTasks = tasks.filter(t => t.status === 'completed');
+  // Filter tasks by visibility - only show user's own tasks unless super_admin
+  const isSuperAdmin = currentUser.role === 'super_admin';
+  const visibleTasks = isSuperAdmin 
+    ? tasks 
+    : tasks.filter(t => t.assignedTo === currentUser.id || t.assignedBy === currentUser.id);
+
+  const pendingTasks = visibleTasks.filter(t => t.status === 'pending');
+  const inProgressTasks = visibleTasks.filter(t => t.status === 'in-progress');
+  const completedTasks = visibleTasks.filter(t => t.status === 'completed');
 
   // Person Filter Logic
   // Get filter options based on user role

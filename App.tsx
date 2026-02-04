@@ -127,43 +127,68 @@ const App: React.FC = () => {
     // Smart Sync: Check for changes every 3 seconds without disrupting UI
     const syncInterval = setInterval(async () => {
       try {
-        const { data: freshTasks, error } = await supabase
+        // Sync tasks
+        const { data: freshTasks, error: tasksError } = await supabase
           .from('tasks')
           .select('*')
           .order('createdAt', { ascending: false });
         
-        if (error || !freshTasks) return;
-
-        // Compare with current tasks - only update if different
-        setTasks(prev => {
-          // Check if counts differ
-          if (prev.length !== freshTasks.length) {
-            console.log('📊 New task detected, updating...');
-            setLastSyncTime(Date.now());
-            return freshTasks;
-          }
-          
-          // Check if first task (newest) is different
-          if (prev[0]?.id !== freshTasks[0]?.id) {
-            console.log('📊 New task at top, updating...');
-            setLastSyncTime(Date.now());
-            return freshTasks;
-          }
-          
-          // Check for status changes
-          const hasChanges = freshTasks.some((freshTask, index) => {
-            const prevTask = prev.find(p => p.id === freshTask.id);
-            return !prevTask || prevTask.status !== freshTask.status;
+        if (!tasksError && freshTasks) {
+          // Compare with current tasks - only update if different
+          setTasks(prev => {
+            // Check if counts differ
+            if (prev.length !== freshTasks.length) {
+              console.log('📊 New task detected, updating...');
+              setLastSyncTime(Date.now());
+              return freshTasks;
+            }
+            
+            // Check if first task (newest) is different
+            if (prev[0]?.id !== freshTasks[0]?.id) {
+              console.log('📊 New task at top, updating...');
+              setLastSyncTime(Date.now());
+              return freshTasks;
+            }
+            
+            // Check for status changes
+            const hasChanges = freshTasks.some((freshTask, index) => {
+              const prevTask = prev.find(p => p.id === freshTask.id);
+              return !prevTask || prevTask.status !== freshTask.status;
+            });
+            
+            if (hasChanges) {
+              console.log('📊 Task status changed, updating...');
+              setLastSyncTime(Date.now());
+              return freshTasks;
+            }
+            
+            return prev; // No changes, keep current state
           });
-          
-          if (hasChanges) {
-            console.log('📊 Task status changed, updating...');
-            setLastSyncTime(Date.now());
-            return freshTasks;
-          }
-          
-          return prev; // No changes, keep current state
-        });
+        }
+
+        // Sync employees
+        const { data: freshEmployees, error: employeesError } = await supabase
+          .from('employees')
+          .select('*');
+        
+        if (!employeesError && freshEmployees) {
+          setEmployees(prev => {
+            if (prev.length !== freshEmployees.length) {
+              console.log('👥 Employee count changed, updating...');
+              return freshEmployees;
+            }
+            // Check if any employee data changed
+            const hasEmployeeChanges = freshEmployees.some(freshEmp => {
+              const prevEmp = prev.find(p => p.id === freshEmp.id);
+              return !prevEmp || prevEmp.points !== freshEmp.points || prevEmp.name !== freshEmp.name;
+            });
+            if (hasEmployeeChanges) {
+              console.log('👥 Employee data changed, updating...');
+              return freshEmployees;
+            }
+            return prev;
+          });
+        }
       } catch (err) {
         console.log('⚠️ Sync check failed:', err);
       }
@@ -516,6 +541,12 @@ const App: React.FC = () => {
 
   const addEmployee = async (name: string, mobile: string, role: UserRole = 'staff') => {
     const newEmployee = { id: `emp-${Date.now()}`, name, mobile, role, points: 0 };
+    
+    console.log('📝 Adding employee:', newEmployee);
+    
+    // Add to local state IMMEDIATELY for instant UI feedback
+    setEmployees(prev => [...prev, newEmployee]);
+    console.log('✅ Employee added to local state immediately');
 
     try {
       // Insert employee into Supabase
@@ -525,21 +556,26 @@ const App: React.FC = () => {
         .select();
 
       if (error) {
-        console.error('Error adding employee:', error);
-        // Fallback to local state
-        setEmployees(prev => [...prev, newEmployee]);
-      } else if (data) {
-        // Update local state with the returned employee (which may have DB-generated ID)
-        setEmployees(prev => [...prev, data[0]]);
+        console.error('❌ Error adding employee to database:', error);
+        alert(`Database Error: ${error.message}. Employee added locally.`);
+      } else if (data && data.length > 0) {
+        console.log('✅ Employee synced with database:', data[0]);
+        // Update local state with the DB version (may have different ID)
+        setEmployees(prev => prev.map(e => e.id === newEmployee.id ? data[0] : e));
       }
     } catch (error) {
-      console.error('Error adding employee:', error);
-      // Fallback to local state
-      setEmployees(prev => [...prev, newEmployee]);
+      console.error('🚨 Unexpected error adding employee:', error);
+      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}. Employee added locally.`);
     }
   };
 
   const removeEmployee = async (id: string) => {
+    console.log('🗑️ Removing employee:', id);
+    
+    // Remove from local state IMMEDIATELY for instant UI feedback
+    setEmployees(prev => prev.filter(e => e.id !== id));
+    console.log('✅ Employee removed from local state immediately');
+    
     try {
       // Delete employee from Supabase
       const { error } = await supabase
@@ -548,17 +584,14 @@ const App: React.FC = () => {
         .eq('id', id);
 
       if (error) {
-        console.error('Error removing employee:', error);
-        // Fallback to local state
-        setEmployees(prev => prev.filter(e => e.id !== id));
+        console.error('❌ Error removing employee from database:', error);
+        alert(`Database Error: ${error.message}. Employee removed locally.`);
       } else {
-        // Update local state
-        setEmployees(prev => prev.filter(e => e.id !== id));
+        console.log('✅ Employee removed from database successfully');
       }
     } catch (error) {
-      console.error('Error removing employee:', error);
-      // Fallback to local state
-      setEmployees(prev => prev.filter(e => e.id !== id));
+      console.error('🚨 Unexpected error removing employee:', error);
+      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}. Employee removed locally.`);
     }
   };
 
@@ -649,7 +682,7 @@ const App: React.FC = () => {
     return <LoginScreen employees={employees} onLogin={handleLogin} />;
   }
 
-  const isManager = currentUser.role === 'manager';
+  const isManager = currentUser.role === 'manager' || currentUser.role === 'super_admin';
 
   return (
     <div className="flex flex-col h-screen max-w-md mx-auto bg-slate-50 relative overflow-hidden font-sans">
