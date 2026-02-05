@@ -82,10 +82,11 @@ const App: React.FC = () => {
         .select('*');
 
       // Fetch tasks from Supabase (newest first)
-      const { data: tasksData, error: tasksError } = await supabase
+      const result = await supabase
         .from('tasks')
         .select('*')
         .order('createdAt', { ascending: false });
+      const { data: tasksData, error: tasksError } = result;
 
       // Check if we have valid data or if there were errors
       // If errors or empty data, use defaults
@@ -259,8 +260,7 @@ const App: React.FC = () => {
       // Insert task into Supabase
       const { data, error } = await supabase
         .from('tasks')
-        .insert([newTask])
-        .select();
+        .insert([newTask]);
 
       if (error) {
         console.error('Error adding task:', error);
@@ -560,8 +560,7 @@ const App: React.FC = () => {
       // Insert employee into Supabase
       const { data, error } = await supabase
         .from('employees')
-        .insert([newEmployee])
-        .select();
+        .insert([newEmployee]);
 
       if (error) {
         console.error('❌ Error adding employee to database:', error);
