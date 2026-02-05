@@ -1,12 +1,12 @@
-
 import React, { useState, useEffect } from 'react';
-import { DealershipTask, Employee } from '../types';
+import { DealershipTask, Employee, UserRole, TaskStatus } from '../types';
+import { supabase } from '../src/lib/supabase';
+import { sendTaskAssignmentNotification, sendTaskCompletionNotification } from '../src/utils/pushNotifications';
 import TaskItem from './TaskItem';
 import CompletionModal from './CompletionModal';
 import DelegationModal from './DelegationModal';
 import ReassignModal from './ReassignModal';
 import { Plus, Clock, CheckCircle2, UserPlus, ClipboardList as ClipboardIcon, CalendarClock, Timer, Camera, Bug, User } from 'lucide-react';
-import { supabase } from '../src/lib/supabase';
 
 interface DashboardProps {
   tasks: DealershipTask[];
@@ -167,6 +167,20 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
         alert(`Task Creation Error: ${error.message}`);
       } else {
         console.log('✅ Task created successfully:', data);
+        
+        // Send push notification to assigned user
+        if (data && data.length > 0 && assigneeId !== 'none') {
+          const assignedEmployee = employees.find(emp => emp.id === assigneeId);
+          if (assignedEmployee) {
+            await sendTaskAssignmentNotification(
+              data[0].description,
+              assignedEmployee.name,
+              currentUser.name,
+              assignedEmployee.mobile
+            );
+          }
+        }
+        
         // Update local state immediately
         if (data && data.length > 0) {
           // setTasks(prev => [data[0], ...prev]);
@@ -207,6 +221,20 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
         alert(`Task Creation Error: ${error.message}`);
       } else {
         console.log('✅ Delegated task created successfully:', data);
+        
+        // Send push notification to assigned user
+        if (data && data.length > 0) {
+          const assignedEmployee = employees.find(emp => emp.id === targetAssigneeId);
+          if (assignedEmployee) {
+            await sendTaskAssignmentNotification(
+              data[0].description,
+              assignedEmployee.name,
+              currentUser.name,
+              assignedEmployee.mobile
+            );
+          }
+        }
+        
         // Update local state immediately
         if (data && data.length > 0) {
           // setTasks(prev => [data[0], ...prev]);
@@ -275,6 +303,16 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
                   ? { ...emp, points: (emp.points || 0) + 10 }
                   : emp
               ));
+              
+              // Send completion notification to task creator
+              const taskCreator = employees.find(emp => emp.id === completedTask?.assignedBy);
+              if (taskCreator) {
+                await sendTaskCompletionNotification(
+                  completedTask.description,
+                  currentUser.name,
+                  taskCreator.mobile
+                );
+              }
             }
           }
         }
