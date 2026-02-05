@@ -78,15 +78,15 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
     const fetchEmployees = async () => {
       try {
         console.log('🔍 Dashboard: Fetching employees for dropdown...');
-        const { data, error } = await supabase
+        const result = await supabase
           .from('employees')
           .select('*');
         
-        if (error) {
-          console.error('❌ Dashboard: Failed to fetch employees:', error);
+        if (result.error) {
+          console.error('❌ Dashboard: Failed to fetch employees:', result.error);
         } else {
-          console.log('✅ Dashboard: Successfully fetched employees:', data);
-          setDirectEmployees(data || []);
+          console.log('✅ Dashboard: Successfully fetched employees:', result.data);
+          setDirectEmployees(result.data || []);
         }
       } catch (err) {
         console.error('🚨 Dashboard: Unexpected error fetching employees:', err);
@@ -103,15 +103,15 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
     const fetchTasks = async () => {
       try {
         console.log('🔍 Dashboard: Fetching all tasks from database...');
-        const { data, error } = await supabase
+        const result = await supabase
           .from('tasks')
           .select('*');
         
-        if (error) {
-          console.error('❌ Dashboard: Failed to fetch tasks:', error);
+        if (result.error) {
+          console.error('❌ Dashboard: Failed to fetch tasks:', result.error);
         } else {
-          console.log('✅ Dashboard: Successfully fetched tasks:', data);
-          // setTasks(data || []);
+          console.log('✅ Dashboard: Successfully fetched tasks:', result.data);
+          // setTasks(result.data || []);
         }
       } catch (err) {
         console.error('🚨 Dashboard: Unexpected error fetching tasks:', err);
@@ -157,16 +157,20 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
       };
       
       console.log('🔧 Inserting task into database:', newTask);
-      const { data, error } = await supabase
+      const result = await supabase
         .from('tasks')
         .insert([newTask])
-        .select();
+        .select()
+        .maybeSingle();
       
-      if (error) {
-        console.error('❌ Task creation failed:', error);
-        alert(`Task Creation Error: ${error.message}`);
-      } else {
-        console.log('✅ Task created successfully:', data);
+      if (result.error) {
+        console.error('❌ Task creation failed:', result.error);
+        alert(`Task Creation Error: ${result.error.message}`);
+        return;
+      }
+      
+      const data = result.data;
+      console.log('✅ Task created successfully:', data);
         
         // Send push notification to assigned user
         if (data && data.length > 0 && assigneeId !== 'none') {
@@ -191,7 +195,6 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
         
         // Reset form and clear localStorage
         clearForm();
-      }
     } catch (err) {
       console.error('🚨 Unexpected error creating task:', err);
       alert(`Unexpected Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
@@ -202,7 +205,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
     try {
       console.log('🔧 Creating delegated task...');
       const newTaskId = `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      const { data, error } = await supabase
+      const result = await supabase
         .from('tasks')
         .insert([{
           id: newTaskId,
@@ -214,20 +217,21 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
           deadline: deadlineTimestamp,
           createdAt: Date.now()
         }])
-        .select();
+        .select()
+        .maybeSingle();
       
-      if (error) {
-        console.error('❌ Delegated task creation failed:', error);
-        alert(`Task Creation Error: ${error.message}`);
+      if (result.error) {
+        console.error('❌ Delegated task creation failed:', result.error);
+        alert(`Task Creation Error: ${result.error.message}`);
       } else {
-        console.log('✅ Delegated task created successfully:', data);
+        console.log('✅ Delegated task created successfully:', result.data);
         
         // Send push notification to assigned user
-        if (data && data.length > 0) {
+        if (result.data && result.data.length > 0) {
           const assignedEmployee = employees.find(emp => emp.id === targetAssigneeId);
           if (assignedEmployee) {
             await sendTaskAssignmentNotification(
-              data[0].description,
+              result.data[0].description,
               assignedEmployee.name,
               currentUser.name,
               assignedEmployee.mobile
@@ -236,8 +240,8 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
         }
         
         // Update local state immediately
-        if (data && data.length > 0) {
-          // setTasks(prev => [data[0], ...prev]);
+        if (result.data && result.data.length > 0) {
+          // setTasks(prev => [result.data[0], ...prev]);
         }
         
         // Auto-reset filter to show new task
@@ -246,9 +250,9 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
     } catch (err) {
       console.error('🚨 Unexpected error creating delegated task:', err);
       alert(`Unexpected Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setDelegatingTaskId(null);
     }
-    
-    setDelegatingTaskId(null);
   };
 
   const handleReassign = async (taskId: string, newAssigneeId: string) => {
@@ -267,14 +271,14 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
         updateData.completedAt = Date.now();
       }
       
-      const { error } = await supabase
+      const result = await supabase
         .from('tasks')
         .update(updateData)
         .eq('id', taskId);
       
-      if (error) {
-        console.error('❌ Failed to update task status:', error);
-        alert(`Status Update Error: ${error.message}`);
+      if (result.error) {
+        console.error('❌ Failed to update task status:', result.error);
+        alert(`Status Update Error: ${result.error.message}`);
       } else {
         console.log('✅ Task status updated successfully');
         
@@ -340,7 +344,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   const completeTaskWithPhoto = async (taskId: string, photoUrl: string) => {
     try {
       console.log(`📸 Completing task ${taskId} with photo proof:`, photoUrl);
-      const { error } = await supabase
+      const result = await supabase
         .from('tasks')
         .update({ 
           status: 'completed',
@@ -349,38 +353,15 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
         })
         .eq('id', taskId);
       
-      if (error) {
-        console.error('❌ Failed to complete task with photo:', error);
-        alert(`Photo Completion Error: ${error.message}`);
+      if (result.error) {
+        console.error('❌ Failed to complete task with photo:', result.error);
+        alert(`Photo Completion Error: ${result.error.message}`);
       } else {
         console.log('✅ Task completed with photo successfully');
         onCompleteTask(taskId, { imageUrl: photoUrl, timestamp: Date.now() });
       }
     } catch (err) {
       console.error('🚨 Unexpected error completing task with photo:', err);
-      alert(`Unexpected Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    }
-  };
-
-  // Delete task from database and local state
-  const deleteTask = async (taskId: string) => {
-    try {
-      console.log(`🗑️ Deleting task ${taskId}`);
-      const { error } = await supabase
-        .from('tasks')
-        .delete()
-        .eq('id', taskId);
-      
-      if (error) {
-        console.error('❌ Failed to delete task:', error);
-        alert(`Delete Error: ${error.message}`);
-      } else {
-        console.log('✅ Task deleted successfully');
-        // Call parent handler to update global state
-        onDeleteTask(taskId);
-      }
-    } catch (err) {
-      console.error('🚨 Unexpected error deleting task:', err);
       alert(`Unexpected Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   };
