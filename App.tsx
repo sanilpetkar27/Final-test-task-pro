@@ -77,16 +77,16 @@ const App: React.FC = () => {
       setLoadError(null);
 
       // Fetch employees from Supabase
-      const { data: employeesData, error: employeesError } = await supabase
+      const result = await supabase
         .from('employees')
         .select('*');
+      const { data: employeesData, error: employeesError } = result;
 
       // Fetch tasks from Supabase (newest first)
-      const result = await supabase
+      const { data: tasksData, error: tasksError } = await supabase
         .from('tasks')
         .select('*')
         .order('createdAt', { ascending: false });
-      const { data: tasksData, error: tasksError } = result;
 
       // Check if we have valid data or if there were errors
       // If errors or empty data, use defaults
@@ -136,12 +136,10 @@ const App: React.FC = () => {
     const syncInterval = setInterval(async () => {
       try {
         // Sync tasks
-        const result = await supabase
+        const { data: freshTasks, error: tasksError } = await supabase
           .from('tasks')
           .select('*');
-        
-        const { data: freshTasks, error: tasksError } = result;
-        
+
         if (!tasksError && freshTasks) {
           // Compare with current tasks - only update if different
           setTasks(prev => {
@@ -179,7 +177,7 @@ const App: React.FC = () => {
         const { data: freshEmployees, error: employeesError } = await supabase
           .from('employees')
           .select('*');
-        
+
         if (!employeesError && freshEmployees) {
           setEmployees(prev => {
             if (prev.length !== freshEmployees.length) {
