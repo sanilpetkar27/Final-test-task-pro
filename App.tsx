@@ -135,10 +135,11 @@ const App: React.FC = () => {
     const syncInterval = setInterval(async () => {
       try {
         // Sync tasks
-        const { data: freshTasks, error: tasksError } = await supabase
+        const result = await supabase
           .from('tasks')
-          .select('*')
-          .order('createdAt', { ascending: false });
+          .select('*');
+        
+        const { data: freshTasks, error: tasksError } = result;
         
         if (!tasksError && freshTasks) {
           // Compare with current tasks - only update if different
