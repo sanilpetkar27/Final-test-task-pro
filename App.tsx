@@ -5,6 +5,7 @@ import StatsScreen from './components/StatsScreen';
 import TeamManager from './components/TeamManager';
 import LoginScreen from './components/LoginScreen';
 import { supabase } from './src/lib/supabase';
+import { useNotificationSetup } from './src/hooks/useNotificationSetup';
 import {
   ClipboardList,
   Users,
@@ -30,6 +31,12 @@ const App: React.FC = () => {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [notification, setNotification] = useState<{ title: string, message: string } | null>(null);
   const [lastSyncTime, setLastSyncTime] = useState<number>(Date.now());
+
+  // --- OneSignal Notification Setup ---
+  useNotificationSetup({
+    userMobile: currentUser?.mobile || null,
+    isLoggedIn: !!currentUser
+  });
 
   // --- 2. UPDATED EMPLOYEES LIST (With Your Number) ---
   const DEFAULT_EMPLOYEES: Employee[] = [
