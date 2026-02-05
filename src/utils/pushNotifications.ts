@@ -21,7 +21,7 @@ export const sendTaskAssignmentNotification = async (
       .from('employees')
       .select('onesignal_id')
       .eq('mobile', assignedToMobile)
-      .single();
+      .maybeSingle();
 
     if (fetchError || !employee || !employee.onesignal_id) {
       console.log('❌ No OneSignal ID found for user:', assignedToMobile);
@@ -84,12 +84,12 @@ export const sendTaskCompletionNotification = async (
       assignedByMobile
     });
 
-    // Get the assigner's OneSignal ID
+    // Get assigner's OneSignal ID
     const { data: employee, error: fetchError } = await supabase
       .from('employees')
       .select('onesignal_id')
       .eq('mobile', assignedByMobile)
-      .single();
+      .maybeSingle();
 
     if (fetchError || !employee || !employee.onesignal_id) {
       console.log('❌ No OneSignal ID found for user:', assignedByMobile);
