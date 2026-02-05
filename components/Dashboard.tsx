@@ -159,9 +159,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
       console.log('🔧 Inserting task into database:', newTask);
       const result = await supabase
         .from('tasks')
-        .insert([newTask])
-        .select()
-        .maybeSingle();
+        .insert([newTask]);
       
       if (result.error) {
         console.error('❌ Task creation failed:', result.error);
@@ -216,9 +214,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
           parentTaskId: parentTaskId,
           deadline: deadlineTimestamp,
           createdAt: Date.now()
-        }])
-        .select()
-        .maybeSingle();
+        }]);
       
       if (result.error) {
         console.error('❌ Delegated task creation failed:', result.error);
