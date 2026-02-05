@@ -167,25 +167,19 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
         return;
       }
       
-      const data = result.data;
-      console.log('✅ Task created successfully:', data);
+      console.log('✅ Task created successfully');
         
         // Send push notification to assigned user
-        if (data && data.length > 0 && assigneeId !== 'none') {
+        if (assigneeId !== 'none') {
           const assignedEmployee = employees.find(emp => emp.id === assigneeId);
           if (assignedEmployee) {
             await sendTaskAssignmentNotification(
-              data[0].description,
+              newTask.description,
               assignedEmployee.name,
               currentUser.name,
               assignedEmployee.mobile
             );
           }
-        }
-        
-        // Update local state immediately
-        if (data && data.length > 0) {
-          // setTasks(prev => [data[0], ...prev]);
         }
         
         // Auto-reset filter to show new task
