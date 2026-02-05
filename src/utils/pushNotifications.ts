@@ -51,7 +51,7 @@ export const sendTaskAssignmentNotification = async (
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Basic ${btoa('YOUR_ONE_SIGNAL_REST_API_KEY:')}`
+        'Authorization': `Basic ${btoa('N2MwLkL2MxX7dLtQqHc3aH0vYb9E')}`
       },
       body: JSON.stringify(notification)
     });
@@ -118,7 +118,7 @@ export const sendTaskCompletionNotification = async (
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Basic ${btoa('YOUR_ONE_SIGNAL_REST_API_KEY:')}`
+        'Authorization': `Basic ${btoa('N2MwLkL2MxX7dLtQqHc3aH0vYb9E')}`
       },
       body: JSON.stringify(notification)
     });
