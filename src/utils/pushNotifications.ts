@@ -17,13 +17,26 @@ export const sendTaskAssignmentNotification = async (
     });
 
     // Get the user's OneSignal ID
-    const { data: employee, error: fetchError } = await supabase
-      .from('employees')
-      .select('onesignal_id')
-      .eq('mobile', assignedToMobile)
-      .maybeSingle();
+    let employee;
+    try {
+      const result = await supabase
+        .from('employees')
+        .select('onesignal_id')
+        .eq('mobile', assignedToMobile)
+        .maybeSingle();
+      
+      employee = result.data;
+      
+      if (result.error) {
+        console.error('❌ Supabase query error:', result.error);
+        return;
+      }
+    } catch (error) {
+      console.error('❌ Database query failed:', error);
+      return;
+    }
 
-    if (fetchError || !employee || !employee.onesignal_id) {
+    if (!employee || !employee.onesignal_id) {
       console.log('❌ No OneSignal ID found for user:', assignedToMobile);
       return;
     }
@@ -85,13 +98,26 @@ export const sendTaskCompletionNotification = async (
     });
 
     // Get assigner's OneSignal ID
-    const { data: employee, error: fetchError } = await supabase
-      .from('employees')
-      .select('onesignal_id')
-      .eq('mobile', assignedByMobile)
-      .maybeSingle();
+    let employee;
+    try {
+      const result = await supabase
+        .from('employees')
+        .select('onesignal_id')
+        .eq('mobile', assignedByMobile)
+        .maybeSingle();
+      
+      employee = result.data;
+      
+      if (result.error) {
+        console.error('❌ Supabase query error:', result.error);
+        return;
+      }
+    } catch (error) {
+      console.error('❌ Database query failed:', error);
+      return;
+    }
 
-    if (fetchError || !employee || !employee.onesignal_id) {
+    if (!employee || !employee.onesignal_id) {
       console.log('❌ No OneSignal ID found for user:', assignedByMobile);
       return;
     }
