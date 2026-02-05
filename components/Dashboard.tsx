@@ -567,7 +567,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
             onReopenTask={() => updateTaskStatus(task.id, 'pending')}
             onCompleteTaskWithoutPhoto={() => updateTaskStatus(task.id, 'completed')}
             onReassign={() => setReassigningTaskId(task.id)}
-            onDelete={() => deleteTask(task.id)}
+            onDelete={() => onDeleteTask(task.id)}
             onDelegate={() => setDelegatingTaskId(task.id)}
             onSubTaskComplete={(subTaskId) => updateTaskStatus(subTaskId, 'completed')}
           />
