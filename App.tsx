@@ -77,16 +77,14 @@ const App: React.FC = () => {
       setLoadError(null);
 
       // Fetch employees from Supabase
-      const result = await supabase
+      const { data: employeesData, error: employeesError } = await supabase
         .from('employees')
         .select('*');
-      const { data: employeesData, error: employeesError } = result;
 
-      // Fetch tasks from Supabase (newest first)
+      // Fetch tasks from Supabase
       const { data: tasksData, error: tasksError } = await supabase
         .from('tasks')
-        .select('*')
-        .order('createdAt', { ascending: false });
+        .select('*');
 
       // Check if we have valid data or if there were errors
       // If errors or empty data, use defaults
@@ -422,14 +420,13 @@ const App: React.FC = () => {
       // Update task in Supabase
       const { error: taskError } = await supabase
         .from('tasks')
-        .update({
-          status: 'completed' as TaskStatus,
-          completedAt: Date.now()
-        })
+        .update({ status: 'completed' as TaskStatus, completedAt: Date.now() })
         .eq('id', taskId);
+      
+      const { error } = taskError;
 
-      if (taskError) {
-        console.error('Error completing task:', taskError);
+      if (error) {
+        console.error('Error completing task:', error);
         // Fallback to local state
         setTasks(prev => prev.map(t =>
           t.id === taskId
@@ -520,7 +517,7 @@ const App: React.FC = () => {
         .from('tasks')
         .delete()
         .eq('id', taskId);
-
+      
       if (error) {
         console.error('Error deleting task:', error);
         // Fallback to local state
@@ -559,7 +556,7 @@ const App: React.FC = () => {
       const { data, error } = await supabase
         .from('employees')
         .insert([newEmployee]);
-
+      
       if (error) {
         console.error('❌ Error adding employee to database:', error);
         alert(`Database Error: ${error.message}. Employee added locally.`);
