@@ -478,6 +478,13 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
         
         if (result.error) {
           console.error('❌ Remark addition failed:', result.error);
+          
+          // Check if the error is about missing remarks column
+          if (result.error.message.includes('remarks') && result.error.message.includes('column')) {
+            alert('Database setup required: The remarks column needs to be added to the tasks table. Please contact your administrator to run the migration.');
+            return;
+          }
+          
           alert(`Remark Error: ${result.error.message}`);
           return;
         }
