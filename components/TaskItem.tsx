@@ -333,21 +333,6 @@ const TaskItem: React.FC<TaskItemProps> = ({
                        <Trash2 className="w-4 h-4" />
                      </button>
                   )}
-                  
-                  {canEdit && (
-                    <button 
-                      onClick={(e) => { 
-                        e.stopPropagation(); 
-                        console.log('✏️ Edit clicked for completed task:', task.id);
-                        console.log('✏️ onEdit function exists:', typeof onEdit === 'function');
-                        onEdit?.(); 
-                      }}
-                      className="bg-blue-50 text-blue-400 p-2 rounded-xl active:scale-95 transition-all flex items-center justify-center hover:bg-blue-100"
-                      title="Edit Task"
-                     >
-                       <Edit className="w-4 h-4" />
-                     </button>
-                  )}
                 </>
               )}
             </>
