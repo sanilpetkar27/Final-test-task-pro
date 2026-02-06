@@ -15,6 +15,15 @@ export interface RewardConfig {
   rewardName: string;
 }
 
+export interface TaskRemark {
+  id: string;
+  taskId: string;
+  employeeId: string;
+  employeeName: string;
+  remark: string;
+  timestamp: number;
+}
+
 export interface DealershipTask {
   id: string;
   description: string;
@@ -30,6 +39,7 @@ export interface DealershipTask {
   assignedTo?: string; // Employee ID (The person doing the work)
   assignedBy?: string; // Employee ID (The person who created the task)
   parentTaskId?: string; // ID of the master task if this is a sub-task
+  remarks?: TaskRemark[]; // Array of progress remarks
 }
 
 export interface FinanceRecord {

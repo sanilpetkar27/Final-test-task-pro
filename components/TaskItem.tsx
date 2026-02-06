@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { DealershipTask, Employee } from '../types';
-import { Check, Camera, Maximize2, User, UserCheck, GitFork, ChevronDown, ChevronRight, Layers, Trash2, AlertTriangle, Clock, ArrowRight, Play, RotateCcw, CheckCircle, UserPlus, X, Edit } from 'lucide-react';
+import { DealershipTask, Employee, TaskRemark } from '../types';
+import { Check, Camera, Maximize2, User, UserCheck, GitFork, ChevronDown, ChevronRight, Layers, Trash2, AlertTriangle, Clock, ArrowRight, Play, RotateCcw, CheckCircle, UserPlus, X, Edit, MessageSquarePlus, Send } from 'lucide-react';
 import { supabase } from '../src/lib/supabase';
 
 interface TaskItemProps {
@@ -21,6 +21,7 @@ interface TaskItemProps {
   onSubTaskComplete?: (id: string) => void;
   onDelete?: () => void;
   onEdit?: () => void;
+  onAddRemark?: (taskId: string, remark: string) => void;
 }
 
 const TaskItem: React.FC<TaskItemProps> = ({ 
@@ -40,11 +41,14 @@ const TaskItem: React.FC<TaskItemProps> = ({
   onReassign,
   onSubTaskComplete,
   onDelete,
-  onEdit
+  onEdit,
+  onAddRemark
 }) => {
   const [showFullImage, setShowFullImage] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [newRemark, setNewRemark] = useState('');
+  const [showRemarkInput, setShowRemarkInput] = useState(false);
 
   const isManager = currentUser.role === 'manager' || currentUser.role === 'super_admin';
   const canDelete = currentUser.id === task.assignedBy || isManager;
@@ -117,6 +121,14 @@ const TaskItem: React.FC<TaskItemProps> = ({
       }
     };
     input.click();
+  };
+
+  const handleAddRemark = () => {
+    if (newRemark.trim() && onAddRemark) {
+      onAddRemark(task.id, newRemark.trim());
+      setNewRemark('');
+      setShowRemarkInput(false);
+    }
   };
 
   return (
@@ -292,6 +304,15 @@ const TaskItem: React.FC<TaskItemProps> = ({
                   <span className="text-[10px] font-black uppercase">Complete</span>
                 </button>
               )}
+              
+              <button 
+                onClick={() => setShowRemarkInput(!showRemarkInput)}
+                className="bg-blue-100 text-blue-600 px-4 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all flex flex-col items-center justify-center min-w-[80px]"
+                title="Add progress update"
+              >
+                <MessageSquarePlus className="w-5 h-5 mb-0.5" />
+                <span className="text-[10px] font-black uppercase">Update</span>
+              </button>
             </>
           )}
 
@@ -339,6 +360,67 @@ const TaskItem: React.FC<TaskItemProps> = ({
           )}
         </div>
       </div>
+
+      {/* Remark Input Section */}
+      {task.status === 'in-progress' && showRemarkInput && (
+        <div className="bg-blue-50 rounded-2xl p-4 border border-blue-200">
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <MessageSquarePlus className="w-4 h-4 text-blue-600" />
+              <span className="text-sm font-semibold text-blue-800">Add Progress Update</span>
+            </div>
+            <textarea
+              value={newRemark}
+              onChange={(e) => setNewRemark(e.target.value)}
+              placeholder="Update on task progress, stages completed, or any relevant information..."
+              className="w-full bg-white border border-blue-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none h-20"
+              rows={3}
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={handleAddRemark}
+                disabled={!newRemark.trim()}
+                className="flex-1 bg-blue-600 text-white px-3 py-2 rounded-xl font-bold text-sm active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                <Send className="w-4 h-4" />
+                Add Update
+              </button>
+              <button
+                onClick={() => {
+                  setShowRemarkInput(false);
+                  setNewRemark('');
+                }}
+                className="px-4 bg-gray-500 text-white py-2 rounded-xl font-bold text-sm active:scale-95 transition-all"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Remarks Display Section */}
+      {task.remarks && task.remarks.length > 0 && (
+        <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200">
+          <div className="flex items-center gap-2 mb-3">
+            <MessageSquarePlus className="w-4 h-4 text-slate-600" />
+            <span className="text-sm font-semibold text-slate-700">Progress Updates ({task.remarks.length})</span>
+          </div>
+          <div className="space-y-2">
+            {task.remarks.map((remark) => (
+              <div key={remark.id} className="bg-white rounded-xl p-3 border border-slate-100">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-semibold text-slate-700">{remark.employeeName}</span>
+                  <span className="text-xs text-slate-500">
+                    {new Date(remark.timestamp).toLocaleString()}
+                  </span>
+                </div>
+                <p className="text-sm text-slate-600">{remark.remark}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Proof Image Modal */}
       {showFullImage && task.proof && (

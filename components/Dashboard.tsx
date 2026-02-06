@@ -450,6 +450,51 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
     }
   };
 
+  // Add remark handler
+  const handleAddRemark = async (taskId: string, remark: string) => {
+    try {
+      console.log('🔧 Adding remark to task:', taskId, remark);
+      
+      const newRemarkId = `remark_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const newRemark = {
+        id: newRemarkId,
+        taskId: taskId,
+        employeeId: currentUser.id,
+        employeeName: currentUser.name,
+        remark: remark,
+        timestamp: Date.now()
+      };
+      
+      // For now, we'll store remarks in the task's remarks array
+      // In a production app, you might want to create a separate remarks table
+      const task = tasks.find(t => t.id === taskId);
+      if (task) {
+        const updatedRemarks = [...(task.remarks || []), newRemark];
+        
+        const result = await supabase
+          .from('tasks')
+          .update({ remarks: updatedRemarks })
+          .eq('id', taskId);
+        
+        if (result.error) {
+          console.error('❌ Remark addition failed:', result.error);
+          alert(`Remark Error: ${result.error.message}`);
+          return;
+        }
+        
+        console.log('✅ Remark added successfully');
+        
+        // Trigger parent to refetch tasks
+        setTimeout(() => {
+          onAddTask('', '', '', '', false);
+        }, 100);
+      }
+    } catch (err) {
+      console.error('🚨 Unexpected error adding remark:', err);
+      alert(`Unexpected Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+  };
+
   const filterOptions = getFilterOptions();
 
   // Apply person filter to tasks
@@ -632,6 +677,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
             onDelegate={() => setDelegatingTaskId(task.id)}
             onEdit={() => handleEditTask(task.id)}
             onSubTaskComplete={(subTaskId) => updateTaskStatus(subTaskId, 'completed')}
+            onAddRemark={(taskId: string, remark: string) => handleAddRemark(taskId, remark)}
           />
         ))}
         {tasksToShow.length === 0 && (
