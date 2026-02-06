@@ -143,6 +143,22 @@ const App: React.FC = () => {
     });
   }, []);
 
+  // --- REALTIME SUBSCRIPTION FOR TASKS ---
+  useEffect(() => {
+    const taskListener = supabase
+      .channel('public:tasks')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, (payload) => {
+        console.log('🔔 Realtime Update:', payload);
+        fetchTasks(); // Trigger fetch when data changes
+      })
+      .subscribe();
+
+    // Cleanup subscription when component unmounts
+    return () => {
+      taskListener.unsubscribe();
+    };
+  }, []);
+
   // --- 3. EFFECTS (Notifications & Auto-Save) ---
 
   useEffect(() => {
