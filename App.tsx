@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AppTab, DealershipTask, Employee, UserRole, TaskStatus, RewardConfig } from './types';
 import Dashboard from './components/Dashboard';
 import StatsScreen from './components/StatsScreen';
@@ -168,7 +168,12 @@ const App: React.FC = () => {
     } catch (err) {
       console.error('🚨 Unexpected error fetching tasks:', err);
     }
-  }, [fetchTasks]); // Add fetchTasks to dependencies
+  }, [fetchTasksRef]); // Add fetchTasks to dependencies
+
+  // Keep ref updated with latest fetchTasks function
+  useEffect(() => {
+    fetchTasksRef.current = fetchTasks;
+  }, [fetchTasks]);
 
   // --- ROBUST SYNCHRONIZATION EFFECT ---
   useEffect(() => {
@@ -187,7 +192,7 @@ const App: React.FC = () => {
       .channel('public:tasks')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, (payload) => {
         console.log('🔔 Realtime Update:', payload);
-        fetchTasks(); // Trigger fetch when data changes
+        fetchTasksRef.current(); // Use ref instead of direct function call
       })
       .subscribe();
 
