@@ -97,6 +97,12 @@ const App: React.FC = () => {
       
       const result = await tasksQuery;
       const { data: tasksData, error: tasksError } = result;
+      
+      // Debug logging to verify filtering
+      console.log('🔍 App.tsx - Raw filtered tasks result:', result);
+      console.log('🔍 App.tsx - Tasks data after filtering:', tasksData);
+      console.log('🔍 App.tsx - Current user role:', employeesData?.[0]?.role);
+      console.log('🔍 App.tsx - Current user ID:', employeesData?.[0]?.id);
 
       // Check if we have valid data or if there were errors
       // If errors or empty data, use defaults
