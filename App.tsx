@@ -86,9 +86,6 @@ const App: React.FC = () => {
         .from('tasks')
         .select('*');
 
-      console.log('🔍 App.tsx - Raw tasks from database:', tasksData);
-      console.log('🔍 App.tsx - Tasks error:', tasksError);
-
       // Check if we have valid data or if there were errors
       // If errors or empty data, use defaults
       const finalEmployees = (employeesData && employeesData.length > 0)

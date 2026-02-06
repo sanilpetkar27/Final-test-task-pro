@@ -414,30 +414,6 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
       ? tasks.filter(t => t.assignedTo === currentUser.id) // Managers only see tasks assigned TO them
       : tasks.filter(t => t.assignedTo === currentUser.id || t.assignedBy === currentUser.id); // Staff see tasks assigned TO them OR created BY them
 
-  // Debug logging
-  console.log('🔍 Debug - Current User:', currentUser.name, currentUser.role);
-  console.log('🔍 Debug - isSuperAdmin:', isSuperAdmin);
-  console.log('🔍 Debug - isManager:', isManager);
-  console.log('🔍 Debug - Current User ID:', currentUser.id);
-  console.log('🔍 Debug - Total tasks:', tasks.length);
-  console.log('🔍 Debug - Visible tasks:', visibleTasks.length);
-  console.log('🔍 Debug - ALL task details:', tasks.map(t => ({ 
-    id: t.id, 
-    desc: t.description.substring(0, 30) + '...', 
-    assignedTo: t.assignedTo,
-    assignedToName: directEmployees.find(e => e.id === t.assignedTo)?.name || 'Unassigned',
-    assignedBy: t.assignedBy,
-    assignedByName: directEmployees.find(e => e.id === t.assignedBy)?.name || 'Unknown'
-  })));
-  console.log('🔍 Debug - Visible task details:', visibleTasks.map(t => ({ 
-    id: t.id, 
-    desc: t.description.substring(0, 30) + '...', 
-    assignedTo: t.assignedTo,
-    assignedToName: directEmployees.find(e => e.id === t.assignedTo)?.name || 'Unassigned',
-    assignedBy: t.assignedBy,
-    assignedByName: directEmployees.find(e => e.id === t.assignedBy)?.name || 'Unknown'
-  })));
-
   const pendingTasks = visibleTasks.filter(t => t.status === 'pending');
   const inProgressTasks = visibleTasks.filter(t => t.status === 'in-progress');
   const completedTasks = visibleTasks.filter(t => t.status === 'completed');
@@ -697,8 +673,8 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
           <TaskItem 
             key={task.id} 
             task={task} 
-            subTasks={tasks.filter(t => t.parentTaskId === task.id)}
-            parentTask={tasks.find(t => t.id === task.parentTaskId)}
+            subTasks={visibleTasks.filter(t => t.parentTaskId === task.id)}
+            parentTask={visibleTasks.find(t => t.id === task.parentTaskId)}
             employees={directEmployees}
             currentUser={currentUser}
             onMarkComplete={() => updateTaskStatus(task.id, 'completed')}
