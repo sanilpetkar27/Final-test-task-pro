@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { DealershipTask, Employee } from '../types';
-import { Check, Camera, Maximize2, User, UserCheck, GitFork, ChevronDown, ChevronRight, Layers, Trash2, AlertTriangle, Clock, ArrowRight, Play, RotateCcw, CheckCircle, UserPlus, X } from 'lucide-react';
+import { Check, Camera, Maximize2, User, UserCheck, GitFork, ChevronDown, ChevronRight, Layers, Trash2, AlertTriangle, Clock, ArrowRight, Play, RotateCcw, CheckCircle, UserPlus, X, Edit } from 'lucide-react';
 import { supabase } from '../src/lib/supabase';
 
 interface TaskItemProps {
@@ -20,6 +20,7 @@ interface TaskItemProps {
   onReassign?: () => void;
   onSubTaskComplete?: (id: string) => void;
   onDelete?: () => void;
+  onEdit?: () => void;
 }
 
 const TaskItem: React.FC<TaskItemProps> = ({ 
@@ -38,7 +39,8 @@ const TaskItem: React.FC<TaskItemProps> = ({
   onDelegate,
   onReassign,
   onSubTaskComplete,
-  onDelete
+  onDelete,
+  onEdit
 }) => {
   const [showFullImage, setShowFullImage] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -46,6 +48,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
 
   const isManager = currentUser.role === 'manager' || currentUser.role === 'super_admin';
   const canDelete = currentUser.id === task.assignedBy || isManager;
+  const canEdit = currentUser.id === task.assignedBy || isManager;
   
   const completedSubTasks = subTasks.filter(st => st.status === 'completed');
   const hasSubTasks = subTasks.length > 0;
@@ -239,6 +242,21 @@ const TaskItem: React.FC<TaskItemProps> = ({
                        <Trash2 className="w-4 h-4" />
                      </button>
                   )}
+                  
+                  {canEdit && (
+                    <button 
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        console.log('✏️ Edit clicked for:', task.id);
+                        console.log('✏️ onEdit function exists:', typeof onEdit === 'function');
+                        onEdit?.(); 
+                      }}
+                      className="bg-blue-50 text-blue-400 p-2 rounded-xl active:scale-95 transition-all flex items-center justify-center hover:bg-blue-100"
+                      title="Edit Task"
+                     >
+                       <Edit className="w-4 h-4" />
+                     </button>
+                  )}
                 </>
               )}
             </>
@@ -314,6 +332,21 @@ const TaskItem: React.FC<TaskItemProps> = ({
                       title="Delete Task"
                      >
                        <Trash2 className="w-4 h-4" />
+                     </button>
+                  )}
+                  
+                  {canEdit && (
+                    <button 
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        console.log('✏️ Edit clicked for completed task:', task.id);
+                        console.log('✏️ onEdit function exists:', typeof onEdit === 'function');
+                        onEdit?.(); 
+                      }}
+                      className="bg-blue-50 text-blue-400 p-2 rounded-xl active:scale-95 transition-all flex items-center justify-center hover:bg-blue-100"
+                      title="Edit Task"
+                     >
+                       <Edit className="w-4 h-4" />
                      </button>
                   )}
                 </>

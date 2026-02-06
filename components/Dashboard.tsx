@@ -6,7 +6,7 @@ import TaskItem from './TaskItem';
 import CompletionModal from './CompletionModal';
 import DelegationModal from './DelegationModal';
 import ReassignModal from './ReassignModal';
-import { Plus, Clock, CheckCircle2, UserPlus, ClipboardList as ClipboardIcon, CalendarClock, Timer, Camera, Bug, User } from 'lucide-react';
+import { Plus, Clock, CheckCircle2, UserPlus, ClipboardList as ClipboardIcon, CalendarClock, Timer, Camera, Bug, User, Edit } from 'lucide-react';
 
 interface DashboardProps {
   tasks: DealershipTask[];
@@ -72,6 +72,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
   const [delegatingTaskId, setDelegatingTaskId] = useState<string | null>(null);
   const [reassigningTaskId, setReassigningTaskId] = useState<string | null>(null);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
 
   // Fetch employees directly from database for dropdown
   useEffect(() => {
@@ -130,44 +131,77 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
     
     const deadlineTimestamp = deadline ? new Date(deadline).getTime() : undefined;
     
-    console.log('🔧 Creating task...', {
-      description: newTaskDesc.trim(),
-      assigneeId: assigneeId === 'none' ? null : assigneeId,
-      requirePhoto: requirePhoto,
-      deadline: deadlineTimestamp
-    });
-    
     if (!newTaskDesc.trim()) {
       console.log('❌ Empty task description, aborting');
       return;
     }
     
     try {
-      console.log('🔧 Creating new task...');
-      const newTaskId = `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      const newTask = {
-        id: newTaskId,
-        description: newTaskDesc.trim(),
-        assignedTo: assigneeId === 'none' ? null : assigneeId,
-        status: 'pending',
-        assignedBy: currentUser.id,
-        deadline: deadlineTimestamp,
-        requirePhoto: requirePhoto,
-        createdAt: Date.now()
-      };
-      
-      console.log('🔧 Inserting task into database:', newTask);
-      const result = await supabase
-        .from('tasks')
-        .insert([newTask]);
-      
-      if (result.error) {
-        console.error('❌ Task creation failed:', result.error);
-        alert(`Task Creation Error: ${result.error.message}`);
-        return;
-      }
-      
-      console.log('✅ Task created successfully');
+      if (editingTaskId) {
+        // Update existing task
+        console.log('🔧 Updating task...', {
+          id: editingTaskId,
+          description: newTaskDesc.trim(),
+          assigneeId: assigneeId === 'none' ? null : assigneeId,
+          requirePhoto: requirePhoto,
+          deadline: deadlineTimestamp
+        });
+        
+        const updateData = {
+          description: newTaskDesc.trim(),
+          assignedTo: assigneeId === 'none' ? null : assigneeId,
+          deadline: deadlineTimestamp,
+          requirePhoto: requirePhoto
+        };
+        
+        const result = await supabase
+          .from('tasks')
+          .update(updateData)
+          .eq('id', editingTaskId);
+        
+        if (result.error) {
+          console.error('❌ Task update failed:', result.error);
+          alert(`Task Update Error: ${result.error.message}`);
+          return;
+        }
+        
+        console.log('✅ Task updated successfully');
+        setEditingTaskId(null);
+        clearForm();
+      } else {
+        // Create new task
+        console.log('🔧 Creating task...', {
+          description: newTaskDesc.trim(),
+          assigneeId: assigneeId === 'none' ? null : assigneeId,
+          requirePhoto: requirePhoto,
+          deadline: deadlineTimestamp
+        });
+        
+        console.log('🔧 Creating new task...');
+        const newTaskId = `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const newTask = {
+          id: newTaskId,
+          description: newTaskDesc.trim(),
+          assignedTo: assigneeId === 'none' ? null : assigneeId,
+          status: 'pending',
+          assignedBy: currentUser.id,
+          deadline: deadlineTimestamp,
+          requirePhoto: requirePhoto,
+          createdAt: Date.now()
+        };
+        
+        console.log('🔧 Inserting task into database:', newTask);
+        const result = await supabase
+          .from('tasks')
+          .insert([newTask]);
+        
+        if (result.error) {
+          console.error('❌ Task creation failed:', result.error);
+          alert(`Task Creation Error: ${result.error.message}`);
+          return;
+        }
+        
+        console.log('✅ Task created successfully');
         
         // Send push notification to assigned user
         if (assigneeId !== 'none') {
@@ -187,6 +221,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
         
         // Reset form and clear localStorage
         clearForm();
+      }
     } catch (err) {
       console.error('🚨 Unexpected error creating task:', err);
       alert(`Unexpected Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
@@ -398,6 +433,18 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
     }
   };
 
+  // Edit task handler
+  const handleEditTask = (taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (task) {
+      setNewTaskDesc(task.description);
+      setAssigneeId(task.assignedTo || 'none');
+      setDeadline(task.deadline ? new Date(task.deadline).toISOString().split('T')[0] : '');
+      setRequirePhoto(task.requirePhoto || false);
+      setEditingTaskId(taskId);
+    }
+  };
+
   const filterOptions = getFilterOptions();
 
   // Apply person filter to tasks
@@ -426,8 +473,8 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
       {isManager && (
         <section className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 animate-in fade-in slide-in-from-top-4">
           <h2 className="text-xs font-black text-slate-500 mb-3 uppercase tracking-widest flex items-center gap-2">
-            <Plus className="w-3 h-3" />
-            Assign New Operation
+            {editingTaskId ? <Edit className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+            {editingTaskId ? 'Edit Operation' : 'Assign New Operation'}
           </h2>
           <form onSubmit={handleAddTask} className="space-y-3">
             <input 
@@ -483,13 +530,28 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
               </label>
             </div>
             
+            <div className="flex gap-2">
             <button 
               type="submit"
-              className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-100"
+              className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-100"
             >
-              <Plus className="w-5 h-5" />
-              Assign Task
+              {editingTaskId ? <Edit className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+              {editingTaskId ? 'Update Task' : 'Assign Task'}
             </button>
+            
+            {editingTaskId && (
+              <button 
+                type="button"
+                onClick={() => {
+                  setEditingTaskId(null);
+                  clearForm();
+                }}
+                className="px-6 bg-gray-500 text-white py-3 rounded-xl font-bold hover:bg-gray-600 active:scale-95 transition-all flex items-center justify-center gap-2"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
           </form>
         </section>
       )}
@@ -563,6 +625,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
             onReassign={() => setReassigningTaskId(task.id)}
             onDelete={() => onDeleteTask(task.id)}
             onDelegate={() => setDelegatingTaskId(task.id)}
+            onEdit={() => handleEditTask(task.id)}
             onSubTaskComplete={(subTaskId) => updateTaskStatus(subTaskId, 'completed')}
           />
         ))}
