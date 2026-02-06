@@ -49,6 +49,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [newRemark, setNewRemark] = useState('');
   const [showRemarkInput, setShowRemarkInput] = useState(false);
+  const [showRemarksExpanded, setShowRemarksExpanded] = useState(false);
 
   const isManager = currentUser.role === 'manager' || currentUser.role === 'super_admin';
   const canDelete = currentUser.id === task.assignedBy || isManager;
@@ -402,23 +403,32 @@ const TaskItem: React.FC<TaskItemProps> = ({
       {/* Remarks Display Section */}
       {task.remarks && task.remarks.length > 0 && (
         <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200">
-          <div className="flex items-center gap-2 mb-3">
+          <div 
+            className="flex items-center gap-2 mb-3 cursor-pointer hover:bg-slate-100 p-2 rounded-lg transition-colors"
+            onClick={() => setShowRemarksExpanded(!showRemarksExpanded)}
+          >
             <MessageSquarePlus className="w-4 h-4 text-slate-600" />
             <span className="text-sm font-semibold text-slate-700">Progress Updates ({task.remarks.length})</span>
+            <ChevronDown 
+              className={`w-4 h-4 text-slate-500 transition-transform ${showRemarksExpanded ? 'rotate-180' : ''}`} 
+            />
           </div>
-          <div className="space-y-2">
-            {task.remarks.map((remark) => (
-              <div key={remark.id} className="bg-white rounded-xl p-3 border border-slate-100">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-semibold text-slate-700">{remark.employeeName}</span>
-                  <span className="text-xs text-slate-500">
-                    {new Date(remark.timestamp).toLocaleString()}
-                  </span>
+          
+          {showRemarksExpanded && (
+            <div className="space-y-2 mt-2">
+              {task.remarks.map((remark, index) => (
+                <div key={remark.id} className="bg-white rounded-xl p-3 border border-slate-100">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-semibold text-slate-700">{remark.employeeName}</span>
+                    <span className="text-xs text-slate-500">
+                      {new Date(remark.timestamp).toLocaleString()}
+                    </span>
+                  </div>
+                  <p className="text-sm text-slate-600">{remark.remark}</p>
                 </div>
-                <p className="text-sm text-slate-600">{remark.remark}</p>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
