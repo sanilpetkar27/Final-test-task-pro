@@ -132,6 +132,44 @@ const App: React.FC = () => {
 
   const [tasks, setTasks] = useState<DealershipTask[]>([]);
 
+  // Extract fetchTasks logic as useCallback to prevent stale closures
+  const fetchTasks = useCallback(async () => {
+    try {
+      console.log('🔄 Fetching tasks...');
+      
+      // Fetch employees from Supabase
+      const { data: employeesData, error: employeesError } = await supabase
+        .from('employees')
+        .select('*');
+
+      // Fetch tasks from Supabase with role-based filtering
+      let tasksQuery = supabase.from('tasks').select('*');
+      
+      // Apply role-based filtering
+      if (employeesData && employeesData.length > 0) {
+        const currentUser = employeesData[0]; // Get logged-in user
+        if (currentUser.role !== 'super_admin') {
+          // Filter for managers and staff: only their assigned or created tasks
+          // Database uses camelCase: assignedTo, assignedBy
+          tasksQuery = tasksQuery.or(`assignedTo.eq.${currentUser.id},assignedBy.eq.${currentUser.id}`);
+        }
+        // For super_admin, keep fetching all tasks (no filtering)
+      }
+      
+      const result = await tasksQuery;
+      const { data: tasksData, error: tasksError } = result;
+      
+      if (tasksError) {
+        console.error('❌ Failed to fetch tasks:', tasksError);
+      } else {
+        console.log('✅ Successfully fetched tasks:', tasksData);
+        setTasks(tasksData || []);
+      }
+    } catch (err) {
+      console.error('🚨 Unexpected error fetching tasks:', err);
+    }
+  }, [fetchTasks]); // Add fetchTasks to dependencies
+
   // --- ROBUST SYNCHRONIZATION EFFECT ---
   useEffect(() => {
     // Initial Load
