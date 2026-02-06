@@ -608,21 +608,21 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
           className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${view === 'pending' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}
         >
           <ClipboardIcon className="w-4 h-4" />
-          To Do ({pendingTasks.length})
+          To Do ({filteredPendingTasks.length})
         </button>
         <button 
           onClick={() => setView('in-progress')}
           className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${view === 'in-progress' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}
         >
           <Timer className="w-4 h-4" />
-          In Progress ({inProgressTasks.length})
+          In Progress ({filteredInProgressTasks.length})
         </button>
         <button 
           onClick={() => setView('completed')}
           className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${view === 'completed' ? 'bg-white text-green-600 shadow-sm' : 'text-slate-500'}`}
         >
           <CheckCircle2 className="w-4 h-4" />
-          Done ({completedTasks.length})
+          Done ({filteredCompletedTasks.length})
         </button>
       </div>
 
