@@ -78,7 +78,6 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   useEffect(() => {
     const fetchEmployees = async () => {
       try {
-        console.log('🔍 Dashboard: Fetching employees for dropdown...');
         const result = await supabase
           .from('employees')
           .select('*');
@@ -86,7 +85,6 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
         if (result.error) {
           console.error('❌ Dashboard: Failed to fetch employees:', result.error);
         } else {
-          console.log('✅ Dashboard: Successfully fetched employees:', result.data);
           setDirectEmployees(result.data || []);
         }
       } catch (err) {
@@ -99,30 +97,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
     fetchEmployees();
   }, []);
 
-  // Fetch tasks directly from database
-  useEffect(() => {
-    const fetchTasks = async () => {
-      try {
-        console.log('🔍 Dashboard: Fetching all tasks from database...');
-        const result = await supabase
-          .from('tasks')
-          .select('*');
-        
-        if (result.error) {
-          console.error('❌ Dashboard: Failed to fetch tasks:', result.error);
-        } else {
-          console.log('✅ Dashboard: Successfully fetched tasks:', result.data);
-          // setTasks(result.data || []);
-        }
-      } catch (err) {
-        console.error('🚨 Dashboard: Unexpected error fetching tasks:', err);
-      } finally {
-        // setIsLoadingTasks(false);
-      }
-    };
-
-    fetchTasks();
-  }, []);
+  // Dashboard uses tasks from props, not fetched independently
 
   const isManager = currentUser.role === 'manager'; // Only actual managers, not super_admin
   const canAssignTasks = currentUser.role === 'manager' || currentUser.role === 'super_admin'; // For UI permissions
