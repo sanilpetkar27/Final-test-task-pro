@@ -218,7 +218,7 @@ const App: React.FC = () => {
   // Notifications Logic
   useEffect(() => {
     if (currentUser && tasks.length > 0) {
-      const lastSeen = parseInt(localStorage.getItem(`last_seen_${currentUser.id}`) || "0");
+      const lastSeen = parseInt(localStorage.getItem(`last_seen_${currentUser.id}`)) || 0;
       const newTasks = tasks.filter(t => t.assignedTo === currentUser.id && t.createdAt > lastSeen && t.status === 'pending');
       
       if (newTasks.length > 0) {
