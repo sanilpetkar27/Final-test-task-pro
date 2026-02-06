@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AppTab, DealershipTask, Employee, UserRole, TaskStatus, RewardConfig } from './types';
 import Dashboard from './components/Dashboard';
 import StatsScreen from './components/StatsScreen';
