@@ -25,6 +25,21 @@ export const useNotificationSetup = ({ userMobile, isLoggedIn }: UseNotification
     try {
       console.log('💾 Saving OneSignal ID to database...', { oneSignalId, mobile });
       
+      // First, fetch current value from database to prevent unnecessary updates
+      const { data: currentEmployee, error: fetchError } = await supabase
+        .from('employees')
+        .select('onesignal_id')
+        .eq('mobile', mobile)
+        .single();
+      
+      if (fetchError) {
+        console.error('❌ Failed to fetch current OneSignal ID:', fetchError);
+      } else if (currentEmployee && currentEmployee.onesignal_id === oneSignalId) {
+        console.log('✅ OneSignal ID already synced. Skipping update to prevent refresh loop.');
+        return; // STOP HERE - no update needed
+      }
+      
+      // Only update if the ID is actually different
       const { error } = await supabase
         .from('employees')
         .update({ onesignal_id: oneSignalId })
