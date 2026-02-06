@@ -89,8 +89,8 @@ const App: React.FC = () => {
         const currentUser = employeesData[0]; // Get logged-in user
         if (currentUser.role !== 'super_admin') {
           // Filter for managers and staff: only their assigned or created tasks
-          // Database uses snake_case: assigned_to, assigned_by
-          tasksQuery = tasksQuery.or(`assigned_to.eq.${currentUser.id},assigned_by.eq.${currentUser.id}`);
+          // Database uses camelCase: assignedTo, assignedBy
+          tasksQuery = tasksQuery.or(`assignedTo.eq.${currentUser.id},assignedBy.eq.${currentUser.id}`);
         }
         // For super_admin, keep fetching all tasks (no filtering)
       }
