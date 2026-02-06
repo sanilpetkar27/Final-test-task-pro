@@ -84,16 +84,13 @@ const App: React.FC = () => {
       // Fetch tasks from Supabase with role-based filtering
       let tasksQuery = supabase.from('tasks').select('*');
       
-      // Apply role-based filtering
-      if (employeesData && employeesData.length > 0) {
-        const currentUser = employeesData[0]; // Get logged-in user
-        if (currentUser.role !== 'super_admin') {
-          // Filter for managers and staff: only their assigned or created tasks
-          // Database uses camelCase: assignedTo, assignedBy
-          tasksQuery = tasksQuery.or(`assignedTo.eq.${currentUser.id},assignedBy.eq.${currentUser.id}`);
-        }
-        // For super_admin, keep fetching all tasks (no filtering)
+      // Apply role-based filtering using currentUser from state
+      if (employeesData && employeesData.length > 0 && currentUser) {
+        // Filter for managers and staff: only their assigned or created tasks
+        // Database uses camelCase: assignedTo, assignedBy
+        tasksQuery = tasksQuery.or(`assignedTo.eq.${currentUser.id},assignedBy.eq.${currentUser.id}`);
       }
+      // For super_admin, keep fetching all tasks (no filtering)
       
       const result = await tasksQuery;
       const { data: tasksData, error: tasksError } = result;
@@ -148,16 +145,13 @@ const App: React.FC = () => {
       // Fetch tasks from Supabase with role-based filtering
       let tasksQuery = supabase.from('tasks').select('*');
       
-      // Apply role-based filtering
-      if (employeesData && employeesData.length > 0) {
-        const currentUser = employeesData[0]; // Get logged-in user
-        if (currentUser.role !== 'super_admin') {
-          // Filter for managers and staff: only their assigned or created tasks
-          // Database uses camelCase: assignedTo, assignedBy
-          tasksQuery = tasksQuery.or(`assignedTo.eq.${currentUser.id},assignedBy.eq.${currentUser.id}`);
-        }
-        // For super_admin, keep fetching all tasks (no filtering)
+      // Apply role-based filtering using currentUser from state
+      if (employeesData && employeesData.length > 0 && currentUser) {
+        // Filter for managers and staff: only their assigned or created tasks
+        // Database uses camelCase: assignedTo, assignedBy
+        tasksQuery = tasksQuery.or(`assignedTo.eq.${currentUser.id},assignedBy.eq.${currentUser.id}`);
       }
+      // For super_admin, keep fetching all tasks (no filtering)
       
       const result = await tasksQuery;
       const { data: tasksData, error: tasksError } = result;
