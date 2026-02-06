@@ -132,6 +132,9 @@ const App: React.FC = () => {
 
   const [tasks, setTasks] = useState<DealershipTask[]>([]);
 
+  // Ref for fetchTasks to prevent infinite loop
+  const fetchTasksRef = useRef(fetchTasks);
+
   // Extract fetchTasks logic as useCallback to prevent stale closures
   const fetchTasks = useCallback(async () => {
     try {
