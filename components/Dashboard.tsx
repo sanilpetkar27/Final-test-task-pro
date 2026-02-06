@@ -168,6 +168,11 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
         console.log('✅ Task updated successfully');
         setEditingTaskId(null);
         clearForm();
+        
+        // Trigger parent to refetch tasks
+        setTimeout(() => {
+          onAddTask('', '', '', '', false);
+        }, 100);
       } else {
         // Create new task
         console.log('🔧 Creating task...', {
