@@ -124,7 +124,8 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
     fetchTasks();
   }, []);
 
-  const isManager = currentUser.role === 'manager' || currentUser.role === 'super_admin';
+  const isManager = currentUser.role === 'manager'; // Only actual managers, not super_admin
+  const canAssignTasks = currentUser.role === 'manager' || currentUser.role === 'super_admin'; // For UI permissions
 
   const handleAddTask = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -509,7 +510,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   // Apply person filter to tasks
   const getFilteredTasks = (tasks: DealershipTask[]) => {
     if (selectedPersonFilter === 'ALL') {
-      return tasks;
+      return tasks; // This should already be the visibleTasks for managers
     }
     
     if (isManager) {
@@ -529,7 +530,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
 
   return (
     <div className="space-y-6">
-      {isManager && (
+      {canAssignTasks && (
         <section className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 animate-in fade-in slide-in-from-top-4">
           <h2 className="text-xs font-black text-slate-500 mb-3 uppercase tracking-widest flex items-center gap-2">
             {editingTaskId ? <Edit className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
