@@ -397,15 +397,6 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
     }
   };
 
-  console.log("📋 Dashboard - Current User:", currentUser.name, currentUser.role);
-  console.log("📋 Dashboard - Total tasks from database:", tasks.length);
-  console.log("📋 Dashboard - All tasks detail:", tasks.map(t => ({ 
-    id: t.id, 
-    desc: t.description, 
-    assignedTo: directEmployees.find(e => e.id === t.assignedTo)?.name || 'Unassigned',
-    assignedBy: directEmployees.find(e => e.id === t.assignedBy)?.name || 'Unknown'
-  })));
-
   // Filter tasks by visibility - only show user's own tasks unless super_admin
   const isSuperAdmin = currentUser.role === 'super_admin';
   const visibleTasks = isSuperAdmin 
