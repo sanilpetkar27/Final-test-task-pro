@@ -409,7 +409,9 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   const isSuperAdmin = currentUser.role === 'super_admin';
   const visibleTasks = isSuperAdmin 
     ? tasks 
-    : tasks.filter(t => t.assignedTo === currentUser.id || t.assignedBy === currentUser.id);
+    : isManager 
+      ? tasks.filter(t => t.assignedTo === currentUser.id) // Managers only see tasks assigned TO them
+      : tasks.filter(t => t.assignedTo === currentUser.id || t.assignedBy === currentUser.id); // Staff see tasks assigned TO them OR created BY them
 
   const pendingTasks = visibleTasks.filter(t => t.status === 'pending');
   const inProgressTasks = visibleTasks.filter(t => t.status === 'in-progress');
