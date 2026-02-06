@@ -418,13 +418,24 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   console.log('🔍 Debug - Current User:', currentUser.name, currentUser.role);
   console.log('🔍 Debug - isSuperAdmin:', isSuperAdmin);
   console.log('🔍 Debug - isManager:', isManager);
+  console.log('🔍 Debug - Current User ID:', currentUser.id);
   console.log('🔍 Debug - Total tasks:', tasks.length);
   console.log('🔍 Debug - Visible tasks:', visibleTasks.length);
+  console.log('🔍 Debug - ALL task details:', tasks.map(t => ({ 
+    id: t.id, 
+    desc: t.description.substring(0, 30) + '...', 
+    assignedTo: t.assignedTo,
+    assignedToName: directEmployees.find(e => e.id === t.assignedTo)?.name || 'Unassigned',
+    assignedBy: t.assignedBy,
+    assignedByName: directEmployees.find(e => e.id === t.assignedBy)?.name || 'Unknown'
+  })));
   console.log('🔍 Debug - Visible task details:', visibleTasks.map(t => ({ 
     id: t.id, 
     desc: t.description.substring(0, 30) + '...', 
-    assignedTo: directEmployees.find(e => e.id === t.assignedTo)?.name || 'Unassigned',
-    assignedBy: directEmployees.find(e => e.id === t.assignedBy)?.name || 'Unknown'
+    assignedTo: t.assignedTo,
+    assignedToName: directEmployees.find(e => e.id === t.assignedTo)?.name || 'Unassigned',
+    assignedBy: t.assignedBy,
+    assignedByName: directEmployees.find(e => e.id === t.assignedBy)?.name || 'Unknown'
   })));
 
   const pendingTasks = visibleTasks.filter(t => t.status === 'pending');
