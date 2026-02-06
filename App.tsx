@@ -220,15 +220,16 @@ const App: React.FC = () => {
     if (currentUser && tasks.length > 0) {
       const lastSeen = parseInt(localStorage.getItem(`last_seen_${currentUser.id}`) || "0");
       const newTasks = tasks.filter(t => t.assignedTo === currentUser.id && t.createdAt > lastSeen && t.status === 'pending');
-
+      
       if (newTasks.length > 0) {
         const lastTask = newTasks[0];
         setNotification({
           title: "New Assignment",
           message: `New task assigned: ${lastTask.description}`
         });
+        // Update lastSeen timestamp to prevent duplicate notifications
+        localStorage.setItem(`last_seen_${currentUser.id}`, Date.now().toString());
       }
-      localStorage.setItem(`last_seen_${currentUser.id}`, Date.now().toString());
     }
   }, [currentUser, appReady, tasks]);
 
