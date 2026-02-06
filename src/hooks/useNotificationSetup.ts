@@ -51,8 +51,20 @@ export const useNotificationSetup = ({ userMobile, isLoggedIn }: UseNotification
       
       // For localhost test mode, skip the permission flow and directly get/save ID
       if (window.location.hostname === 'localhost') {
-        console.log('🧪 Localhost test mode - directly saving test ID');
-        const testId = 'test-localhost-device-id-' + Math.random().toString(36).substr(2, 9);
+        console.log('🧪 Localhost test mode - using mock OneSignal');
+        
+        // Check if we already have a mock ID in localStorage
+        let testId = localStorage.getItem('mock_onesignal_id');
+        
+        if (!testId) {
+          // Only generate a new ID if one doesn't exist
+          testId = 'test-localhost-device-id-' + Math.random().toString(36).substr(2, 9);
+          localStorage.setItem('mock_onesignal_id', testId);
+          console.log('🧪 Generated new mock OneSignal ID:', testId);
+        } else {
+          console.log('🧪 Using existing mock OneSignal ID:', testId);
+        }
+        
         await saveOneSignalIdToDatabase(testId, userMobile);
         return;
       }

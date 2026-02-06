@@ -372,17 +372,10 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
     }
   };
 
-  // Filter tasks by visibility - only show user's own tasks unless super_admin
-  const isSuperAdmin = currentUser.role === 'super_admin';
-  const visibleTasks = isSuperAdmin 
-    ? tasks 
-    : isManager 
-      ? tasks.filter(t => t.assignedTo === currentUser.id) // Managers only see tasks assigned TO them
-      : tasks.filter(t => t.assignedTo === currentUser.id || t.assignedBy === currentUser.id); // Staff see tasks assigned TO them OR created BY them
-
-  const pendingTasks = visibleTasks.filter(t => t.status === 'pending');
-  const inProgressTasks = visibleTasks.filter(t => t.status === 'in-progress');
-  const completedTasks = visibleTasks.filter(t => t.status === 'completed');
+  // Tasks are already filtered by role in App.tsx, no need to filter again here
+  const pendingTasks = tasks.filter(t => t.status === 'pending');
+  const inProgressTasks = tasks.filter(t => t.status === 'in-progress');
+  const completedTasks = tasks.filter(t => t.status === 'completed');
 
   // Person Filter Logic
   // Get filter options based on user role
@@ -639,8 +632,8 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
           <TaskItem 
             key={task.id} 
             task={task} 
-            subTasks={visibleTasks.filter(t => t.parentTaskId === task.id)}
-            parentTask={visibleTasks.find(t => t.id === task.parentTaskId)}
+            subTasks={tasks.filter(t => t.parentTaskId === task.id)}
+            parentTask={tasks.find(t => t.id === task.parentTaskId)}
             employees={directEmployees}
             currentUser={currentUser}
             onMarkComplete={() => updateTaskStatus(task.id, 'completed')}
