@@ -469,7 +469,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   // Apply person filter to tasks
   const getFilteredTasks = (tasks: DealershipTask[]) => {
     if (selectedPersonFilter === 'ALL') {
-      return tasks; // This should already be the visibleTasks for managers
+      return tasks.filter(task => task.assignedTo === currentUser.id || task.assignedBy === currentUser.id); // Filter for managers to see only their tasks
     }
     
     if (isManager) {
