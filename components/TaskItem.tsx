@@ -211,10 +211,9 @@ const TaskItem: React.FC<TaskItemProps> = ({
               <button 
                 onClick={onStartTask}
                 className="bg-blue-600 text-white px-4 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all flex flex-col items-center justify-center min-w-[80px]"
-                title="Start working on this task"
+                title="Accept this task"
               >
-                <Play className="w-5 h-5 mb-0.5" />
-                <span className="text-[10px] font-black uppercase">Start</span>
+                <span className="text-[10px] font-black uppercase">Accept</span>
               </button>
               
               {isManager && (
