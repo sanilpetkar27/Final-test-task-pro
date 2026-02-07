@@ -64,7 +64,10 @@ export const sendTaskAssignmentNotification = async (
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Basic ${btoa('N2MwLkL2MxX7dLtQqHc3aH0vYb9E')}`
+        'Authorization': `Basic ${btoa('N2MwLkL2MxX7dLtQqHc3aH0vYb9E')}`,
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization'
       },
       body: JSON.stringify(notification)
     });
@@ -144,7 +147,10 @@ export const sendTaskCompletionNotification = async (
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Basic ${btoa('N2MwLkL2MxX7dLtQqHc3aH0vYb9E')}`
+        'Authorization': `Basic ${btoa('N2MwLkL2MxX7dLtQqHc3aH0vYb9E')}`,
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization'
       },
       body: JSON.stringify(notification)
     });
