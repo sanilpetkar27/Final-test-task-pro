@@ -244,6 +244,41 @@ const App: React.FC = () => {
     };
   }, []);
 
+  // --- APP RESUME LISTENERS FOR TASK SYNC ---
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('📱 App became visible, refreshing tasks...');
+        loadInitialData(false).then(data => {
+          if (data) {
+            setEmployees(data.employees);
+            setTasks(data.tasks);
+          }
+        });
+      }
+    };
+
+    const handleFocus = () => {
+      console.log('🎯 App gained focus, refreshing tasks...');
+      loadInitialData(false).then(data => {
+        if (data) {
+          setEmployees(data.employees);
+          setTasks(data.tasks);
+        }
+      });
+    };
+
+    // Add event listeners
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    // Cleanup event listeners when component unmounts
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, []);
+
   // --- 3. EFFECTS (Notifications & Auto-Save) ---
 
   useEffect(() => {
