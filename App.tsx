@@ -190,7 +190,7 @@ const App: React.FC = () => {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tasks' }, async (payload) => {
         console.log('🔔 Realtime INSERT:', payload);
         try {
-          // Fetch complete task with joined employee data
+          // First try to fetch complete task with joined employee data
           const { data: fullTask, error } = await supabase
             .from('tasks')
             .select('*, assigned_to_user:employees!assigned_to(*), assigned_by_user:employees!assigned_by(*)')
@@ -199,14 +199,39 @@ const App: React.FC = () => {
           
           if (error) {
             console.error('❌ Failed to fetch full task for INSERT:', error);
+            // Fallback: Use raw payload with basic task data
+            console.log('🔄 Using fallback with raw payload data');
+            const fallbackTask = {
+              ...payload.new,
+              assigned_to_user: null,
+              assigned_by_user: null
+            };
+            setTasks(prev => [fallbackTask, ...prev]);
             return;
           }
           
           if (fullTask) {
+            console.log('✅ Successfully fetched full task:', fullTask);
             setTasks(prev => [fullTask, ...prev]);
+          } else {
+            // Fallback: Use raw payload if fullTask is null
+            console.log('🔄 Using fallback - fullTask is null');
+            const fallbackTask = {
+              ...payload.new,
+              assigned_to_user: null,
+              assigned_by_user: null
+            };
+            setTasks(prev => [fallbackTask, ...prev]);
           }
         } catch (err) {
           console.error('🚨 Error in realtime INSERT handler:', err);
+          // Emergency fallback: Use raw payload
+          const fallbackTask = {
+            ...payload.new,
+            assigned_to_user: null,
+            assigned_by_user: null
+          };
+          setTasks(prev => [fallbackTask, ...prev]);
         }
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tasks' }, async (payload) => {
