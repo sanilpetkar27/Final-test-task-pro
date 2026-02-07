@@ -61,6 +61,15 @@ export const sendTaskAssignmentNotification = async (
       return;
     }
 
+    // Deep inspection of response for OneSignal errors
+    console.log('🔍 Deep inspection of Edge Function response:', JSON.stringify(data, null, 2));
+    
+    if (data && data.errors && Array.isArray(data.errors) && data.errors.length > 0) {
+      console.error('❌ OneSignal API returned errors:', JSON.stringify(data.errors, null, 2));
+      console.error('❌ Error details:', data.errors.map(err => `${err.error}: ${err.message || 'No message'}`).join(', '));
+      return;
+    }
+
     console.log('✅ Push notification sent successfully via Edge Function:', data);
 
   } catch (error) {
@@ -125,6 +134,15 @@ export const sendTaskCompletionNotification = async (
 
     if (error) {
       console.error('❌ Failed to send push notification via Edge Function:', error);
+      return;
+    }
+
+    // Deep inspection of response for OneSignal errors
+    console.log('🔍 Deep inspection of Edge Function response:', JSON.stringify(data, null, 2));
+    
+    if (data && data.errors && Array.isArray(data.errors) && data.errors.length > 0) {
+      console.error('❌ OneSignal API returned errors:', JSON.stringify(data.errors, null, 2));
+      console.error('❌ Error details:', data.errors.map(err => `${err.error}: ${err.message || 'No message'}`).join(', '));
       return;
     }
 
