@@ -17,5 +17,8 @@ export default defineConfig({
         main: path.resolve(__dirname, 'index.html')
       }
     }
+  },
+  define: {
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString())
   }
 });
