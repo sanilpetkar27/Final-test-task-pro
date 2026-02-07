@@ -187,15 +187,49 @@ const App: React.FC = () => {
   useEffect(() => {
     const taskListener = supabase
       .channel('public:tasks')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tasks' }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tasks' }, async (payload) => {
         console.log('🔔 Realtime INSERT:', payload);
-        const newTask = payload.new as DealershipTask;
-        setTasks(prev => [newTask, ...prev]);
+        try {
+          // Fetch complete task with joined employee data
+          const { data: fullTask, error } = await supabase
+            .from('tasks')
+            .select('*, assigned_to_user:employees!assigned_to(*), assigned_by_user:employees!assigned_by(*)')
+            .eq('id', payload.new.id)
+            .single();
+          
+          if (error) {
+            console.error('❌ Failed to fetch full task for INSERT:', error);
+            return;
+          }
+          
+          if (fullTask) {
+            setTasks(prev => [fullTask, ...prev]);
+          }
+        } catch (err) {
+          console.error('🚨 Error in realtime INSERT handler:', err);
+        }
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tasks' }, (payload) => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tasks' }, async (payload) => {
         console.log('🔔 Realtime UPDATE:', payload);
-        const updatedTask = payload.new as DealershipTask;
-        setTasks(prev => prev.map(task => task.id === updatedTask.id ? updatedTask : task));
+        try {
+          // Fetch complete task with joined employee data
+          const { data: fullTask, error } = await supabase
+            .from('tasks')
+            .select('*, assigned_to_user:employees!assigned_to(*), assigned_by_user:employees!assigned_by(*)')
+            .eq('id', payload.new.id)
+            .single();
+          
+          if (error) {
+            console.error('❌ Failed to fetch full task for UPDATE:', error);
+            return;
+          }
+          
+          if (fullTask) {
+            setTasks(prev => prev.map(task => task.id === fullTask.id ? fullTask : task));
+          }
+        } catch (err) {
+          console.error('🚨 Error in realtime UPDATE handler:', err);
+        }
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'tasks' }, (payload) => {
         console.log('🔔 Realtime DELETE:', payload);
