@@ -187,15 +187,20 @@ const App: React.FC = () => {
   useEffect(() => {
     const taskListener = supabase
       .channel('public:tasks')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, (payload) => {
-        console.log('🔔 Realtime Update:', payload);
-        // Trigger a refetch to update UI state
-        loadInitialData(false).then(data => {
-          if (data) {
-            setEmployees(data.employees);
-            setTasks(data.tasks);
-          }
-        });
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tasks' }, (payload) => {
+        console.log('🔔 Realtime INSERT:', payload);
+        const newTask = payload.new as DealershipTask;
+        setTasks(prev => [newTask, ...prev]);
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tasks' }, (payload) => {
+        console.log('🔔 Realtime UPDATE:', payload);
+        const updatedTask = payload.new as DealershipTask;
+        setTasks(prev => prev.map(task => task.id === updatedTask.id ? updatedTask : task));
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'tasks' }, (payload) => {
+        console.log('🔔 Realtime DELETE:', payload);
+        const deletedTaskId = payload.old.id;
+        setTasks(prev => prev.filter(task => task.id !== deletedTaskId));
       })
       .subscribe();
 
