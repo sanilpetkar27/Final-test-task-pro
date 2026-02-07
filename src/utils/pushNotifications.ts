@@ -41,30 +41,20 @@ export const sendTaskAssignmentNotification = async (
       return;
     }
 
-    // Prepare notification content
-    const notification = {
-      contents: {
-        en: {
-          title: '🔔 New Task Assigned',
-          body: `You have been assigned a new task: ${taskDescription}\nAssigned by: ${assignedBy}`,
-          data: {
-            type: 'task_assignment',
-            taskDescription,
-            assignedBy,
-            assignedTo: assignedToName
-          }
+    // Simple payload - let backend handle the rest
+    const payload = {
+      body: {
+        record: {
+          description: taskDescription,
+          assigned_to: assignedToMobile
         }
-      },
-      include_player_ids: [employee.onesignal_id],
-      target_channel: 'push'
+      }
     };
 
-    // Send to OneSignal via Supabase Edge Function (no CORS issues)
-    console.log('🔔 Frontend: Sending payload:', JSON.stringify(notification));
-    
-    const { data, error } = await supabase.functions.invoke('send-push', { 
-      record: notification 
-    });
+    console.log('🔔 Frontend: Sending simple payload:', JSON.stringify(payload));
+
+    // Send to Edge Function
+    const { data, error } = await supabase.functions.invoke('send-push', payload);
 
     if (error) {
       console.error('❌ Failed to send push notification via Edge Function:', error);
@@ -118,29 +108,20 @@ export const sendTaskCompletionNotification = async (
       return;
     }
 
-    // Prepare notification content
-    const notification = {
-      contents: {
-        en: {
-          title: '✅ Task Completed',
-          body: `Task "${taskDescription}" has been completed by ${completedByName}`,
-          data: {
-            type: 'task_completion',
-            taskDescription,
-            completedBy: completedByName
-          }
+    // Simple payload - let backend handle the rest
+    const payload = {
+      body: {
+        record: {
+          description: taskDescription,
+          assigned_to: assignedByMobile
         }
-      },
-      include_player_ids: [employee.onesignal_id],
-      target_channel: 'push'
+      }
     };
 
-    // Send to OneSignal via Supabase Edge Function (no CORS issues)
-    console.log('🔔 Frontend: Sending payload:', JSON.stringify(notification));
-    
-    const { data, error } = await supabase.functions.invoke('send-push', { 
-      record: notification 
-    });
+    console.log('🔔 Frontend: Sending simple payload:', JSON.stringify(payload));
+
+    // Send to Edge Function
+    const { data, error } = await supabase.functions.invoke('send-push', payload);
 
     if (error) {
       console.error('❌ Failed to send push notification via Edge Function:', error);
