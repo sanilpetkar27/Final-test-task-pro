@@ -35,16 +35,52 @@ serve(async (req) => {
       );
     }
 
-    if (!record.include_player_ids || record.include_player_ids.length === 0) {
-      console.error('❌ Edge Function: Missing include_player_ids in record');
+    // For simplified payload, we need to build the OneSignal notification here
+    if (!record.description || !record.assigned_to) {
+      console.error('❌ Edge Function: Missing required fields in record');
       return new Response(
-        JSON.stringify({ error: 'Missing include_player_ids in record' }), 
+        JSON.stringify({ error: 'Missing description or assigned_to in record' }), 
         { 
           status: 400, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       );
     }
+
+    // Get OneSignal ID for the assigned user
+    const { data: employeeData, error: employeeError } = await supabase
+      .from('employees')
+      .select('onesignal_id')
+      .eq('mobile', record.assigned_to)
+      .maybeSingle();
+
+    if (employeeError || !employeeData || !employeeData.onesignal_id) {
+      console.error('❌ Edge Function: No OneSignal ID found for user:', record.assigned_to);
+      return new Response(
+        JSON.stringify({ error: 'No OneSignal ID found for assigned user' }), 
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+    // Build OneSignal notification
+    const notification = {
+      contents: {
+        en: {
+          title: '🔔 New Task Assigned',
+          body: `You have been assigned a new task: ${record.description}`,
+          data: {
+            type: 'task_assignment',
+            taskDescription: record.description,
+            assignedTo: record.assigned_to
+          }
+        }
+      },
+      include_player_ids: [employeeData.onesignal_id],
+      target_channel: 'push'
+    };
 
     console.log('🔔 Edge Function: Sending push notification to OneSignal...');
 

@@ -7,13 +7,13 @@ export const sendTaskAssignmentNotification = async (
   taskDescription: string,
   assignedToName: string,
   assignedBy: string,
-  assignedToMobile: string
+  assignedToId: string  // ✅ Changed from mobile to ID
 ): Promise<void> => {
   try {
     console.log('📱 Sending task assignment notification...', {
       taskDescription,
       assignedToName,
-      assignedToMobile
+      assignedToId
     });
 
     // Get the user's OneSignal ID
@@ -22,7 +22,7 @@ export const sendTaskAssignmentNotification = async (
       const result = await supabase
         .from('employees')
         .select('onesignal_id')
-        .eq('mobile', assignedToMobile)
+        .eq('id', assignedToId)  // ✅ Query by ID instead of mobile
         .maybeSingle();
       
       employee = result.data;
@@ -37,7 +37,7 @@ export const sendTaskAssignmentNotification = async (
     }
 
     if (!employee || !employee.onesignal_id) {
-      console.log('❌ No OneSignal ID found for user:', assignedToMobile);
+      console.log('❌ No OneSignal ID found for user:', assignedToId);
       return;
     }
 
@@ -46,7 +46,7 @@ export const sendTaskAssignmentNotification = async (
       body: {
         record: {
           description: taskDescription,
-          assigned_to: assignedToMobile
+          assigned_to: assignedToId  // ✅ Use ID instead of mobile
         }
       }
     };

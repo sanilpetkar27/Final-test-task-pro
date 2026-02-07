@@ -198,7 +198,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
               newTask.description,
               assignedEmployee.name,
               currentUser.name,
-              assignedEmployee.mobile
+              assignedEmployee.id  // ✅ Pass employee ID instead of mobile
             );
           }
         }
