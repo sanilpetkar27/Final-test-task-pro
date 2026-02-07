@@ -190,44 +190,113 @@ const App: React.FC = () => {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tasks' }, async (payload) => {
         console.log('🔔 Realtime INSERT:', payload);
         try {
-          // Simplified approach: Use raw payload and add employee data manually
-          const newTask = {
-            ...payload.new,
-            assigned_to_user: null, // Will be populated by UI component
-            assigned_by_user: null   // Will be populated by UI component
-          };
+          // Step 1: Fetch the raw task
+          const { data: task, error: taskError } = await supabase
+            .from('tasks')
+            .select('*')
+            .eq('id', payload.new.id)
+            .single();
           
-          console.log('✅ Adding new task to state:', newTask);
-          setTasks(prev => [newTask, ...prev]);
+          if (taskError || !task) {
+            console.error('❌ Failed to fetch task:', taskError);
+            return;
+          }
+
+          // Step 2: Fetch assignee if exists
+          let assignee = null;
+          if (task.assigned_to) {
+            const { data: assigneeData, error: assigneeError } = await supabase
+              .from('employees')
+              .select('*')
+              .eq('id', task.assigned_to)
+              .single();
+            
+            if (!assigneeError && assigneeData) {
+              assignee = assigneeData;
+            }
+          }
+
+          // Step 3: Fetch assigner if exists
+          let assigner = null;
+          if (task.assigned_by) {
+            const { data: assignerData, error: assignerError } = await supabase
+              .from('employees')
+              .select('*')
+              .eq('id', task.assigned_by)
+              .single();
+            
+            if (!assignerError && assignerData) {
+              assigner = assignerData;
+            }
+          }
+
+          // Step 4: Combine into rich task object
+          const richTask = {
+            ...task,
+            assigned_to_user: assignee,
+            assigned_by_user: assigner
+          };
+
+          console.log('✅ Created rich task:', richTask);
+          setTasks(prev => [richTask, ...prev]);
+
         } catch (err) {
           console.error('🚨 Error in realtime INSERT handler:', err);
-          // Emergency fallback: Use raw payload
-          const fallbackTask = {
-            ...payload.new,
-            assigned_to_user: null,
-            assigned_by_user: null
-          };
-          setTasks(prev => [fallbackTask, ...prev]);
         }
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tasks' }, async (payload) => {
         console.log('🔔 Realtime UPDATE:', payload);
         try {
-          // Fetch complete task with joined employee data
-          const { data: fullTask, error } = await supabase
+          // Step 1: Fetch the raw task
+          const { data: task, error: taskError } = await supabase
             .from('tasks')
-            .select('*, assigned_to_user:employees!assigned_to(*), assigned_by_user:employees!assigned_by(*)')
+            .select('*')
             .eq('id', payload.new.id)
             .single();
           
-          if (error) {
-            console.error('❌ Failed to fetch full task for UPDATE:', error);
+          if (taskError || !task) {
+            console.error('❌ Failed to fetch task:', taskError);
             return;
           }
-          
-          if (fullTask) {
-            setTasks(prev => prev.map(task => task.id === fullTask.id ? fullTask : task));
+
+          // Step 2: Fetch assignee if exists
+          let assignee = null;
+          if (task.assigned_to) {
+            const { data: assigneeData, error: assigneeError } = await supabase
+              .from('employees')
+              .select('*')
+              .eq('id', task.assigned_to)
+              .single();
+            
+            if (!assigneeError && assigneeData) {
+              assignee = assigneeData;
+            }
           }
+
+          // Step 3: Fetch assigner if exists
+          let assigner = null;
+          if (task.assigned_by) {
+            const { data: assignerData, error: assignerError } = await supabase
+              .from('employees')
+              .select('*')
+              .eq('id', task.assigned_by)
+              .single();
+            
+            if (!assignerError && assignerData) {
+              assigner = assignerData;
+            }
+          }
+
+          // Step 4: Combine into rich task object
+          const richTask = {
+            ...task,
+            assigned_to_user: assignee,
+            assigned_by_user: assigner
+          };
+
+          console.log('✅ Updated rich task:', richTask);
+          setTasks(prev => prev.map(task => task.id === richTask.id ? richTask : task));
+
         } catch (err) {
           console.error('🚨 Error in realtime UPDATE handler:', err);
         }
