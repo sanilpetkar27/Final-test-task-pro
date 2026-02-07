@@ -70,7 +70,7 @@ serve(async (req) => {
       include_player_ids: [targetPlayerId],
       headings: { en: 'New Task Assigned' },
       contents: { en: `Task: ${record.description || 'New task'}` },
-      url: 'https://universal-tasker.vercel.app'
+      url: 'https://final-test-task-pro.vercel.app/'
     }
 
     console.log('� Sending to OneSignal:', JSON.stringify(notification))
