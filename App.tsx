@@ -190,43 +190,15 @@ const App: React.FC = () => {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tasks' }, async (payload) => {
         console.log('🔔 Realtime INSERT:', payload);
         try {
-          // First try to fetch complete task with employee data using correct column names
-          const { data: fullTask, error } = await supabase
-            .from('tasks')
-            .select(`
-              *,
-              assigned_to_user:employees!tasks_assigned_to_fkey(*),
-              assigned_by_user:employees!tasks_assigned_by_fkey(*)
-            `)
-            .eq('id', payload.new.id)
-            .single();
+          // Simplified approach: Use raw payload and add employee data manually
+          const newTask = {
+            ...payload.new,
+            assigned_to_user: null, // Will be populated by UI component
+            assigned_by_user: null   // Will be populated by UI component
+          };
           
-          if (error) {
-            console.error('❌ Failed to fetch full task for INSERT:', error);
-            // Fallback: Use raw payload with basic task data
-            console.log('🔄 Using fallback with raw payload data');
-            const fallbackTask = {
-              ...payload.new,
-              assigned_to_user: null,
-              assigned_by_user: null
-            };
-            setTasks(prev => [fallbackTask, ...prev]);
-            return;
-          }
-          
-          if (fullTask) {
-            console.log('✅ Successfully fetched full task:', fullTask);
-            setTasks(prev => [fullTask, ...prev]);
-          } else {
-            // Fallback: Use raw payload if fullTask is null
-            console.log('🔄 Using fallback - fullTask is null');
-            const fallbackTask = {
-              ...payload.new,
-              assigned_to_user: null,
-              assigned_by_user: null
-            };
-            setTasks(prev => [fallbackTask, ...prev]);
-          }
+          console.log('✅ Adding new task to state:', newTask);
+          setTasks(prev => [newTask, ...prev]);
         } catch (err) {
           console.error('🚨 Error in realtime INSERT handler:', err);
           // Emergency fallback: Use raw payload
