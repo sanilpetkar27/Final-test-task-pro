@@ -189,7 +189,13 @@ const App: React.FC = () => {
       .channel('public:tasks')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, (payload) => {
         console.log('🔔 Realtime Update:', payload);
-        fetchTasksRef.current(); // Use ref instead of direct function call
+        // Trigger a refetch to update UI state
+        loadInitialData(false).then(data => {
+          if (data) {
+            setEmployees(data.employees);
+            setTasks(data.tasks);
+          }
+        });
       })
       .subscribe();
 
