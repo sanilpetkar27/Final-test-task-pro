@@ -13,17 +13,49 @@ serve(async (req) => {
   }
 
   try {
-    const { body } = await req.json();
-    console.log('🔔 Edge Function: Sending push notification', body);
+    const payload = await req.json();
+    console.log('🔔 Edge Function: Received payload:', JSON.stringify(payload));
+    
+    // Log environment variables
+    console.log('🔔 Edge Function: ONESIGNAL_APP_ID:', Deno.env.get('ONESIGNAL_APP_ID'));
+    console.log('🔔 Edge Function: ONESIGNAL_API_KEY:', Deno.env.get('ONESIGNAL_API_KEY') ? 'SET' : 'MISSING');
+    
+    // Handle both direct calls and webhooks
+    const record = payload.record || payload;
+    console.log('🔔 Edge Function: Extracted record:', JSON.stringify(record));
+    
+    if (!record) {
+      console.error('❌ Edge Function: No record found in payload');
+      return new Response(
+        JSON.stringify({ error: 'No record found in payload' }), 
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+    if (!record.include_player_ids || record.include_player_ids.length === 0) {
+      console.error('❌ Edge Function: Missing include_player_ids in record');
+      return new Response(
+        JSON.stringify({ error: 'Missing include_player_ids in record' }), 
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+    console.log('🔔 Edge Function: Sending push notification to OneSignal...');
 
     // Send to OneSignal from server-side (no CORS issues)
     const response = await fetch('https://onesignal.com/api/v1/notifications', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Basic ${Deno.env.get('ONEDIGNAL_REST_API_KEY')}`
+        'Authorization': `Basic ${Deno.env.get('ONESIGNAL_API_KEY')}`
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(record)
     });
 
     if (!response.ok) {

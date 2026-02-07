@@ -60,8 +60,10 @@ export const sendTaskAssignmentNotification = async (
     };
 
     // Send to OneSignal via Supabase Edge Function (no CORS issues)
+    console.log('🔔 Frontend: Sending payload:', JSON.stringify(notification));
+    
     const { data, error } = await supabase.functions.invoke('send-push', { 
-      body: notification 
+      record: notification 
     });
 
     if (error) {
@@ -134,8 +136,10 @@ export const sendTaskCompletionNotification = async (
     };
 
     // Send to OneSignal via Supabase Edge Function (no CORS issues)
+    console.log('🔔 Frontend: Sending payload:', JSON.stringify(notification));
+    
     const { data, error } = await supabase.functions.invoke('send-push', { 
-      body: notification 
+      record: notification 
     });
 
     if (error) {
