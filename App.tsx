@@ -190,10 +190,14 @@ const App: React.FC = () => {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tasks' }, async (payload) => {
         console.log('🔔 Realtime INSERT:', payload);
         try {
-          // First try to fetch complete task with joined employee data
+          // First try to fetch complete task with employee data using correct column names
           const { data: fullTask, error } = await supabase
             .from('tasks')
-            .select('*, assigned_to_user:employees!assigned_to(*), assigned_by_user:employees!assigned_by(*)')
+            .select(`
+              *,
+              assigned_to_user:employees!tasks_assigned_to_fkey(*),
+              assigned_by_user:employees!tasks_assigned_by_fkey(*)
+            `)
             .eq('id', payload.new.id)
             .single();
           
