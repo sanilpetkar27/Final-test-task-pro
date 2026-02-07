@@ -24,7 +24,8 @@ export const initializeOneSignal = async (): Promise<void> => {
       appId: ONE_SIGNAL_APP_ID,
       allowLocalhostAsSecureOrigin: true,
       serviceWorkerPath: '/OneSignalSDKWorker.js',
-      serviceWorkerUpdaterPath: '/OneSignalSDKUpdaterWorker.js'
+      serviceWorkerUpdaterPath: '/OneSignalSDKUpdaterWorker.js',
+      subdomainName: 'final-test-task-pro.vercel.app'
     });
     
     console.log('✅ OneSignal initialized successfully');
