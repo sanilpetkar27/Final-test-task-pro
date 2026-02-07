@@ -198,7 +198,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
               newTask.description,
               assignedEmployee.name,
               currentUser.name,
-              assignedEmployee.id  // ✅ Pass employee ID instead of mobile
+              assignedEmployee.id
             );
           }
         }
@@ -241,18 +241,6 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
         // Send push notification to assigned user
         if (result.data && result.data.length > 0) {
           const assignedEmployee = employees.find(emp => emp.id === targetAssigneeId);
-          if (assignedEmployee) {
-            await sendTaskAssignmentNotification(
-              result.data[0].description,
-              assignedEmployee.name,
-              currentUser.name,
-              assignedEmployee.mobile
-            );
-          }
-        }
-        
-        // Update local state immediately
-        if (result.data && result.data.length > 0) {
           // setTasks(prev => [result.data[0], ...prev]);
         }
         
