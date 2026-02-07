@@ -184,6 +184,12 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
         
         console.log('✅ Task created successfully');
         
+        // IMMEDIATELY reset form states
+        setNewTaskDesc('');
+        setAssigneeId('none');
+        setDeadline('');
+        setRequirePhoto(false);
+        
         // Send push notification to assigned user
         if (assigneeId !== 'none') {
           const assignedEmployee = employees.find(emp => emp.id === assigneeId);

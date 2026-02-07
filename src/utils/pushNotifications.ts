@@ -59,23 +59,17 @@ export const sendTaskAssignmentNotification = async (
       target_channel: 'push'
     };
 
-    // Send to OneSignal
-    const response = await fetch('https://onesignal.com/api/v1/notifications', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Basic ${btoa('N2MwLkL2MxX7dLtQqHc3aH0vYb9E')}`
-      },
-      body: JSON.stringify(notification)
+    // Send to OneSignal via Supabase Edge Function (no CORS issues)
+    const { data, error } = await supabase.functions.invoke('send-push', { 
+      body: notification 
     });
 
-    if (!response.ok) {
-      console.error('❌ Failed to send push notification:', await response.text());
+    if (error) {
+      console.error('❌ Failed to send push notification via Edge Function:', error);
       return;
     }
 
-    const result = await response.json();
-    console.log('✅ Push notification sent successfully:', result);
+    console.log('✅ Push notification sent successfully via Edge Function:', data);
 
   } catch (error) {
     console.error('❌ Error sending push notification:', error);
@@ -139,23 +133,17 @@ export const sendTaskCompletionNotification = async (
       target_channel: 'push'
     };
 
-    // Send to OneSignal
-    const response = await fetch('https://onesignal.com/api/v1/notifications', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Basic ${btoa('N2MwLkL2MxX7dLtQqHc3aH0vYb9E')}`
-      },
-      body: JSON.stringify(notification)
+    // Send to OneSignal via Supabase Edge Function (no CORS issues)
+    const { data, error } = await supabase.functions.invoke('send-push', { 
+      body: notification 
     });
 
-    if (!response.ok) {
-      console.error('❌ Failed to send push notification:', await response.text());
+    if (error) {
+      console.error('❌ Failed to send push notification via Edge Function:', error);
       return;
     }
 
-    const result = await response.json();
-    console.log('✅ Push notification sent successfully:', result);
+    console.log('✅ Push notification sent successfully via Edge Function:', data);
 
   } catch (error) {
     console.error('❌ Error sending push notification:', error);
