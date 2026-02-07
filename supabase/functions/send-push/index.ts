@@ -19,6 +19,7 @@ serve(async (req) => {
     // Log environment variables
     console.log('🔔 Edge Function: ONESIGNAL_APP_ID:', Deno.env.get('ONESIGNAL_APP_ID'));
     console.log('🔔 Edge Function: ONESIGNAL_API_KEY:', Deno.env.get('ONESIGNAL_API_KEY') ? 'SET' : 'MISSING');
+    console.log('🔔 Edge Function: SUPABASE_SERVICE_ROLE_KEY:', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ? 'SET' : 'MISSING');
     
     // Handle both direct calls and webhooks
     const record = payload.record || payload;
@@ -47,23 +48,63 @@ serve(async (req) => {
       );
     }
 
-    // Get OneSignal ID for the assigned user
-    const { data: employeeData, error: employeeError } = await supabase
-      .from('employees')
-      .select('onesignal_id')
-      .eq('mobile', record.assigned_to)
-      .maybeSingle();
+    // Get OneSignal ID for the assigned user using Service Role Key (bypasses RLS)
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    
+    console.log('🔔 Edge Function: Querying employees with Service Role Key...');
+    
+    const { data: employeeData, error: employeeError } = await fetch(
+      `${supabaseUrl}/rest/v1/employees`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${serviceRoleKey}`,
+          'apikey': serviceRoleKey,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
 
-    if (employeeError || !employeeData || !employeeData.onesignal_id) {
-      console.error('❌ Edge Function: No OneSignal ID found for user:', record.assigned_to);
+    if (employeeError) {
+      console.error('❌ Edge Function: Failed to fetch employee data:', employeeError);
       return new Response(
-        JSON.stringify({ error: 'No OneSignal ID found for assigned user' }), 
+        JSON.stringify({ error: 'Failed to fetch employee data' }), 
+        { 
+          status: 500, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+    const employees = employeeData || [];
+    const assignedEmployee = employees.find(emp => emp.id === record.assigned_to);
+    
+    if (!assignedEmployee) {
+      console.error('❌ Edge Function: No employee found with ID:', record.assigned_to);
+      return new Response(
+        JSON.stringify({ error: 'No employee found with assigned ID' }), 
         { 
           status: 400, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       );
     }
+
+    const employeeOneSignalId = assignedEmployee.onesignal_id;
+    
+    if (!employeeOneSignalId) {
+      console.error('❌ Edge Function: No OneSignal ID found for employee:', record.assigned_to);
+      return new Response(
+        JSON.stringify({ error: 'No OneSignal ID found for employee' }), 
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+    console.log('🔔 Edge Function: Found OneSignal ID:', employeeOneSignalId);
 
     // Build OneSignal notification
     const notification = {
@@ -78,7 +119,7 @@ serve(async (req) => {
           }
         }
       },
-      include_player_ids: [employeeData.onesignal_id],
+      include_player_ids: [employeeOneSignalId],
       target_channel: 'push'
     };
 
@@ -91,7 +132,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
         'Authorization': `Basic ${Deno.env.get('ONESIGNAL_API_KEY')}`
       },
-      body: JSON.stringify(record)
+      body: JSON.stringify(notification)
     });
 
     if (!response.ok) {
