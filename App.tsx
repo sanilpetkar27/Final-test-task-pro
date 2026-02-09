@@ -863,7 +863,7 @@ const App: React.FC = () => {
             <LayoutDashboard className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-lg font-black tracking-tighter italic leading-none">Universal Tasker</h1>
+            <h1 className="text-lg font-black tracking-tighter italic leading-none">TaskPro</h1>
             <div className="flex items-center gap-1.5 mt-1">
               <div className={`w-1.5 h-1.5 rounded-full ${isSyncing ? 'bg-blue-500 animate-pulse' : 'bg-emerald-500'}`} />
               <span className="text-[7px] font-black uppercase tracking-widest text-slate-400">
