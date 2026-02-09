@@ -101,6 +101,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   // Dashboard uses tasks from props, not fetched independently
 
   const isManager = currentUser.role === 'manager'; // Only actual managers, not super_admin
+  const isSuperAdmin = currentUser.role === 'super_admin';
   const canAssignTasks = currentUser.role === 'manager' || currentUser.role === 'super_admin'; // For UI permissions
 
   const handleAddTask = async (e: React.FormEvent) => {
@@ -418,7 +419,16 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   // Person Filter Logic
   // Get filter options based on user role
   const getFilterOptions = () => {
-    if (isManager) {
+    if (isSuperAdmin) {
+      // Super admin can filter by all managers
+      return directEmployees
+        .filter(emp => emp.role === 'manager')
+        .map(emp => ({
+          id: emp.id,
+          name: emp.name,
+          role: emp.role
+        }));
+    } else if (isManager) {
       // Managers can filter by assignees (employees)
       return directEmployees.map(emp => ({
         id: emp.id,
@@ -507,10 +517,19 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   // Apply person filter to tasks
   const getFilteredTasks = (tasks: DealershipTask[]) => {
     if (selectedPersonFilter === 'ALL') {
-      return tasks.filter(task => task.assignedTo === currentUser.id || task.assignedBy === currentUser.id); // Filter for managers to see only their tasks
+      if (isSuperAdmin) {
+        // Super admin sees all tasks when 'ALL' is selected
+        return tasks;
+      } else {
+        // Managers/staff see only their relevant tasks
+        return tasks.filter(task => task.assignedTo === currentUser.id || task.assignedBy === currentUser.id);
+      }
     }
     
-    if (isManager) {
+    if (isSuperAdmin) {
+      // Super admin can filter by any manager
+      return tasks.filter(task => task.assignedBy === selectedPersonFilter);
+    } else if (isManager) {
       // Manager filters by assignee
       return tasks.filter(task => task.assignedTo === selectedPersonFilter);
     } else {
