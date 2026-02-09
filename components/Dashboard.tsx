@@ -640,34 +640,73 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
       </section>
 
       {/* Deadline Filter Tabs */}
-      <div className="flex gap-2 pb-4">
+      <div className="flex gap-3 pb-4">
         <button 
           onClick={() => setDeadlineView('overdue')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${deadlineView === 'overdue' ? 'bg-red-50 text-red-600 border border-red-200' : 'text-slate-500 bg-white border border-slate-200'}`}
+          className={`flex-1 relative overflow-hidden rounded-xl transition-all duration-300 transform hover:scale-105 ${
+            deadlineView === 'overdue' 
+              ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg shadow-red-200 ring-2 ring-red-200' 
+              : 'bg-white text-slate-600 hover:bg-red-50 hover:text-red-600 border border-slate-200 hover:border-red-200 shadow-sm hover:shadow-md'
+          }`}
         >
-          <AlertTriangle className="w-4 h-4" />
-          Overdue
+          <div className="flex items-center justify-center gap-2 py-3 px-2">
+            <AlertTriangle className={`w-4 h-4 ${deadlineView === 'overdue' ? 'text-white' : 'text-red-500'}`} />
+            <span className="text-xs font-bold uppercase tracking-wide">Overdue</span>
+          </div>
+          {deadlineView === 'overdue' && (
+            <div className="absolute top-0 right-0 w-2 h-2 bg-white rounded-full m-1 animate-pulse"></div>
+          )}
         </button>
+        
         <button 
           onClick={() => setDeadlineView('today')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${deadlineView === 'today' ? 'bg-orange-50 text-orange-600 border border-orange-200' : 'text-slate-500 bg-white border border-slate-200'}`}
+          className={`flex-1 relative overflow-hidden rounded-xl transition-all duration-300 transform hover:scale-105 ${
+            deadlineView === 'today' 
+              ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-lg shadow-orange-200 ring-2 ring-orange-200' 
+              : 'bg-white text-slate-600 hover:bg-orange-50 hover:text-orange-600 border border-slate-200 hover:border-orange-200 shadow-sm hover:shadow-md'
+          }`}
         >
-          <Clock className="w-4 h-4" />
-          Today
+          <div className="flex items-center justify-center gap-2 py-3 px-2">
+            <Clock className={`w-4 h-4 ${deadlineView === 'today' ? 'text-white' : 'text-orange-500'}`} />
+            <span className="text-xs font-bold uppercase tracking-wide">Today</span>
+          </div>
+          {deadlineView === 'today' && (
+            <div className="absolute top-0 right-0 w-2 h-2 bg-white rounded-full m-1 animate-pulse"></div>
+          )}
         </button>
+        
         <button 
           onClick={() => setDeadlineView('upcoming')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${deadlineView === 'upcoming' ? 'bg-blue-50 text-blue-600 border border-blue-200' : 'text-slate-500 bg-white border border-slate-200'}`}
+          className={`flex-1 relative overflow-hidden rounded-xl transition-all duration-300 transform hover:scale-105 ${
+            deadlineView === 'upcoming' 
+              ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-200 ring-2 ring-blue-200' 
+              : 'bg-white text-slate-600 hover:bg-blue-50 hover:text-blue-600 border border-slate-200 hover:border-blue-200 shadow-sm hover:shadow-md'
+          }`}
         >
-          <Calendar className="w-4 h-4" />
-          Upcoming
+          <div className="flex items-center justify-center gap-2 py-3 px-2">
+            <Calendar className={`w-4 h-4 ${deadlineView === 'upcoming' ? 'text-white' : 'text-blue-500'}`} />
+            <span className="text-xs font-bold uppercase tracking-wide">Upcoming</span>
+          </div>
+          {deadlineView === 'upcoming' && (
+            <div className="absolute top-0 right-0 w-2 h-2 bg-white rounded-full m-1 animate-pulse"></div>
+          )}
         </button>
+        
         <button 
           onClick={() => setDeadlineView('all')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${deadlineView === 'all' ? 'bg-green-50 text-green-600 border border-green-200' : 'text-slate-500 bg-white border border-slate-200'}`}
+          className={`flex-1 relative overflow-hidden rounded-xl transition-all duration-300 transform hover:scale-105 ${
+            deadlineView === 'all' 
+              ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg shadow-green-200 ring-2 ring-green-200' 
+              : 'bg-white text-slate-600 hover:bg-green-50 hover:text-green-600 border border-slate-200 hover:border-green-200 shadow-sm hover:shadow-md'
+          }`}
         >
-          <CheckCircle2 className="w-4 h-4" />
-          All
+          <div className="flex items-center justify-center gap-2 py-3 px-2">
+            <CheckCircle2 className={`w-4 h-4 ${deadlineView === 'all' ? 'text-white' : 'text-green-500'}`} />
+            <span className="text-xs font-bold uppercase tracking-wide">All</span>
+          </div>
+          {deadlineView === 'all' && (
+            <div className="absolute top-0 right-0 w-2 h-2 bg-white rounded-full m-1 animate-pulse"></div>
+          )}
         </button>
       </div>
 
