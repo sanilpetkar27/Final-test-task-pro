@@ -6,7 +6,7 @@ import TaskItem from './TaskItem';
 import CompletionModal from './CompletionModal';
 import DelegationModal from './DelegationModal';
 import ReassignModal from './ReassignModal';
-import { Plus, Clock, CheckCircle2, UserPlus, ClipboardList as ClipboardIcon, CalendarClock, Timer, Camera, Bug, User, Edit } from 'lucide-react';
+import { Plus, Clock, CheckCircle2, UserPlus, ClipboardList as ClipboardIcon, CalendarClock, Timer, Camera, Bug, User, Edit, AlertTriangle, Calendar } from 'lucide-react';
 
 interface DashboardProps {
   tasks: DealershipTask[];
@@ -23,6 +23,7 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, onAddTask, onStartTask, onReopenTask, onCompleteTask, onCompleteTaskWithoutPhoto, onReassignTask, onDeleteTask }) => {
   const [view, setView] = useState<'pending' | 'in-progress' | 'completed'>('pending');
+  const [deadlineView, setDeadlineView] = useState<'overdue' | 'today' | 'upcoming' | 'all'>('all');
   
   // Form state with localStorage persistence
   const [newTaskDesc, setNewTaskDesc] = useState(() => {
@@ -371,6 +372,49 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   const inProgressTasks = tasks.filter(t => t.status === 'in-progress');
   const completedTasks = tasks.filter(t => t.status === 'completed');
 
+  // --- DEADLINE FILTERING LOGIC ---
+  const getDeadlineFilteredTasks = (tasks: DealershipTask[]) => {
+    if (deadlineView === 'all') return tasks;
+    
+    const now = Date.now();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Start of today
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999); // End of today
+    const nextWeek = new Date(today);
+    nextWeek.setDate(nextWeek.getDate() + 7);
+    nextWeek.setHours(23, 59, 59, 999); // End of next 7 days
+
+    const incompleteTasks = tasks.filter(t => t.status !== 'completed');
+
+    switch (deadlineView) {
+      case 'overdue':
+        return incompleteTasks.filter(t => {
+          if (!t.deadline) return false;
+          const deadlineDate = new Date(t.deadline);
+          deadlineDate.setHours(0, 0, 0, 0); // Ignore time for overdue check
+          return deadlineDate < today;
+        });
+      
+      case 'today':
+        return incompleteTasks.filter(t => {
+          if (!t.deadline) return false;
+          const deadlineDate = new Date(t.deadline);
+          return deadlineDate >= today && deadlineDate <= todayEnd;
+        });
+      
+      case 'upcoming':
+        return incompleteTasks.filter(t => {
+          if (!t.deadline) return false;
+          const deadlineDate = new Date(t.deadline);
+          return deadlineDate > todayEnd && deadlineDate <= nextWeek;
+        });
+      
+      default:
+        return tasks;
+    }
+  };
+
   // Person Filter Logic
   // Get filter options based on user role
   const getFilterOptions = () => {
@@ -475,9 +519,9 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
     }
   };
 
-  const filteredPendingTasks = getFilteredTasks(pendingTasks);
-  const filteredInProgressTasks = getFilteredTasks(inProgressTasks);
-  const filteredCompletedTasks = getFilteredTasks(completedTasks);
+  const filteredPendingTasks = getDeadlineFilteredTasks(getFilteredTasks(pendingTasks));
+  const filteredInProgressTasks = getDeadlineFilteredTasks(getFilteredTasks(inProgressTasks));
+  const filteredCompletedTasks = getDeadlineFilteredTasks(getFilteredTasks(completedTasks));
 
   const tasksToShow = view === 'pending' ? filteredPendingTasks : view === 'in-progress' ? filteredInProgressTasks : filteredCompletedTasks;
 
@@ -594,6 +638,38 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
           {isManager ? 'Filter tasks by assigned staff member' : 'Filter tasks by manager who assigned them'}
         </p>
       </section>
+
+      {/* Deadline Filter Tabs */}
+      <div className="flex gap-2 pb-4">
+        <button 
+          onClick={() => setDeadlineView('overdue')}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${deadlineView === 'overdue' ? 'bg-red-50 text-red-600 border border-red-200' : 'text-slate-500 bg-white border border-slate-200'}`}
+        >
+          <AlertTriangle className="w-4 h-4" />
+          Overdue
+        </button>
+        <button 
+          onClick={() => setDeadlineView('today')}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${deadlineView === 'today' ? 'bg-orange-50 text-orange-600 border border-orange-200' : 'text-slate-500 bg-white border border-slate-200'}`}
+        >
+          <Clock className="w-4 h-4" />
+          Today
+        </button>
+        <button 
+          onClick={() => setDeadlineView('upcoming')}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${deadlineView === 'upcoming' ? 'bg-blue-50 text-blue-600 border border-blue-200' : 'text-slate-500 bg-white border border-slate-200'}`}
+        >
+          <Calendar className="w-4 h-4" />
+          Upcoming
+        </button>
+        <button 
+          onClick={() => setDeadlineView('all')}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${deadlineView === 'all' ? 'bg-green-50 text-green-600 border border-green-200' : 'text-slate-500 bg-white border border-slate-200'}`}
+        >
+          <CheckCircle2 className="w-4 h-4" />
+          All
+        </button>
+      </div>
 
       {/* View Tabs */}
       <div className="flex gap-2 pb-4">
