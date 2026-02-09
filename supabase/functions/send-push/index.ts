@@ -72,8 +72,8 @@ serve(async (req) => {
       contents: { en: `Task: ${record.description || 'New task'}` },
       url: 'https://final-test-task-pro.vercel.app/', // Keep this for iOS
       data: {
-        url: 'https://final-test-task-pro.vercel.app/', // Add this for Android
-        click_action: 'https://final-test-task-pro.vercel.app/' // Redundancy for safety
+        // Try using relative path if full URL opens Chrome
+        launch_url: 'https://final-test-task-pro.vercel.app/?utm_source=pwa' 
       }
     }
 
