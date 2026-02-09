@@ -6,7 +6,7 @@ import TaskItem from './TaskItem';
 import CompletionModal from './CompletionModal';
 import DelegationModal from './DelegationModal';
 import ReassignModal from './ReassignModal';
-import { Plus, Clock, CheckCircle2, UserPlus, ClipboardList as ClipboardIcon, CalendarClock, Timer, Camera, Bug, User, Edit, AlertTriangle, Calendar } from 'lucide-react';
+import { Plus, Clock, CheckCircle2, UserPlus, ClipboardList as ClipboardIcon, CalendarClock, Timer, Camera, Bug, User, Edit, AlertTriangle, Calendar, Mic, MicOff } from 'lucide-react';
 
 interface DashboardProps {
   tasks: DealershipTask[];
@@ -24,6 +24,10 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, onAddTask, onStartTask, onReopenTask, onCompleteTask, onCompleteTaskWithoutPhoto, onReassignTask, onDeleteTask }) => {
   const [view, setView] = useState<'pending' | 'in-progress' | 'completed'>('pending');
   const [deadlineView, setDeadlineView] = useState<'overdue' | 'today' | 'upcoming' | 'all'>('all');
+  
+  // Voice recognition state
+  const [isListening, setIsListening] = useState(false);
+  const [recognition, setRecognition] = useState<any>(null);
   
   // Form state with localStorage persistence
   const [newTaskDesc, setNewTaskDesc] = useState(() => {
@@ -97,6 +101,73 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
 
     fetchEmployees();
   }, []);
+
+  // Initialize voice recognition
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      
+      if (SpeechRecognition) {
+        const recognitionInstance = new SpeechRecognition();
+        recognitionInstance.continuous = false;
+        recognitionInstance.interimResults = true;
+        recognitionInstance.lang = 'en-US';
+
+        recognitionInstance.onresult = (event: any) => {
+          const transcript = Array.from(event.results)
+            .map((result: any) => result[0])
+            .map((result: any) => result.transcript)
+            .join('');
+          
+          setNewTaskDesc(transcript);
+        };
+
+        recognitionInstance.onerror = (event: any) => {
+          console.error('Speech recognition error:', event.error);
+          setIsListening(false);
+          
+          if (event.error === 'not-allowed') {
+            alert('Microphone permission denied. Please allow microphone access to use voice input.');
+          } else if (event.error === 'no-speech') {
+            alert('No speech detected. Please try again.');
+          } else {
+            alert('Voice input error: ' + event.error);
+          }
+        };
+
+        recognitionInstance.onend = () => {
+          setIsListening(false);
+        };
+
+        setRecognition(recognitionInstance);
+      } else {
+        console.log('Speech recognition not supported');
+      }
+    }
+  }, []);
+
+  // Voice input handlers
+  const startListening = () => {
+    if (recognition && !isListening) {
+      recognition.start();
+      setIsListening(true);
+    }
+  };
+
+  const stopListening = () => {
+    if (recognition && isListening) {
+      recognition.stop();
+      setIsListening(false);
+    }
+  };
+
+  const toggleListening = () => {
+    if (isListening) {
+      stopListening();
+    } else {
+      startListening();
+    }
+  };
 
   // Dashboard uses tasks from props, not fetched independently
 
@@ -553,13 +624,36 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
             {editingTaskId ? 'Edit Operation' : 'Assign New Operation'}
           </h2>
           <form onSubmit={handleAddTask} className="space-y-3">
-            <input 
-              type="text" 
-              value={newTaskDesc}
-              onChange={(e) => setNewTaskDesc(e.target.value)}
-              placeholder="What needs to be done?"
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-slate-400"
-            />
+            <div className="relative">
+              <input 
+                type="text" 
+                value={newTaskDesc}
+                onChange={(e) => setNewTaskDesc(e.target.value)}
+                placeholder="What needs to be done?"
+                className={`w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-slate-400 pr-12 ${
+                  isListening ? 'ring-2 ring-red-500 border-red-300' : ''
+                }`}
+              />
+              <button
+                type="button"
+                onClick={toggleListening}
+                className={`absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-all ${
+                  isListening 
+                    ? 'bg-red-500 text-white hover:bg-red-600 animate-pulse' 
+                    : 'bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-600'
+                }`}
+                title={isListening ? 'Stop recording' : 'Start voice input'}
+              >
+                {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+              </button>
+            </div>
+            
+            {isListening && (
+              <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">
+                <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                <span>Listening... Speak your task description</span>
+              </div>
+            )}
             
             <div className="flex gap-2">
               <div className="flex-1 relative">
