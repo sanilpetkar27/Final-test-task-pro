@@ -888,14 +888,15 @@ const App: React.FC = () => {
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto pb-24 px-4 pt-4">
-        {activeTab === AppTab.DASHBOARD && (
+        {/* Hidden: Business Overview Content */}
+        {/* {activeTab === AppTab.DASHBOARD && (
           <StatsScreen
             tasks={tasks}
             currentUser={currentUser}
             employees={employees}
             rewardConfig={rewardConfig}
           />
-        )}
+        )} */}
 
         {activeTab === AppTab.TASKS && (
           <Dashboard
@@ -927,12 +928,13 @@ const App: React.FC = () => {
       <nav className="bg-white border-t border-slate-200 fixed bottom-0 left-0 right-0 max-w-md mx-auto z-40 safe-bottom shadow-[0_-10px_40px_rgba(15,23,42,0.1)] rounded-t-[2.5rem]">
         <div className="flex justify-around items-center h-20 px-2">
 
-          <NavBtn
+          {/* Hidden: Business Overview Tab */}
+          {/* <NavBtn
             active={activeTab === AppTab.DASHBOARD}
             onClick={() => setActiveTab(AppTab.DASHBOARD)}
             icon={<LayoutDashboard className="w-6 h-6" />}
             label="Dashboard"
-          />
+          /> */}
 
           <NavBtn
             active={activeTab === AppTab.TASKS}
