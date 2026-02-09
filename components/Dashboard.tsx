@@ -6,7 +6,7 @@ import TaskItem from './TaskItem';
 import CompletionModal from './CompletionModal';
 import DelegationModal from './DelegationModal';
 import ReassignModal from './ReassignModal';
-import { Plus, Clock, CheckCircle2, UserPlus, ClipboardList as ClipboardIcon, CalendarClock, Timer, Camera, Bug, User, Edit } from 'lucide-react';
+import { Plus, Clock, CheckCircle2, UserPlus, ClipboardList as ClipboardIcon, CalendarClock, Timer, Camera, Bug, User, Edit, AlertTriangle, Calendar } from 'lucide-react';
 
 interface DashboardProps {
   tasks: DealershipTask[];
@@ -371,6 +371,51 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   const inProgressTasks = tasks.filter(t => t.status === 'in-progress');
   const completedTasks = tasks.filter(t => t.status === 'completed');
 
+  // --- NEW DEADLINE-FOCUSED STATS CALCULATION ---
+  const getDeadlineStats = () => {
+    const now = Date.now();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Start of today
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999); // End of today
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0); // Start of tomorrow
+    const tomorrowEnd = new Date(tomorrow);
+    tomorrowEnd.setHours(23, 59, 59, 999); // End of tomorrow
+
+    const incompleteTasks = tasks.filter(t => t.status !== 'completed');
+
+    const overdue = incompleteTasks.filter(t => {
+      if (!t.deadline) return false;
+      const deadlineDate = new Date(t.deadline);
+      deadlineDate.setHours(0, 0, 0, 0); // Ignore time for overdue check
+      return deadlineDate < today;
+    });
+
+    const dueToday = incompleteTasks.filter(t => {
+      if (!t.deadline) return false;
+      const deadlineDate = new Date(t.deadline);
+      return deadlineDate >= today && deadlineDate <= todayEnd;
+    });
+
+    const dueTomorrow = incompleteTasks.filter(t => {
+      if (!t.deadline) return false;
+      const deadlineDate = new Date(t.deadline);
+      return deadlineDate >= tomorrow && deadlineDate <= tomorrowEnd;
+    });
+
+    const upcoming = incompleteTasks.filter(t => {
+      if (!t.deadline) return false;
+      const deadlineDate = new Date(t.deadline);
+      return deadlineDate > tomorrowEnd;
+    });
+
+    return { overdue, dueToday, dueTomorrow, upcoming };
+  };
+
+  const { overdue, dueToday, dueTomorrow, upcoming } = getDeadlineStats();
+
   // Person Filter Logic
   // Get filter options based on user role
   const getFilterOptions = () => {
@@ -568,6 +613,57 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
           </form>
         </section>
       )}
+
+      {/* --- NEW DEADLINE-FOCUSED STATS CARDS --- */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Overdue Card */}
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xs font-red-600 uppercase tracking-widest flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4" />
+              Overdue
+            </h3>
+            <span className="text-2xl font-bold text-red-600">{overdue.length}</span>
+          </div>
+          <p className="text-xs text-red-500">Tasks past deadline</p>
+        </div>
+
+        {/* Due Today Card */}
+        <div className="bg-orange-50 border border-orange-200 rounded-2xl p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xs font-orange-600 uppercase tracking-widest flex items-center gap-2">
+              <Clock className="w-4 h-4" />
+              Due Today
+            </h3>
+            <span className="text-2xl font-bold text-orange-600">{dueToday.length}</span>
+          </div>
+          <p className="text-xs text-orange-500">Tasks due by end of day</p>
+        </div>
+
+        {/* Due Tomorrow Card */}
+        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xs font-blue-600 uppercase tracking-widest flex items-center gap-2">
+              <Calendar className="w-4 h-4" />
+              Due Tomorrow
+            </h3>
+            <span className="text-2xl font-bold text-blue-600">{dueTomorrow.length}</span>
+          </div>
+          <p className="text-xs text-blue-500">Tasks due tomorrow</p>
+        </div>
+
+        {/* Upcoming Card */}
+        <div className="bg-green-50 border border-green-200 rounded-2xl p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xs font-green-600 uppercase tracking-widest flex items-center gap-2">
+              <CalendarClock className="w-4 h-4" />
+              Upcoming
+            </h3>
+            <span className="text-2xl font-bold text-green-600">{upcoming.length}</span>
+          </div>
+          <p className="text-xs text-green-500">Tasks due after tomorrow</p>
+        </div>
+      </div>
 
       {/* Person Filter */}
       <section className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
