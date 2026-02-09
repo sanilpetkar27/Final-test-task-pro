@@ -833,6 +833,7 @@ const App: React.FC = () => {
   }
 
   const isManager = currentUser.role === 'manager' || currentUser.role === 'super_admin';
+  const isSuperAdmin = currentUser.role === 'super_admin';
 
   return (
     <div className="flex flex-col h-screen max-w-md mx-auto bg-slate-50 relative overflow-hidden font-sans">
@@ -916,6 +917,7 @@ const App: React.FC = () => {
         {isManager && activeTab === AppTab.TEAM && (
           <TeamManager
             employees={employees}
+            currentUser={currentUser}
             onAddEmployee={addEmployee}
             onRemoveEmployee={removeEmployee}
             rewardConfig={rewardConfig}

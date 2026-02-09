@@ -6,15 +6,19 @@ import { supabase } from '../src/lib/supabase';
 
 interface TeamManagerProps {
   employees: Employee[];
+  currentUser: Employee;
   onAddEmployee: (name: string, mobile: string, role: UserRole) => void;
   onRemoveEmployee: (id: string) => void;
   rewardConfig: RewardConfig;
   onUpdateRewardConfig: (config: RewardConfig) => void;
 }
 
-const TeamManager: React.FC<TeamManagerProps> = ({ employees, onAddEmployee, onRemoveEmployee, rewardConfig, onUpdateRewardConfig }) => {
+const TeamManager: React.FC<TeamManagerProps> = ({ employees, currentUser, onAddEmployee, onRemoveEmployee, rewardConfig, onUpdateRewardConfig }) => {
   // Feature flag - set to true to show points system
   const SHOW_POINTS_SYSTEM = false;
+  
+  // Check if current user is super admin
+  const isSuperAdmin = currentUser.role === 'super_admin';
   
   // Log every render
   console.log('🔄 TeamManager RENDERING, employees count:', employees.length);
@@ -283,12 +287,15 @@ const TeamManager: React.FC<TeamManagerProps> = ({ employees, onAddEmployee, onR
                   </div>
                 </div>
               </div>
-              <button 
-                onClick={() => onRemoveEmployee(emp.id)}
-                className="p-2 text-slate-300 hover:text-red-500 active:scale-90 transition-all"
-              >
-                <UserMinus className="w-5 h-5" />
-              </button>
+              {isSuperAdmin && (
+                <button 
+                  onClick={() => onRemoveEmployee(emp.id)}
+                  className="p-2 text-slate-300 hover:text-red-500 active:scale-90 transition-all"
+                  title="Delete employee (Super Admin only)"
+                >
+                  <UserMinus className="w-5 h-5" />
+                </button>
+              )}
             </div>
           ))
         ) : (
