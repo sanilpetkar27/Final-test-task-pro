@@ -703,7 +703,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
             <div className="flex gap-2">
             <button 
               type="submit"
-              className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-100"
+              className="flex-1 bg-indigo-500 hover:bg-indigo-600 text-white py-3 rounded-lg font-bold active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-indigo-100"
             >
               {editingTaskId ? <Edit className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
               {editingTaskId ? 'Update Task' : 'Assign Task'}

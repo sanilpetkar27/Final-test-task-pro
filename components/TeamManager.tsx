@@ -93,12 +93,12 @@ const TeamManager: React.FC<TeamManagerProps> = ({ employees, currentUser, onAdd
 
   return (
     <div className="space-y-6">
-      <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-3xl text-white shadow-xl">
+      <div className="bg-gradient-to-br from-indigo-50 to-purple-50 p-6 rounded-3xl shadow-md border border-slate-200">
         <div className="flex items-center gap-2 mb-2">
-          <ShieldCheck className="w-5 h-5 text-blue-400" />
-          <h2 className="text-xl font-bold italic">Team</h2>
+          <ShieldCheck className="w-5 h-5 text-indigo-500" />
+          <h2 className="text-xl font-bold italic text-slate-800">Team</h2>
         </div>
-        <p className="text-slate-400 text-sm">
+        <p className="text-slate-600 text-sm">
           Manage staff members and assign their access permissions.
         </p>
       </div>
@@ -139,7 +139,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({ employees, currentUser, onAdd
             </select>
             <button 
               type="submit"
-              className="bg-blue-600 text-white p-3 px-6 h-10 rounded-xl active:scale-95 transition-transform flex items-center gap-2 font-bold text-sm"
+              className="bg-indigo-500 hover:bg-indigo-600 text-white p-3 px-6 h-10 rounded-lg active:scale-95 transition-all duration-200 flex items-center gap-2 font-bold text-sm"
             >
               <UserPlus className="w-5 h-5" />
               Add
@@ -203,7 +203,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({ employees, currentUser, onAdd
             {sortedEmployees.map((emp, index) => (
               <div 
                 key={emp.id} 
-                className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200"
+                className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-100 shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-200"
               >
                 <div className="flex items-center gap-3">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${

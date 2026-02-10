@@ -118,7 +118,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
               <button 
                 type="submit"
                 disabled={mobile.length < 10 || loading}
-                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-2xl shadow-xl shadow-blue-900/40 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-40"
+                className="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-black py-5 rounded-lg shadow-lg shadow-indigo-100 active:scale-95 transition-all duration-200 flex items-center justify-center gap-3 disabled:opacity-40"
               >
                 {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <>Identify Access <ArrowRight className="w-5 h-5" /></>}
               </button>
@@ -158,7 +158,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
               <button 
                 type="submit"
                 disabled={otp.length < 4 || loading}
-                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-2xl shadow-xl shadow-blue-900/40 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-40"
+                className="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-black py-5 rounded-lg shadow-lg shadow-indigo-100 active:scale-95 transition-all duration-200 flex items-center justify-center gap-3 disabled:opacity-40"
               >
                 {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <>Verify Identity <Lock className="w-5 h-5" /></>}
               </button>

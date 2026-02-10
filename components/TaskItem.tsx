@@ -134,7 +134,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
 
   return (
     <div className="space-y-2">
-      <div className={`bg-white rounded-2xl p-4 shadow-sm border ${isOverdue ? 'border-red-500 bg-red-50' : (task.status === 'completed' ? 'border-green-100' : (task.status === 'in-progress' ? 'border-blue-500' : 'border-slate-200'))} flex items-center justify-between gap-4 transition-all relative overflow-hidden`}>
+      <div className={`bg-white rounded-xl p-4 shadow-sm border ${isOverdue ? 'border-red-500 bg-red-50' : (task.status === 'completed' ? 'border-emerald-100' : (task.status === 'in-progress' ? 'border-blue-100' : 'border-slate-100'))} flex items-center justify-between gap-4 transition-all relative overflow-hidden hover:shadow-md hover:scale-[1.01]`}>
         
         {/* Overdue Warning Stripe */}
         {isOverdue && <div className="absolute top-0 left-0 w-1 h-full bg-red-500" />}
@@ -149,7 +149,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
               </span>
             )}
             {task.status === 'in-progress' && (
-              <span className="inline-flex items-center gap-1 bg-blue-500 text-white px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider">
+              <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider">
                 <Play className="w-3 h-3" />
                 In Progress
               </span>
@@ -209,8 +209,8 @@ const TaskItem: React.FC<TaskItemProps> = ({
 
             {task.status === 'completed' && task.completedAt && (
               <div className="flex items-center gap-1">
-                <Check className="w-3 h-3 text-green-500" />
-                <span className="text-[10px] text-green-500 font-black uppercase tracking-tighter">
+                <Check className="w-3 h-3 text-emerald-600" />
+                <span className="text-[10px] text-emerald-600 font-black uppercase tracking-tighter">
                   VERIFIED
                 </span>
               </div>
