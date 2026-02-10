@@ -984,6 +984,7 @@ const App: React.FC = () => {
             rewardConfig={rewardConfig}
             onUpdateRewardConfig={setRewardConfig}
             isSuperAdmin={isSuperAdmin}
+            setEmployees={setEmployees}
           />
         )}
       </main>

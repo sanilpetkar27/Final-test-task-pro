@@ -11,6 +11,8 @@ interface TeamManagerProps {
   onRemoveEmployee: (id: string) => void;
   rewardConfig: RewardConfig;
   onUpdateRewardConfig: (config: RewardConfig) => void;
+  isSuperAdmin: boolean;
+  setEmployees?: (employees: Employee[]) => void;
 }
 
 const TeamManager: React.FC<TeamManagerProps> = ({ 
@@ -20,7 +22,8 @@ const TeamManager: React.FC<TeamManagerProps> = ({
   onRemoveEmployee, 
   onUpdateRewardConfig,
   rewardConfig,
-  isSuperAdmin 
+  isSuperAdmin,
+  setEmployees
 }) => {
   // Feature flag - set to true to show points system
   const SHOW_POINTS_SYSTEM = false;
@@ -346,6 +349,11 @@ const TeamManager: React.FC<TeamManagerProps> = ({
                 <button 
                   onClick={() => {
                     if (window.confirm(`Are you sure you want to delete ${emp.name}? This action cannot be undone.`)) {
+                      // IMMEDIATE local state update for instant feedback
+                      if (setEmployees) {
+                        setEmployees(prev => prev.filter(e => e.id !== emp.id));
+                      }
+                      // Call parent function for database deletion
                       onRemoveEmployee(emp.id);
                     }
                   }}
