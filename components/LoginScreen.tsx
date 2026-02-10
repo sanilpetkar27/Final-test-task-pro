@@ -1,7 +1,9 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Employee } from '../types';
-import { ClipboardList, Smartphone, ArrowRight, KeyRound, Lock, Loader2, AlertCircle, RefreshCw, ShieldCheck, Info } from 'lucide-react';
+import { ClipboardList, Mail, Eye, EyeOff, ArrowRight, Lock, Loader2, AlertCircle, ShieldCheck, Info } from 'lucide-react';
+import { supabaseAuth } from '../src/lib/supabase';
+import { toast } from 'sonner';
 
 interface LoginScreenProps {
   employees: Employee[];
@@ -9,58 +11,42 @@ interface LoginScreenProps {
 }
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
-  const [step, setStep] = useState<'phone' | 'otp'>('phone');
-  const [mobile, setMobile] = useState('');
-  const [otp, setOtp] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [pendingUser, setPendingUser] = useState<Employee | null>(null);
-  const [timer, setTimer] = useState(0);
 
-  useEffect(() => {
-    let interval: any;
-    if (timer > 0) {
-      interval = setInterval(() => {
-        setTimer((prev) => prev - 1);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [timer]);
-
-  const handleSendOtp = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    setError('');
-    setLoading(true);
-
-    setTimeout(() => {
-      const user = employees.find(e => e.mobile === mobile);
-      if (user) {
-        setPendingUser(user);
-        setStep('otp');
-        setTimer(30);
-        // OTP is hardcoded for the demo version but logged to console for the operator
-        console.log(`SECURE_GATEWAY_SYSTEM: OTP for ${user.name} is 1234`);
-      } else {
-        setError('Access Denied: Mobile number not registered.');
-      }
-      setLoading(false);
-    }, 1500);
-  };
-
-  const handleVerifyOtp = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    setTimeout(() => {
-      if (otp === '1234') {
-        if (pendingUser) onLogin(pendingUser);
-      } else {
-        setError('Invalid Security Code. Please retry.');
-        setOtp('');
+    try {
+      const { data, error } = await supabaseAuth.signInWithPassword({
+        email: email,
+        password: password
+      });
+
+      if (error) {
+        setError('Invalid email or password. Please try again.');
+        console.error('Login error:', error);
+      } else if (data.user) {
+        // Find employee by email to get role and other details
+        const employee = employees.find(emp => emp.email === email);
+        if (employee) {
+          onLogin(employee);
+          toast.success('Login successful!');
+        } else {
+          setError('User not found in employee records.');
+        }
       }
+    } catch (err) {
+      setError('Login failed. Please try again.');
+      console.error('Login exception:', err);
+    } finally {
       setLoading(false);
-    }, 1200);
+    }
   };
 
   return (
@@ -77,74 +63,63 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
             <ClipboardList className="w-10 h-10 text-white" />
           </div>
         </div>
-        
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-black text-white mb-2 tracking-tight italic">Task<span className="text-blue-500">Pro</span></h1>
-          <div className="flex items-center justify-center gap-2 text-slate-500 text-xs font-bold uppercase tracking-[0.2em]">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            Secure Login
-          </div>
-        </div>
 
-        <div className="bg-slate-800/40 border border-slate-700/50 backdrop-blur-xl p-8 rounded-[2.5rem] shadow-2xl relative">
-          {step === 'phone' ? (
-            <form onSubmit={handleSendOtp} className="space-y-6 animate-in fade-in duration-500">
-              <div className="space-y-3">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Registered Mobile</label>
-                <div className="relative group">
-                  <input 
-                    type="tel" 
-                    value={mobile}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/\D/g, '').slice(0, 10);
-                      setMobile(val);
-                      setError('');
-                    }}
-                    placeholder="Enter mobile number"
-                    className="w-full bg-slate-900/50 border border-slate-700 text-white rounded-2xl pl-12 pr-4 py-4 text-xl font-bold tracking-widest focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all placeholder:text-slate-700"
-                    autoFocus
-                  />
-                  <Smartphone className="w-5 h-5 text-slate-500 group-focus-within:text-blue-500 absolute left-4 top-1/2 -translate-y-1/2 transition-colors" />
+        <div className="w-full max-w-sm mx-auto">
+          <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/10 shadow-2xl">
+            {/* Header */}
+            <div className="text-center mb-8">
+              <div className="inline-flex items-center gap-3 bg-blue-600/20 p-4 rounded-2xl mb-4">
+                <ShieldCheck className="w-8 h-8 text-blue-400" />
+                <div>
+                  <h1 className="text-2xl font-black text-white">TaskPro</h1>
+                  <p className="text-blue-200 text-sm">Secure Employee Portal</p>
                 </div>
               </div>
+              <p className="text-slate-400 text-xs">Enter your credentials to access the system</p>
+            </div>
 
-              {error && (
-                <div className="flex items-center gap-3 text-red-400 text-xs font-bold bg-red-400/10 p-4 rounded-2xl border border-red-400/20">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  {error}
-                </div>
-              )}
-
-              <button 
-                type="submit"
-                disabled={mobile.length < 10 || loading}
-                className="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-black py-5 rounded-lg shadow-lg shadow-indigo-100 active:scale-95 transition-all duration-200 flex items-center justify-center gap-3 disabled:opacity-40"
-              >
-                {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <>Identify Access <ArrowRight className="w-5 h-5" /></>}
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={handleVerifyOtp} className="space-y-6 animate-in slide-in-from-right duration-400">
-              <div className="text-center mb-6">
-                <p className="text-slate-400 text-xs mb-1">Authorization required for</p>
-                <p className="text-white font-black tracking-widest text-xl">+91 {mobile}</p>
-              </div>
-
-              <div className="space-y-3">
+            {/* Login Form */}
+            <form onSubmit={handleLogin} className="space-y-6">
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-2">
+                  Email Address
+                </label>
                 <div className="relative">
-                  <input 
-                    type="text" 
-                    value={otp}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/\D/g, '').slice(0, 4);
-                      setOtp(val);
-                      setError('');
-                    }}
-                    placeholder="••••"
-                    className="w-full bg-slate-900/50 border border-slate-700 text-white rounded-2xl pl-12 pr-4 py-5 text-center text-4xl font-black tracking-[0.5em] focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all placeholder:text-slate-800"
-                    autoFocus
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="john@company.com"
+                    className="w-full bg-slate-800/50 border border-slate-600 rounded-xl px-12 py-4 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    required
                   />
-                  <KeyRound className="w-6 h-6 text-slate-500 absolute left-4 top-1/2 -translate-y-1/2" />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-2">
+                  Password
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter your password"
+                    className="w-full bg-slate-800/50 border border-slate-600 rounded-xl px-12 py-4 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all pr-12"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300 transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
                 </div>
               </div>
 
@@ -155,41 +130,30 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
                 </div>
               )}
 
-              <button 
+              <button
                 type="submit"
-                disabled={otp.length < 4 || loading}
+                disabled={loading || !email.trim() || !password.trim()}
                 className="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-black py-5 rounded-lg shadow-lg shadow-indigo-100 active:scale-95 transition-all duration-200 flex items-center justify-center gap-3 disabled:opacity-40"
               >
-                {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <>Verify Identity <Lock className="w-5 h-5" /></>}
+                {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <>Sign In <ArrowRight className="w-5 h-5" /></>}
               </button>
-
-              <div className="flex flex-col gap-3">
-                <button 
-                  type="button"
-                  disabled={timer > 0 || loading}
-                  onClick={() => handleSendOtp()}
-                  className="w-full text-blue-400 text-[10px] font-black uppercase hover:text-blue-300 transition-colors py-2 disabled:opacity-30"
-                >
-                  {timer > 0 ? `Resend security code in ${timer}s` : 'Request New Code'}
-                </button>
-                <button 
-                  type="button"
-                  onClick={() => { setStep('phone'); setOtp(''); setError(''); }}
-                  className="w-full text-slate-600 text-[9px] font-black uppercase hover:text-slate-400 transition-colors"
-                >
-                  Return to Phone Input
-                </button>
-              </div>
             </form>
-          )}
-        </div>
 
-        <div className="mt-16 text-center space-y-4">
-           <p className="text-[10px] text-slate-600 font-bold uppercase tracking-widest">Authorized Users Only</p>
-           <div className="flex justify-center gap-6 text-[9px] font-bold text-slate-700 uppercase">
-              <span className="cursor-pointer hover:text-slate-500">Security Policy</span>
-              <span className="cursor-pointer hover:text-slate-500">System Terms</span>
-           </div>
+            {/* Info Section */}
+            <div className="mt-8 p-4 bg-slate-800/30 rounded-2xl border border-slate-700/30">
+              <div className="flex items-start gap-3">
+                <Info className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-slate-400 text-xs leading-relaxed">
+                    <strong className="text-slate-300">Secure Access:</strong> Your login credentials are encrypted and protected with enterprise-grade security.
+                  </p>
+                  <p className="text-slate-400 text-xs leading-relaxed mt-2">
+                    <strong className="text-slate-300">Need Help?</strong> Contact your system administrator for account access.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -85,3 +85,11 @@ export const supabase = hasRealCredentials()
       import.meta.env.VITE_SUPABASE_ANON_KEY!
     )
   : createMockClient();
+
+// Export auth client separately for login functionality
+export const supabaseAuth = hasRealCredentials()
+  ? createClient(
+      import.meta.env.VITE_SUPABASE_URL!,
+      import.meta.env.VITE_SUPABASE_ANON_KEY!
+    ).auth
+  : createMockClient().auth;

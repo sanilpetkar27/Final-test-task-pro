@@ -13,17 +13,24 @@ interface TeamManagerProps {
   onUpdateRewardConfig: (config: RewardConfig) => void;
 }
 
-const TeamManager: React.FC<TeamManagerProps> = ({ employees, currentUser, onAddEmployee, onRemoveEmployee, rewardConfig, onUpdateRewardConfig }) => {
+const TeamManager: React.FC<TeamManagerProps> = ({ 
+  employees, 
+  currentUser, 
+  onAddEmployee, 
+  onRemoveEmployee, 
+  onUpdateRewardConfig,
+  rewardConfig,
+  isSuperAdmin 
+}) => {
   // Feature flag - set to true to show points system
   const SHOW_POINTS_SYSTEM = false;
-  
-  // Check if current user is super admin
-  const isSuperAdmin = currentUser.role === 'super_admin';
   
   // Log every render
   console.log('🔄 TeamManager RENDERING, employees count:', employees.length);
   
   const [newName, setNewName] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
   const [newMobile, setNewMobile] = useState('');
   const [newRole, setNewRole] = useState<UserRole>('staff');
   const [targetPoints, setTargetPoints] = useState(rewardConfig.targetPoints.toString());
@@ -61,20 +68,50 @@ const TeamManager: React.FC<TeamManagerProps> = ({ employees, currentUser, onAdd
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newName.trim() || !newMobile.trim()) return;
-    
+    if (!newName.trim() || !newEmail.trim() || !newPassword.trim() || !newMobile.trim()) {
+      alert("Please fill in all required fields");
+      return;
+    }
+
     // Basic mobile validation
     if (newMobile.length < 10) {
       alert("Please enter a valid 10-digit mobile number");
       return;
     }
 
-    onAddEmployee(newName.trim(), newMobile.trim(), newRole);
-    setNewName('');
-    setNewMobile('');
-    setNewRole('staff');
+    try {
+      const { data, error } = await supabase.rpc('create_user_by_admin', {
+        email: newEmail.trim(),
+        password: newPassword.trim(),
+        name: newName.trim(),
+        role: newRole,
+        mobile: newMobile.trim()
+      });
+
+      if (error) {
+        console.error('❌ Error creating user:', error);
+        alert(`Error: ${error.message}`);
+      } else {
+        console.log('✅ User created successfully:', data);
+        alert('User created successfully!');
+        // Clear form
+        setNewName('');
+        setNewEmail('');
+        setNewPassword('');
+        setNewMobile('');
+        setNewRole('staff');
+        
+        // Trigger parent to refetch employees
+        setTimeout(() => {
+          onAddEmployee('', '', '', 'staff');
+        }, 100);
+      }
+    } catch (err) {
+      console.error('🚨 Unexpected Error:', err);
+      alert(`Unexpected: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
   };
 
   const handleRewardConfigUpdate = (e: React.FormEvent) => {
@@ -114,6 +151,22 @@ const TeamManager: React.FC<TeamManagerProps> = ({ employees, currentUser, onAdd
             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
             required
           />
+          <input 
+            type="email" 
+            value={newEmail}
+            onChange={(e) => setNewEmail(e.target.value)}
+            placeholder="Email Address..."
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+            required
+          />
+          <input 
+            type="password" 
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            placeholder="Password..."
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+            required
+          />
           <div className="relative">
             <input 
               type="tel" 
@@ -142,7 +195,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({ employees, currentUser, onAdd
               className="bg-indigo-500 hover:bg-indigo-600 text-white p-3 px-6 h-10 rounded-lg active:scale-95 transition-all duration-200 flex items-center gap-2 font-bold text-sm"
             >
               <UserPlus className="w-5 h-5" />
-              Add
+              Create User
             </button>
           </div>
         </form>
