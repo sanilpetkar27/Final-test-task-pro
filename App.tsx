@@ -789,6 +789,7 @@ const App: React.FC = () => {
         toast.error(`Database Error: ${error.message}. Employee removed locally.`);
       } else {
         console.log('✅ Employee removed from database successfully');
+        toast.success('Employee deleted successfully');
       }
     } catch (error) {
       console.error('🚨 Unexpected error removing employee:', error);
