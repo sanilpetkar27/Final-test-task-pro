@@ -32,13 +32,17 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
         setError('Invalid email or password. Please try again.');
         console.error('Login error:', error);
       } else if (data.user) {
-        // Find employee by email to get role and other details
-        const employee = employees.find(emp => emp.email === email);
+        console.log('🔐 Auth ID from login:', data.user.id);
+        
+        // Find employee by Auth ID to get role and other details
+        const employee = employees.find(emp => emp.id === data.user.id);
+        console.log('👤 Employee lookup in LoginScreen:', employee);
+        
         if (employee) {
           onLogin(employee);
           toast.success('Login successful!');
         } else {
-          setError('User not found in employee records.');
+          setError('Profile missing. Please contact Admin.');
         }
       }
     } catch (err) {
