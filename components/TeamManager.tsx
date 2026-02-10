@@ -342,11 +342,15 @@ const TeamManager: React.FC<TeamManagerProps> = ({
                   </div>
                 </div>
               </div>
-              {isSuperAdmin && (
+              {(currentUser.role === 'super_admin' || currentUser.role === 'owner') && (
                 <button 
-                  onClick={() => onRemoveEmployee(emp.id)}
-                  className="p-2 bg-red-50 hover:bg-red-100 text-red-400 hover:text-red-600 rounded-lg active:scale-90 transition-all border border-red-200"
-                  title="Delete employee (Super Admin only)"
+                  onClick={() => {
+                    if (window.confirm(`Are you sure you want to delete ${emp.name}? This action cannot be undone.`)) {
+                      onRemoveEmployee(emp.id);
+                    }
+                  }}
+                  className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-full cursor-pointer transition-all"
+                  title="Delete employee"
                 >
                   <Trash2 className="w-5 h-5" />
                 </button>
