@@ -97,7 +97,13 @@ const TeamManager: React.FC<TeamManagerProps> = ({
 
       if (error) {
         console.error('❌ Error creating user:', error);
-        alert(`Error: ${error.message}`);
+        
+        // Handle duplicate mobile error specifically
+        if (error.message?.includes('unique constraint') || error.code === '23505') {
+          alert('This mobile number is already registered!');
+        } else {
+          alert(`Error: ${error.message}`);
+        }
       } else {
         console.log('✅ User created successfully:', data);
         
@@ -111,7 +117,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
           points: 0
         };
         
-        // IMMEDIATE local state update
+        // Update state ONLY after server confirms success
         if (setEmployees) {
           setEmployees(prev => [...prev, newEmployee]);
         }
@@ -275,8 +281,8 @@ const TeamManager: React.FC<TeamManagerProps> = ({
         {employees.length > 0 ? (
           <div className="space-y-2">
             {sortedEmployees.map((emp, index) => {
-              // Safety filter: prevent ghost/blank rows from rendering
-              if (!emp.id || !emp.name) return null;
+              // Strict safety filter: prevent all invalid data from rendering
+              if (!emp || !emp.id || !emp.name || emp.name.trim() === '') return null;
               
               return (
               <div 
@@ -343,8 +349,8 @@ const TeamManager: React.FC<TeamManagerProps> = ({
         <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider px-1">Registered Team ({employees.length})</h3>
         {employees.length > 0 ? (
           employees.map((emp) => {
-            // Safety filter: prevent ghost/blank rows from rendering
-            if (!emp.id || !emp.name) return null;
+            // Strict safety filter: prevent all invalid data from rendering
+            if (!emp || !emp.id || !emp.name || emp.name.trim() === '') return null;
             
             return (
             <div 
