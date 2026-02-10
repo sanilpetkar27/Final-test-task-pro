@@ -111,15 +111,16 @@ const TeamManager: React.FC<TeamManagerProps> = ({
       } else {
         console.log('✅ User created successfully:', data);
         
-        // Safety check: ensure newEmployee is defined
-        if (!newEmployee) {
-          console.error('❌ newEmployee is undefined, cannot create employee object');
-          alert('Error: Employee object creation failed');
+        // AGGRESSIVE SAFETY CHECK: ensure newEmployee is defined
+        if (typeof newEmployee === 'undefined') {
+          console.error('❌ CRITICAL: newEmployee is undefined - this should not happen!');
+          console.error('🔧 Stack trace:', new Error().stack);
+          alert('Critical error: Employee object creation failed. Please refresh the page and try again.');
           return;
         }
         
         // Create new employee object using returned data from server
-        const newEmployee: Employee = {
+        const employee: Employee = {
           id: data.id || `temp-${Date.now()}`,
           name: newName.trim(), // Use form field since server doesn't return name
           email: newEmail.trim(), // Use form field since server doesn't return email
@@ -128,8 +129,9 @@ const TeamManager: React.FC<TeamManagerProps> = ({
           points: 0
         };
         
-        console.log('👤 New employee object created:', newEmployee);
-        console.log('🔧 Source: TeamManager handleSubmit - ID:', newEmployee.id, 'Source:', 'TeamManager');
+        console.log('👤 New employee object created:', employee);
+        console.log('🔧 Source: TeamManager handleSubmit - ID:', employee.id, 'Source:', 'TeamManager');
+        console.log('🛡️ AGGRESSIVE SAFETY CHECK: newEmployee is defined:', typeof employee !== 'undefined');
         console.log('🔧 setEmployees function available:', typeof setEmployees);
         
         // Update state ONLY after server confirms success
