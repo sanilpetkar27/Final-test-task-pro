@@ -27,6 +27,8 @@ const TeamManager: React.FC<TeamManagerProps> = ({
   
   // Log every render
   console.log('🔄 TeamManager RENDERING, employees count:', employees.length);
+  console.log('👑 isSuperAdmin value:', isSuperAdmin);
+  console.log('👤 currentUser role:', currentUser?.role);
   
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
@@ -343,7 +345,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
               {isSuperAdmin && (
                 <button 
                   onClick={() => onRemoveEmployee(emp.id)}
-                  className="p-2 text-slate-300 hover:text-red-500 active:scale-90 transition-all"
+                  className="p-2 bg-red-50 hover:bg-red-100 text-red-400 hover:text-red-600 rounded-lg active:scale-90 transition-all border border-red-200"
                   title="Delete employee (Super Admin only)"
                 >
                   <Trash2 className="w-5 h-5" />
