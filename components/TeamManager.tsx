@@ -100,6 +100,22 @@ const TeamManager: React.FC<TeamManagerProps> = ({
         alert(`Error: ${error.message}`);
       } else {
         console.log('✅ User created successfully:', data);
+        
+        // Create new employee object with all required fields
+        const newEmployee: Employee = {
+          id: data.id || `temp-${Date.now()}`, // Use returned ID or temporary ID
+          name: newName.trim(),
+          email: newEmail.trim(),
+          mobile: newMobile.trim(),
+          role: newRole,
+          points: 0
+        };
+        
+        // IMMEDIATE local state update
+        if (setEmployees) {
+          setEmployees(prev => [...prev, newEmployee]);
+        }
+        
         alert('User created successfully!');
         // Clear form
         setNewName('');
@@ -108,7 +124,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
         setNewMobile('');
         setNewRole('staff');
         
-        // Trigger parent to refetch employees
+        // Trigger parent to refetch employees (backup)
         setTimeout(() => {
           onAddEmployee('', '', '', 'staff');
         }, 100);
@@ -258,7 +274,11 @@ const TeamManager: React.FC<TeamManagerProps> = ({
         </h3>
         {employees.length > 0 ? (
           <div className="space-y-2">
-            {sortedEmployees.map((emp, index) => (
+            {sortedEmployees.map((emp, index) => {
+              // Safety filter: prevent ghost/blank rows from rendering
+              if (!emp.id || !emp.name) return null;
+              
+              return (
               <div 
                 key={emp.id} 
                 className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-100 shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-200"
@@ -282,7 +302,8 @@ const TeamManager: React.FC<TeamManagerProps> = ({
                   <p className="text-xs text-slate-500">points</p>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="text-center py-8 bg-slate-100/50 rounded-xl border border-dashed border-slate-200">
@@ -321,7 +342,11 @@ const TeamManager: React.FC<TeamManagerProps> = ({
         
         <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider px-1">Registered Team ({employees.length})</h3>
         {employees.length > 0 ? (
-          employees.map((emp) => (
+          employees.map((emp) => {
+            // Safety filter: prevent ghost/blank rows from rendering
+            if (!emp.id || !emp.name) return null;
+            
+            return (
             <div 
               key={emp.id} 
               className="bg-white p-4 rounded-2xl border border-slate-200 flex items-center justify-between group transition-all active:bg-slate-50"
@@ -367,7 +392,8 @@ const TeamManager: React.FC<TeamManagerProps> = ({
                 </button>
               )}
             </div>
-          ))
+            );
+          })
         ) : (
           <div className="text-center py-12 bg-slate-100/50 rounded-3xl border border-dashed border-slate-200">
             <User className="w-10 h-10 mx-auto mb-2 text-slate-300" />
