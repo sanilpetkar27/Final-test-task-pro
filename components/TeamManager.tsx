@@ -347,11 +347,14 @@ const TeamManager: React.FC<TeamManagerProps> = ({
               </div>
               {(currentUser.role === 'super_admin' || currentUser.role === 'owner') && (
                 <button 
-                  onClick={() => {
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
                     if (window.confirm(`Are you sure you want to delete ${emp.name}? This action cannot be undone.`)) {
                       // IMMEDIATE local state update for instant feedback
                       if (setEmployees) {
-                        setEmployees(prev => prev.filter(e => e.id !== emp.id));
+                        setEmployees(prev => prev.filter(employee => employee.id !== emp.id));
                       }
                       // Call parent function for database deletion
                       onRemoveEmployee(emp.id);
