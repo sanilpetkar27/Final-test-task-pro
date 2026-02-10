@@ -6,6 +6,7 @@ import TeamManager from './components/TeamManager';
 import LoginScreen from './components/LoginScreen';
 import { supabase } from './src/lib/supabase';
 import { useNotificationSetup } from './src/hooks/useNotificationSetup';
+import { transformTaskToApp, transformTaskToDB, transformTasksToApp, DatabaseTask } from './src/utils/transformers';
 import {
   ClipboardList,
   Users,
@@ -54,11 +55,11 @@ const App: React.FC = () => {
   const DEFAULT_TASKS = [
     {
       id: 'task-demo-1',
-      description: 'Welcome to your new Universal Task App',
+      description: 'Welcome to your new TaskPro',
       status: 'pending' as TaskStatus,
-      createdAt: Date.now(),
-      assignedBy: 'emp-admin',
-      assignedTo: 'emp-staff-1'
+      created_at: Date.now(),
+      assigned_by: 'emp-admin',
+      assigned_to: 'emp-staff-1'
     }
   ];
 
@@ -87,8 +88,8 @@ const App: React.FC = () => {
       // Apply role-based filtering using currentUser from state
       if (employeesData && employeesData.length > 0 && currentUser) {
         // Filter for managers and staff: only their assigned or created tasks
-        // Database uses camelCase: assignedTo, assignedBy
-        tasksQuery = tasksQuery.or(`assignedTo.eq.${currentUser.id},assignedBy.eq.${currentUser.id}`);
+        // Database uses snake_case: assigned_to, assigned_by
+        tasksQuery = tasksQuery.or(`assigned_to.eq.${currentUser.id},assigned_by.eq.${currentUser.id}`);
       }
       // For super_admin, keep fetching all tasks (no filtering)
       
@@ -101,9 +102,10 @@ const App: React.FC = () => {
         ? employeesData
         : DEFAULT_EMPLOYEES;
 
+      // Transform database tasks to app tasks
       const finalTasks = (tasksData && tasksData.length > 0)
-        ? tasksData
-        : DEFAULT_TASKS;
+        ? transformTasksToApp(tasksData as DatabaseTask[])
+        : transformTasksToApp(DEFAULT_TASKS as DatabaseTask[]);
 
       if (employeesError || tasksError) {
         console.warn('⚠️ using fallback data due to Supabase error');
@@ -230,9 +232,10 @@ const App: React.FC = () => {
             }
           }
 
-          // Step 4: Combine into rich task object
+          // Step 4: Transform database task to app task and combine with user data
+          const appTask = transformTaskToApp(task as DatabaseTask);
           const richTask = {
-            ...task,
+            ...appTask,
             assigned_to_user: assignee,
             assigned_by_user: assigner
           };
@@ -287,9 +290,10 @@ const App: React.FC = () => {
             }
           }
 
-          // Step 4: Combine into rich task object
+          // Step 4: Transform database task to app task and combine with user data
+          const appTask = transformTaskToApp(task as DatabaseTask);
           const richTask = {
-            ...task,
+            ...appTask,
             assigned_to_user: assignee,
             assigned_by_user: assigner
           };
@@ -401,18 +405,22 @@ const App: React.FC = () => {
     };
 
     try {
+      // Transform app task to database format before inserting
+      const dbTask = transformTaskToDB(newTask);
+      
       // Insert task into Supabase
       const { data, error } = await supabase
         .from('tasks')
-        .insert([newTask]);
+        .insert([dbTask]);
 
       if (error) {
         console.error('Error adding task:', error);
         // Fallback to local state
         setTasks(prev => [newTask, ...prev]);
       } else if (data) {
-        // Update local state with the returned task (which may have DB-generated ID)
-        setTasks(prev => [data[0], ...prev]);
+        // Transform returned database task back to app format
+        const appTask = transformTaskToApp(data[0] as DatabaseTask);
+        setTasks(prev => [appTask, ...prev]);
       }
     } catch (error) {
       console.error('Error adding task:', error);
@@ -631,10 +639,10 @@ const App: React.FC = () => {
 
   const reassignTask = async (taskId: string, newAssigneeId: string) => {
     try {
-      // Update task assignment in Supabase
+      // Update task assignment in Supabase using snake_case
       const { error } = await supabase
         .from('tasks')
-        .update({ assignedTo: newAssigneeId })
+        .update({ assigned_to: newAssigneeId })
         .eq('id', taskId);
 
       if (error) {

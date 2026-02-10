@@ -1,6 +1,6 @@
 
 export type TaskStatus = 'pending' | 'in-progress' | 'completed';
-export type UserRole = 'staff' | 'manager';
+export type UserRole = 'owner' | 'manager' | 'staff';
 
 export interface Employee {
   id: string;
