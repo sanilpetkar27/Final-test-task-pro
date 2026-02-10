@@ -4,7 +4,7 @@ import Dashboard from './components/Dashboard';
 import StatsScreen from './components/StatsScreen';
 import TeamManager from './components/TeamManager';
 import LoginScreen from './components/LoginScreen';
-import { supabase } from './src/lib/supabase';
+import { supabase, supabaseAuth } from './src/lib/supabase';
 import { useNotificationSetup } from './src/hooks/useNotificationSetup';
 import { transformTaskToApp, transformTaskToDB, transformTasksToApp, DatabaseTask } from './src/utils/transformers';
 import { Toaster, toast } from 'sonner';
@@ -45,12 +45,13 @@ const App: React.FC = () => {
     {
       id: 'emp-admin',
       name: 'Sanil Petkar', // Updated Name
+      email: 'sanil@company.com', // Added email
       mobile: '8668678238', // Updated Number (Login with this + OTP 1234)
       role: 'manager',
       points: 0
     },
-    { id: 'emp-staff-1', name: 'Staff Member 1', mobile: '8888888888', role: 'staff', points: 0 },
-    { id: 'emp-staff-2', name: 'Staff Member 2', mobile: '7777777777', role: 'staff', points: 0 }
+    { id: 'emp-staff-1', name: 'Staff Member 1', email: 'staff1@company.com', mobile: '8888888888', role: 'staff', points: 0 },
+    { id: 'emp-staff-2', name: 'Staff Member 2', email: 'staff2@company.com', mobile: '7777777777', role: 'staff', points: 0 }
   ];
 
   const DEFAULT_TASKS = [
@@ -176,6 +177,47 @@ const App: React.FC = () => {
   }, [fetchTasks]);
 
   // --- ROBUST SYNCHRONIZATION EFFECT ---
+  useEffect(() => {
+    // Check for existing auth session on app load
+    const checkAuthSession = async () => {
+      try {
+        const { data: session, error } = await supabaseAuth.getSession();
+        
+        if (session?.user) {
+          console.log('🔐 Auth ID:', session.user.id);
+          
+          // Query employee by Auth ID (not mobile/email)
+          const { data: employeeData, error: empError } = await supabase
+            .from('employees')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+          
+          console.log('👤 Employee Lookup Result:', employeeData);
+          
+          if (empError) {
+            console.error('Error fetching employee data:', empError);
+            setLoadError('Profile missing. Please contact Admin.');
+            return;
+          }
+          
+          if (employeeData) {
+            setCurrentUser(employeeData);
+            localStorage.setItem('universal_app_user', JSON.stringify(employeeData));
+          } else {
+            setLoadError('Profile missing. Please contact Admin.');
+          }
+        }
+      } catch (err) {
+        console.error('Auth session check error:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkAuthSession();
+  }, []);
+
   useEffect(() => {
     // Initial Load
     loadInitialData(false).then(data => {
@@ -756,35 +798,44 @@ const App: React.FC = () => {
 
   const handleLogin = async (user: Employee) => {
     try {
-      // Query employee from Supabase to get latest data
-      const { data: employeeData, error } = await supabase
-        .from('employees')
-        .select('*')
-        .eq('mobile', user.mobile)
-        .single();
-
-      if (error) {
-        console.error('Error fetching employee data:', error);
+      // Get current auth session to get the Auth ID
+      const { data: session } = await supabaseAuth.getSession();
+      
+      if (session?.user) {
+        console.log('🔐 Auth ID:', session.user.id);
+        
+        // Query employee by Auth ID (not mobile/email)
+        const { data: employeeData, error } = await supabase
+          .from('employees')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+        
+        console.log('👤 Employee Lookup Result:', employeeData);
+        
+        if (error) {
+          console.error('Error fetching employee data:', error);
+          setLoadError('Profile missing. Please contact Admin.');
+          return;
+        }
+        
+        if (employeeData) {
+          setCurrentUser(employeeData);
+          localStorage.setItem('universal_app_user', JSON.stringify(employeeData));
+        } else {
+          setLoadError('Profile missing. Please contact Admin.');
+        }
+      } else {
         // Fallback to provided user data
         setCurrentUser(user);
         localStorage.setItem('universal_app_user', JSON.stringify(user));
-      } else if (employeeData) {
-        setCurrentUser(employeeData);
-        localStorage.setItem('universal_app_user', JSON.stringify(employeeData));
-      } else {
-        console.error('Employee not found in database');
-        setCurrentUser(user);
-        localStorage.setItem('universal_app_user', JSON.stringify(user));
       }
-
-      setActiveTab(AppTab.TASKS);
-    } catch (error) {
-      console.error('Login error:', error);
-      // Fallback to provided user data
+    } catch (err) {
+      console.error('Login error:', err);
       setCurrentUser(user);
       localStorage.setItem('universal_app_user', JSON.stringify(user));
-      setActiveTab(AppTab.TASKS);
     }
+    setActiveTab(AppTab.TASKS);
   };
 
   const handleLogout = () => {
