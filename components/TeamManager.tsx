@@ -64,15 +64,11 @@ const TeamManager: React.FC<TeamManagerProps> = ({
       
       if (error) {
         console.error('❌ Connection Test Failed:', error);
-        setConnectionError(`Error: ${JSON.stringify(error, null, 2)}`);
       } else {
         console.log('✅ Connection Test Success:', data);
-        setConnectionError(null);
-        alert(`Success! Found ${data.length} staff.`);
       }
     } catch (err) {
       console.error('🚨 Unexpected Error:', err);
-      setConnectionError(`Unexpected: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   };
 
@@ -340,16 +336,6 @@ const TeamManager: React.FC<TeamManagerProps> = ({
       )}
 
       <div className="space-y-2">
-        {/* Connection Error Display */}
-        {connectionError && (
-          <div className="bg-red-600 p-4 rounded-2xl border border-red-700 mb-4">
-            <h3 className="text-white text-lg font-bold mb-2">Connection Debugger</h3>
-            <div className="bg-red-800 rounded-lg p-3">
-              <p className="text-red-100 text-sm font-mono break-all">{connectionError}</p>
-            </div>
-            <p className="text-red-100 text-sm">This will help identify if the issue is Permissions (RLS), Network, or Invalid URL.</p>
-          </div>
-        )}
         
         <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider px-1">Registered Team ({employees.length})</h3>
         {employees.length > 0 ? (
