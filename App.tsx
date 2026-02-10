@@ -61,7 +61,7 @@ const App: React.FC = () => {
       status: 'pending' as TaskStatus,
       created_at: Date.now(),
       assigned_by: 'emp-admin',
-      assigned_to: 'emp-staff-1'
+      assignedTo: 'emp-staff-1'
     }
   ];
 
@@ -90,8 +90,8 @@ const App: React.FC = () => {
       // Apply role-based filtering using currentUser from state
       if (employeesData && employeesData.length > 0 && currentUser) {
         // Filter for managers and staff: only their assigned or created tasks
-        // Database uses snake_case: assigned_to, assigned_by
-        tasksQuery = tasksQuery.or(`assigned_to.eq.${currentUser.id},assigned_by.eq.${currentUser.id}`);
+        // Database uses camelCase: assignedTo, assignedBy
+        tasksQuery = tasksQuery.or(`assignedTo.eq.${currentUser.id},assignedBy.eq.${currentUser.id}`);
       }
       // For super_admin, keep fetching all tasks (no filtering)
       
@@ -249,11 +249,11 @@ const App: React.FC = () => {
 
           // Step 2: Fetch assignee if exists
           let assignee = null;
-          if (task.assigned_to) {
+          if (task.assignedTo) {
             const { data: assigneeData, error: assigneeError } = await supabase
               .from('employees')
               .select('*')
-              .eq('id', task.assigned_to)
+              .eq('id', task.assignedTo)
               .single();
             
             if (!assigneeError && assigneeData) {
@@ -279,7 +279,7 @@ const App: React.FC = () => {
           const appTask = transformTaskToApp(task as DatabaseTask);
           const richTask = {
             ...appTask,
-            assigned_to_user: assignee,
+            assignedTo_user: assignee,
             assigned_by_user: assigner
           };
 
@@ -307,11 +307,11 @@ const App: React.FC = () => {
 
           // Step 2: Fetch assignee if exists
           let assignee = null;
-          if (task.assigned_to) {
+          if (task.assignedTo) {
             const { data: assigneeData, error: assigneeError } = await supabase
               .from('employees')
               .select('*')
-              .eq('id', task.assigned_to)
+              .eq('id', task.assignedTo)
               .single();
             
             if (!assigneeError && assigneeData) {
@@ -337,7 +337,7 @@ const App: React.FC = () => {
           const appTask = transformTaskToApp(task as DatabaseTask);
           const richTask = {
             ...appTask,
-            assigned_to_user: assignee,
+            assignedTo_user: assignee,
             assigned_by_user: assigner
           };
 
@@ -685,7 +685,7 @@ const App: React.FC = () => {
       // Update task assignment in Supabase using snake_case
       const { error } = await supabase
         .from('tasks')
-        .update({ assigned_to: newAssigneeId })
+        .update({ assignedTo: newAssigneeId })
         .eq('id', taskId);
 
       if (error) {
@@ -983,6 +983,7 @@ const App: React.FC = () => {
             onRemoveEmployee={removeEmployee}
             rewardConfig={rewardConfig}
             onUpdateRewardConfig={setRewardConfig}
+            isSuperAdmin={isSuperAdmin}
           />
         )}
       </main>
