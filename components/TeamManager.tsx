@@ -28,8 +28,9 @@ const TeamManager: React.FC<TeamManagerProps> = ({
   // Feature flag - set to true to show points system
   const SHOW_POINTS_SYSTEM = false;
   
-  // Log every render
+  // Log every render with employee details
   console.log('🔄 TeamManager RENDERING, employees count:', employees.length);
+  console.log('🔄 Current employees:', employees.map(e => ({ id: e.id, name: e.name, mobile: e.mobile })));
   console.log('👑 isSuperAdmin value:', isSuperAdmin);
   console.log('👤 currentUser role:', currentUser?.role);
   
@@ -126,6 +127,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
           setEmployees(prev => {
             const updated = [...prev, newEmployee];
             console.log('📊 Updated employees array:', updated);
+            console.log('📊 Stack trace:', new Error().stack);
             return updated;
           });
         } else {
