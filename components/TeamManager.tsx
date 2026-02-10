@@ -30,7 +30,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
   
   // Log every render with employee details
   console.log('🔄 TeamManager RENDERING, employees count:', employees.length);
-  console.log('� Adding employee:', newEmployee);
+  console.log('📝 Adding employee:', newEmployee);
   console.log('🔧 Source: TeamManager handleSubmit - ID:', newEmployee.id, 'Source:', 'TeamManager');
   console.log('👥 TeamManager: employees prop updated, count:', employees.length);
   console.log('👥 TeamManager: employees data:', employees.map(e => ({ id: e.id, name: e.name, mobile: e.mobile })));
