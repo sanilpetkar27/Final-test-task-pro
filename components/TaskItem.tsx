@@ -63,12 +63,17 @@ const TaskItem: React.FC<TaskItemProps> = ({
   // Name lookup logic
   const getEmployeeName = (employeeId: string | null | undefined) => {
     if (!employeeId) return 'Unknown';
+    console.log('🔍 Looking up employee:', employeeId, 'Available employees:', employees.map(e => ({ id: e.id, name: e.name })));
     const employee = employees.find(emp => emp.id === employeeId);
-    return employee?.name || 'Unknown';
+    const result = employee?.name || 'Unknown';
+    console.log('👤 Employee lookup result:', result);
+    return result;
   };
 
-  const assignerNameDisplay = getEmployeeName(task.assignedBy || task.assigner_id);
-  const assigneeNameDisplay = getEmployeeName(task.assignedTo || task.assignee_id);
+  const assignerNameDisplay = getEmployeeName(task.assignedBy);
+  const assigneeNameDisplay = getEmployeeName(task.assignedTo);
+
+  console.log('📋 Task object:', { id: task.id, assignedTo: task.assignedTo, assignedBy: task.assignedBy, description: task.description });
 
   const handlePhotoUpload = async (file: File) => {
     setIsUploading(true);
