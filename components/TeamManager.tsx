@@ -380,15 +380,26 @@ const TeamManager: React.FC<TeamManagerProps> = ({
                 <button 
                   type="button"
                   onClick={(e) => {
+                    console.log('🗑️ Delete button clicked for:', emp.name, emp.id);
                     e.preventDefault();
                     e.stopPropagation();
+                    
                     if (window.confirm(`Are you sure you want to delete ${emp.name}? This action cannot be undone.`)) {
+                      console.log('✅ Delete confirmed, updating state immediately');
+                      
                       // IMMEDIATE local state update for instant feedback
                       if (setEmployees) {
-                        setEmployees(prev => prev.filter(employee => employee.id !== emp.id));
+                        const currentEmployees = employees;
+                        const filteredEmployees = currentEmployees.filter(employee => employee.id !== emp.id);
+                        console.log('🔄 Filtering employees:', { from: currentEmployees.length, to: filteredEmployees.length });
+                        setEmployees(filteredEmployees);
                       }
+                      
                       // Call parent function for database deletion
+                      console.log('📞 Calling onRemoveEmployee with ID:', emp.id);
                       onRemoveEmployee(emp.id);
+                    } else {
+                      console.log('❌ Delete cancelled');
                     }
                   }}
                   className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-full cursor-pointer transition-all"
