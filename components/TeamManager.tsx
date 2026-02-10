@@ -117,9 +117,19 @@ const TeamManager: React.FC<TeamManagerProps> = ({
           points: 0
         };
         
+        console.log('👤 New employee object created:', newEmployee);
+        console.log('🔧 setEmployees function available:', typeof setEmployees);
+        
         // Update state ONLY after server confirms success
         if (setEmployees) {
-          setEmployees(prev => [...prev, newEmployee]);
+          console.log('📞 Calling setEmployees with new employee...');
+          setEmployees(prev => {
+            const updated = [...prev, newEmployee];
+            console.log('📊 Updated employees array:', updated);
+            return updated;
+          });
+        } else {
+          console.error('❌ setEmployees function not available!');
         }
         
         alert('User created successfully!');
