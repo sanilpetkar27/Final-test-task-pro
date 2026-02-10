@@ -223,7 +223,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
           onAddTask('', '', '', '', false);
         }, 100);
       } else {
-        // Create new task
+        // Create new task using parent's onAddTask function
         console.log('🔧 Creating task...', {
           description: newTaskDesc.trim(),
           assigneeId: assigneeId === 'none' ? null : assigneeId,
@@ -231,31 +231,15 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
           deadline: deadlineTimestamp
         });
         
-        console.log('🔧 Creating new task...');
-        const newTaskId = `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        const newTask = {
-          id: newTaskId,
-          description: newTaskDesc.trim(),
-          assignedTo: assigneeId === 'none' ? null : assigneeId,
-          status: 'pending',
-          assignedBy: currentUser.id,
-          deadline: deadlineTimestamp,
-          requirePhoto: requirePhoto,
-          createdAt: Date.now()
-        };
+        onAddTask(
+          newTaskDesc.trim(),
+          assigneeId === 'none' ? undefined : assigneeId,
+          undefined, // parentTaskId
+          deadlineTimestamp,
+          requirePhoto
+        );
         
-        console.log('🔧 Inserting task into database:', newTask);
-        const result = await supabase
-          .from('tasks')
-          .insert([newTask]);
-        
-        if (result.error) {
-          console.error('❌ Task creation failed:', result.error);
-          alert(`Task Creation Error: ${result.error.message}`);
-          return;
-        }
-        
-        console.log('✅ Task created successfully');
+        console.log('✅ Task creation request sent');
         
         // IMMEDIATELY reset form states
         setNewTaskDesc('');
@@ -268,7 +252,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
           const assignedEmployee = employees.find(emp => emp.id === assigneeId);
           if (assignedEmployee) {
             await sendTaskAssignmentNotification(
-              newTask.description,
+              newTaskDesc.trim(),
               assignedEmployee.name,
               currentUser.name,
               assignedEmployee.id
