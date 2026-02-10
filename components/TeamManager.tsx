@@ -107,13 +107,13 @@ const TeamManager: React.FC<TeamManagerProps> = ({
       } else {
         console.log('✅ User created successfully:', data);
         
-        // Create new employee object with all required fields
+        // Create new employee object using returned data from server
         const newEmployee: Employee = {
-          id: data.id || `temp-${Date.now()}`, // Use returned ID or temporary ID
-          name: newName.trim(),
-          email: newEmail.trim(),
-          mobile: newMobile.trim(),
-          role: newRole,
+          id: data.id || `temp-${Date.now()}`,
+          name: newName.trim(), // Use form field since server doesn't return name
+          email: newEmail.trim(), // Use form field since server doesn't return email
+          mobile: newMobile.trim(), // Use form field since server doesn't return mobile
+          role: newRole, // Use form field since server doesn't return role
           points: 0
         };
         
@@ -139,11 +139,6 @@ const TeamManager: React.FC<TeamManagerProps> = ({
         setNewPassword('');
         setNewMobile('');
         setNewRole('staff');
-        
-        // Trigger parent to refetch employees (backup)
-        setTimeout(() => {
-          onAddEmployee('', '', '', 'staff');
-        }, 100);
       }
     } catch (err) {
       console.error('🚨 Unexpected Error:', err);
