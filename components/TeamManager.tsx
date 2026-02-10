@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Employee, UserRole, RewardConfig } from '../types';
 import { UserPlus, Trash2, User, ShieldCheck, Phone, Trophy, Target, Star, Medal, RefreshCw, Wifi } from 'lucide-react';
 import { supabase } from '../src/lib/supabase';
+import { toast } from 'sonner';
 
 interface TeamManagerProps {
   employees: Employee[];
@@ -30,9 +31,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
   
   // Log every render with employee details
   console.log('🔄 TeamManager RENDERING, employees count:', employees.length);
-  console.log('📝 Adding employee:', newEmployee);
-  console.log('🔧 Source: TeamManager handleSubmit - ID:', newEmployee.id, 'Source:', 'TeamManager');
-  console.log('👥 TeamManager: employees prop updated, count:', employees.length);
+  console.log(' TeamManager: employees prop updated, count:', employees.length);
   console.log('👥 TeamManager: employees data:', employees.map(e => ({ id: e.id, name: e.name, mobile: e.mobile })));
   console.log('👑 isSuperAdmin value:', isSuperAdmin);
   console.log('👤 currentUser role:', currentUser?.role);
@@ -44,7 +43,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
   const [newRole, setNewRole] = useState<UserRole>('staff');
   const [targetPoints, setTargetPoints] = useState(rewardConfig.targetPoints.toString());
   const [rewardName, setRewardName] = useState(rewardConfig.rewardName);
-  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [isAdding, setIsAdding] = useState(false);
 
   // Use employees prop from parent (App.tsx)
   useEffect(() => {
@@ -77,20 +76,24 @@ const TeamManager: React.FC<TeamManagerProps> = ({
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // 1. Validate Form
     if (!newName.trim() || !newEmail.trim() || !newPassword.trim() || !newMobile.trim()) {
-      alert("Please fill in all required fields");
+      toast.error('Please fill in all required fields');
       return;
     }
 
-    // Basic mobile validation
+    // 2. Basic mobile validation
     if (newMobile.length < 10) {
-      alert("Please enter a valid 10-digit mobile number");
+      toast.error('Please enter a valid 10-digit mobile number');
       return;
     }
 
     try {
+      setIsAdding(true);
+      // 2. Call Server (RPC)
       const { data, error } = await supabase.rpc('create_user_by_admin', {
         email: newEmail.trim(),
         password: newPassword.trim(),
@@ -100,55 +103,46 @@ const TeamManager: React.FC<TeamManagerProps> = ({
       });
 
       if (error) {
-        console.error('❌ Error creating user:', error);
-        
-        // Handle duplicate mobile error specifically
-        if (error.message?.includes('unique constraint') || error.code === '23505') {
-          alert('This mobile number is already registered!');
+        console.error('Error creating user:', error);
+        if (error.message.includes('unique constraint') || error.code === '23505') {
+          toast.error('This mobile number or email is already registered!');
         } else {
-          alert(`Error: ${error.message}`);
+          toast.error('Failed to create user: ' + error.message);
         }
-      } else {
-        console.log('✅ User created successfully:', data);
-        
-        // Create new employee object using returned data from server
-        const employee: Employee = {
-          id: data.id || `temp-${Date.now()}`,
-          name: newName.trim(), // Use form field since server doesn't return name
-          email: newEmail.trim(), // Use form field since server doesn't return email
-          mobile: newMobile.trim(), // Use form field since server doesn't return mobile
-          role: newRole, // Use form field since server doesn't return role
-          points: 0
-        };
-        
-        console.log('👤 New employee object created:', employee);
-        console.log('🔧 Source: TeamManager handleSubmit - ID:', employee.id, 'Source:', 'TeamManager');
-        console.log('🔧 setEmployees function available:', typeof setEmployees);
-        
-        // Update state ONLY after server confirms success
-        if (setEmployees) {
-          console.log('📞 Calling setEmployees with new employee...');
-          setEmployees(prev => {
-            const updated = [...prev, newEmployee];
-            console.log('📊 Updated employees array:', updated);
-            console.log('📊 Stack trace:', new Error().stack);
-            return updated;
-          });
-        } else {
-          console.error('❌ setEmployees function not available!');
-        }
-        
-        alert('User created successfully!');
-        // Clear form
-        setNewName('');
-        setNewEmail('');
-        setNewPassword('');
-        setNewMobile('');
-        setNewRole('staff');
+        return; // STOP here. Do not proceed.
       }
-    } catch (err) {
-      console.error('🚨 Unexpected Error:', err);
-      alert(`Unexpected: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      // 3. Success! NOW we create the object safely.
+      // 'data' from RPC is the new User ID (UUID string)
+      const safeId = typeof data === 'string' ? data : data?.id; 
+      const createdEmployee: Employee = {
+        id: safeId || `temp-${Date.now()}`,
+        name: newName.trim(),
+        role: newRole,
+        mobile: newMobile.trim(),
+        points: 0
+      };
+      
+      console.log('👤 New employee object created:', createdEmployee);
+      console.log('🔧 Source: TeamManager handleSubmit - ID:', createdEmployee.id, 'Source:', 'TeamManager');
+      
+      // 4. Update State Immediately
+      if (setEmployees) {
+        setEmployees(prev => [...prev, createdEmployee]);
+      }
+      
+      // 5. Cleanup
+      toast.success('User created successfully!');
+      setNewName('');
+      setNewEmail('');
+      setNewPassword('');
+      setNewMobile('');
+      setNewRole('staff');
+      setIsAdding(false);
+    } catch (err: any) {
+      console.error('Unexpected crash:', err);
+      toast.error('Something went wrong. Please try again.');
+    } finally {
+      setIsAdding(false);
     }
   };
 
@@ -180,7 +174,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
 
       <section className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
         <h3 className="text-xs font-bold text-slate-500 mb-3 uppercase tracking-wider">Add Staff Member</h3>
-        <form onSubmit={handleSubmit} className="space-y-3">
+        <form onSubmit={handleCreateUser} className="space-y-3">
           <input 
             type="text" 
             value={newName}
