@@ -7,6 +7,7 @@ import LoginScreen from './components/LoginScreen';
 import { supabase } from './src/lib/supabase';
 import { useNotificationSetup } from './src/hooks/useNotificationSetup';
 import { transformTaskToApp, transformTaskToDB, transformTasksToApp, DatabaseTask } from './src/utils/transformers';
+import { Toaster, toast } from 'sonner';
 import {
   ClipboardList,
   Users,
@@ -715,7 +716,7 @@ const App: React.FC = () => {
       
       if (error) {
         console.error('❌ Error adding employee to database:', error);
-        alert(`Database Error: ${error.message}. Employee added locally.`);
+        toast.error(`Database Error: ${error.message}. Employee added locally.`);
       } else if (data && data.length > 0) {
         console.log('✅ Employee synced with database:', data[0]);
         // Update local state with the DB version (may have different ID)
@@ -723,7 +724,7 @@ const App: React.FC = () => {
       }
     } catch (error) {
       console.error('🚨 Unexpected error adding employee:', error);
-      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}. Employee added locally.`);
+      toast.error(`Error: ${error instanceof Error ? error.message : 'Unknown error'}. Employee added locally.`);
     }
   };
 
@@ -743,13 +744,13 @@ const App: React.FC = () => {
 
       if (error) {
         console.error('❌ Error removing employee from database:', error);
-        alert(`Database Error: ${error.message}. Employee removed locally.`);
+        toast.error(`Database Error: ${error.message}. Employee removed locally.`);
       } else {
         console.log('✅ Employee removed from database successfully');
       }
     } catch (error) {
       console.error('🚨 Unexpected error removing employee:', error);
-      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}. Employee removed locally.`);
+      toast.error(`Error: ${error instanceof Error ? error.message : 'Unknown error'}. Employee removed locally.`);
     }
   };
 
@@ -865,7 +866,7 @@ const App: React.FC = () => {
       )}
 
       {/* Header */}
-      <header className="bg-[#0F172A] text-white p-5 sticky top-0 z-30 flex items-center justify-between shadow-2xl border-b border-white/5">
+      <header className="bg-[#0F172A] text-white p-5 pt-safe-top sticky top-0 z-30 flex items-center justify-between shadow-2xl border-b border-white/5" style={{ paddingTop: 'max(3rem, 1.25rem)' }}>
         <div className="flex items-center gap-2">
           <div className="bg-blue-600 p-1.5 rounded-lg shadow-lg shadow-blue-500/20">
             <LayoutDashboard className="w-5 h-5" />
@@ -964,6 +965,7 @@ const App: React.FC = () => {
 
         </div>
       </nav>
+      <Toaster />
     </div>
   );
 };

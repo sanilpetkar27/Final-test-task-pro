@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Employee, UserRole, RewardConfig } from '../types';
-import { UserPlus, UserMinus, User, ShieldCheck, Phone, Trophy, Target, Star, Medal, RefreshCw, Wifi } from 'lucide-react';
+import { UserPlus, Trash2, User, ShieldCheck, Phone, Trophy, Target, Star, Medal, RefreshCw, Wifi } from 'lucide-react';
 import { supabase } from '../src/lib/supabase';
 
 interface TeamManagerProps {
@@ -132,14 +132,14 @@ const TeamManager: React.FC<TeamManagerProps> = ({ employees, currentUser, onAdd
             <select 
               value={newRole}
               onChange={(e) => setNewRole(e.target.value as UserRole)}
-              className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 outline-none"
+              className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 h-10 text-sm text-slate-900 outline-none"
             >
               <option value="staff" className="text-slate-900">Staff</option>
               <option value="manager" className="text-slate-900">Manager</option>
             </select>
             <button 
               type="submit"
-              className="bg-blue-600 text-white p-3 px-6 rounded-xl active:scale-95 transition-transform flex items-center gap-2 font-bold text-sm"
+              className="bg-blue-600 text-white p-3 px-6 h-10 rounded-xl active:scale-95 transition-transform flex items-center gap-2 font-bold text-sm"
             >
               <UserPlus className="w-5 h-5" />
               Add
@@ -293,7 +293,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({ employees, currentUser, onAdd
                   className="p-2 text-slate-300 hover:text-red-500 active:scale-90 transition-all"
                   title="Delete employee (Super Admin only)"
                 >
-                  <UserMinus className="w-5 h-5" />
+                  <Trash2 className="w-5 h-5" />
                 </button>
               )}
             </div>
@@ -304,19 +304,6 @@ const TeamManager: React.FC<TeamManagerProps> = ({ employees, currentUser, onAdd
             <p className="text-sm text-slate-500">No staff members registered yet.</p>
           </div>
         )}
-        
-        {/* Database Connection Status */}
-        <div className="bg-slate-800 p-4 rounded-2xl border border-slate-700">
-          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Database Status</h4>
-          <div className="space-y-1">
-            <p className="text-sm text-green-400">
-              Connected to Database: {employees.length > 0 ? 'Yes' : 'No'}
-            </p>
-            <p className="text-sm text-slate-300">
-              Total Staff: {employees.length}
-            </p>
-          </div>
-        </div>
       </div>
     </div>
   );
