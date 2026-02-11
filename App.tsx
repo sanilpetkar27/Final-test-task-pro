@@ -90,13 +90,12 @@ const App: React.FC = () => {
       // Apply role-based filtering using currentUser from state
       if (employeesData && employeesData.length > 0 && currentUser) {
         // Filter for managers and staff: only their assigned or created tasks
-        // Database uses camelCase: assignedTo, assignedBy
-        tasksQuery = tasksQuery.or(`assignedTo.eq.${currentUser.id},assignedBy.eq.${currentUser.id}`);
+        // Database uses snake_case: assigned_to, assigned_by
+        tasksQuery = tasksQuery.or(`assigned_to.eq.${currentUser.id},assigned_by.eq.${currentUser.id}`);
       }
       // For super_admin, keep fetching all tasks (no filtering)
       
-      const result = await tasksQuery;
-      const { data: tasksData, error: tasksError } = result;
+      const { data: tasksData, error: tasksError } = await tasksQuery;
 
       // Check if we have valid data or if there were errors
       // If errors or empty data, use defaults
@@ -152,13 +151,12 @@ const App: React.FC = () => {
       // Apply role-based filtering using currentUser from state
       if (employeesData && employeesData.length > 0 && currentUser) {
         // Filter for managers and staff: only their assigned or created tasks
-        // Database uses camelCase: assignedTo, assignedBy
-        tasksQuery = tasksQuery.or(`assignedTo.eq.${currentUser.id},assignedBy.eq.${currentUser.id}`);
+        // Database uses snake_case: assigned_to, assigned_by
+        tasksQuery = tasksQuery.or(`assigned_to.eq.${currentUser.id},assigned_by.eq.${currentUser.id}`);
       }
       // For super_admin, keep fetching all tasks (no filtering)
       
-      const result = await tasksQuery;
-      const { data: tasksData, error: tasksError } = result;
+      const { data: tasksData, error: tasksError } = await tasksQuery;
       
       if (tasksError) {
         console.error('❌ Failed to fetch tasks:', tasksError);
@@ -685,7 +683,7 @@ const App: React.FC = () => {
       // Update task assignment in Supabase using snake_case
       const { error } = await supabase
         .from('tasks')
-        .update({ assignedTo: newAssigneeId })
+        .update({ assigned_to: newAssigneeId })
         .eq('id', taskId);
 
       if (error) {
