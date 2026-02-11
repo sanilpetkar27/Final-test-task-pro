@@ -70,8 +70,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
     localStorage.removeItem('task_form_deadline');
     localStorage.removeItem('task_form_photo');
   };
-  const [directEmployees, setDirectEmployees] = useState<Employee[]>([]);
-  const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
+  // Dashboard uses employees from props, no local state needed
   const [selectedPersonFilter, setSelectedPersonFilter] = useState('ALL');
   
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
@@ -79,28 +78,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   const [reassigningTaskId, setReassigningTaskId] = useState<string | null>(null);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
 
-  // Fetch employees directly from database for dropdown
-  useEffect(() => {
-    const fetchEmployees = async () => {
-      try {
-        const result = await supabase
-          .from('employees')
-          .select('*');
-        
-        if (result.error) {
-          console.error('❌ Dashboard: Failed to fetch employees:', result.error);
-        } else {
-          // Dashboard uses employees from props, no need to set local state
-        }
-      } catch (err) {
-        console.error('🚨 Dashboard: Unexpected error fetching employees:', err);
-      } finally {
-        setIsLoadingEmployees(false);
-      }
-    };
-
-    fetchEmployees();
-  }, []);
+  // Dashboard uses employees from props, no independent fetching needed
 
   // Initialize voice recognition
   useEffect(() => {
