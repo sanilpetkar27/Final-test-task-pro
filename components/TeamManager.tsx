@@ -115,16 +115,15 @@ const TeamManager: React.FC<TeamManagerProps> = ({
         name: newName.trim(),
         role: newRole,
         mobile: newMobile.trim(),
+        email: newEmail.trim(),
         points: 0
       };
       
       console.log('👤 New employee object created:', createdEmployee);
       console.log('🔧 Source: TeamManager handleSubmit - ID:', createdEmployee.id, 'Source:', 'TeamManager');
       
-      // 4. Update State Immediately
-      if (setEmployees) {
-        setEmployees(prev => [...prev, createdEmployee]);
-      }
+      // 4. Call parent function to update state
+      onAddEmployee(newName.trim(), newMobile.trim(), newRole);
       
       // 5. Cleanup
       toast.success('User created successfully!');
@@ -376,15 +375,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
                     e.stopPropagation();
                     
                     if (window.confirm(`Are you sure you want to delete ${emp.name}? This action cannot be undone.`)) {
-                      console.log('✅ Delete confirmed, updating state immediately');
-                      
-                      // IMMEDIATE local state update for instant feedback
-                      if (setEmployees) {
-                        const currentEmployees = employees;
-                        const filteredEmployees = currentEmployees.filter(employee => employee.id !== emp.id);
-                        console.log('🔄 Filtering employees:', { from: currentEmployees.length, to: filteredEmployees.length });
-                        setEmployees(filteredEmployees);
-                      }
+                      console.log('✅ Delete confirmed, calling parent function');
                       
                       // Call parent function for database deletion
                       console.log('📞 Calling onRemoveEmployee with ID:', emp.id);
