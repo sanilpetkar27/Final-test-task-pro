@@ -1,20 +1,35 @@
 import { supabase } from '../lib/supabase';
 
+// Notification logic updated. Fail-safe mode active.
+console.log('🔔 Notification logic updated. Fail-safe mode active.');
+
 type PushRecord = {
   description: string;
   assigned_to: string;
 };
 
 const invokeSendPush = async (record: PushRecord) => {
-  const authClient = (supabase as any).auth;
-  const session = authClient ? (await authClient.getSession())?.data?.session : null;
+  try {
+    const authClient = (supabase as any).auth;
+    const session = authClient ? (await authClient.getSession())?.data?.session : null;
 
-  return supabase.functions.invoke('send-push', {
-    body: { record },
-    headers: session?.access_token
-      ? { Authorization: `Bearer ${session.access_token}` }
-      : undefined,
-  });
+    const { data, error } = await supabase.functions.invoke('send-push', {
+      body: { record },
+      headers: session?.access_token
+        ? { Authorization: `Bearer ${session.access_token}` }
+        : undefined,
+    });
+
+    if (error) {
+      console.warn('⚠️ Push notification failed, but task was created:', error.message);
+      return null;
+    }
+
+    return { data, error: null };
+  } catch (error: any) {
+    console.warn('⚠️ Push notification failed, but task was created:', error.message);
+    return null;
+  }
 };
 
 /**
@@ -57,20 +72,20 @@ export const sendTaskAssignmentNotification = async (
 
     console.log('Frontend payload:', JSON.stringify({ record }));
 
-    const { data, error } = await invokeSendPush(record);
-    if (error) {
-      console.error('Failed to send push notification via Edge Function:', error);
+    const result = await invokeSendPush(record);
+    if (!result) {
+      // Error already logged in invokeSendPush
       return;
     }
 
-    console.log('Edge Function response:', JSON.stringify(data, null, 2));
+    console.log('Edge Function response:', JSON.stringify(result.data, null, 2));
 
-    if (data?.errors && Array.isArray(data.errors) && data.errors.length > 0) {
-      console.error('OneSignal API returned errors:', JSON.stringify(data.errors, null, 2));
+    if (result.data?.errors && Array.isArray(result.data.errors) && result.data.errors.length > 0) {
+      console.error('OneSignal API returned errors:', JSON.stringify(result.data.errors, null, 2));
       return;
     }
 
-    console.log('Push notification sent successfully via Edge Function:', data);
+    console.log('Push notification sent successfully via Edge Function:', result.data);
   } catch (error) {
     console.error('Error sending push notification:', error);
   }
@@ -114,20 +129,20 @@ export const sendTaskCompletionNotification = async (
 
     console.log('Frontend payload:', JSON.stringify({ record }));
 
-    const { data, error } = await invokeSendPush(record);
-    if (error) {
-      console.error('Failed to send push notification via Edge Function:', error);
+    const result = await invokeSendPush(record);
+    if (!result) {
+      // Error already logged in invokeSendPush
       return;
     }
 
-    console.log('Edge Function response:', JSON.stringify(data, null, 2));
+    console.log('Edge Function response:', JSON.stringify(result.data, null, 2));
 
-    if (data?.errors && Array.isArray(data.errors) && data.errors.length > 0) {
-      console.error('OneSignal API returned errors:', JSON.stringify(data.errors, null, 2));
+    if (result.data?.errors && Array.isArray(result.data.errors) && result.data.errors.length > 0) {
+      console.error('OneSignal API returned errors:', JSON.stringify(result.data.errors, null, 2));
       return;
     }
 
-    console.log('Push notification sent successfully via Edge Function:', data);
+    console.log('Push notification sent successfully via Edge Function:', result.data);
   } catch (error) {
     console.error('Error sending push notification:', error);
   }
