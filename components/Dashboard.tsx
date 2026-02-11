@@ -90,7 +90,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
         if (result.error) {
           console.error('❌ Dashboard: Failed to fetch employees:', result.error);
         } else {
-          setDirectEmployees(result.data || []);
+          // Dashboard uses employees from props, no need to set local state
         }
       } catch (err) {
         console.error('🚨 Dashboard: Unexpected error fetching employees:', err);
@@ -359,11 +359,10 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
               console.log('✅ Points awarded successfully');
               alert('Points awarded!');
               
-              setDirectEmployees(prev => prev.map(emp => 
-                emp.id === assigneeId 
-                  ? { ...emp, points: (emp.points || 0) + 10 }
-                  : emp
-              ));
+              // Note: Dashboard doesn't have setEmployees prop, so we can't update local state
+              // The parent App.tsx will handle employee state updates
+              // Note: Dashboard doesn't have setEmployees prop, so we can't update local state
+              // The parent App.tsx will handle employee state updates
               
               // Send completion notification to task creator
               const taskCreator = employees.find(emp => emp.id === completedTask?.assignedBy);
@@ -496,7 +495,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
         .filter(task => task.assignedBy)
         .map(task => task.assignedBy!)
         .filter((managerId, index, self) => self.indexOf(managerId) === index) // unique
-        .map(managerId => directEmployees.find(emp => emp.id === managerId))
+        .map(managerId => employees.find(emp => emp.id === managerId))
         .filter(emp => emp && emp.role === 'manager');
       
       return uniqueManagers as Employee[];
