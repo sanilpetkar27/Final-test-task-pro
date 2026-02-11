@@ -476,7 +476,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   const getFilterOptions = () => {
     if (isSuperAdmin) {
       // Super admin can filter by all managers
-      return directEmployees
+      return employees
         .filter(emp => emp.role === 'manager')
         .map(emp => ({
           id: emp.id,
@@ -485,7 +485,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
         }));
     } else if (isManager) {
       // Managers can filter by assignees (employees)
-      return directEmployees.map(emp => ({
+      return employees.map(emp => ({
         id: emp.id,
         name: emp.name,
         role: emp.role
@@ -840,7 +840,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
             task={task} 
             subTasks={tasks.filter(t => t.parentTaskId === task.id)}
             parentTask={tasks.find(t => t.id === task.parentTaskId)}
-            employees={directEmployees}
+            employees={employees}
             currentUser={currentUser}
             onMarkComplete={() => updateTaskStatus(task.id, 'completed')}
             onCompleteWithPhoto={(photoUrl: string) => updateTaskStatus(task.id, 'completed', photoUrl)}
