@@ -41,6 +41,7 @@ serve(async (req) => {
     console.log('🔍 Looking up User ID:', record.assigned_to)
 
     // 4. Get user data using Service Role Key (bypasses RLS)
+    console.log('🔑 Using Service Role Key for authentication')
     const userQuery = await fetch(
       `${SUPABASE_URL}/rest/v1/employees?id=eq.${record.assigned_to}&select=onesignal_id`,
       {
@@ -51,8 +52,32 @@ serve(async (req) => {
       }
     )
     
-    const userData = await userQuery.json()
-    console.log('👤 User Data Found:', JSON.stringify(userData))
+    let userData;
+    let authError = null;
+    
+    try {
+      userData = await userQuery.json();
+      console.log('👤 User Data Found:', JSON.stringify(userData))
+      
+      if (!userData || userData.length === 0) {
+        authError = 'User not found in database';
+        console.error('❌ User not found for ID:', record.assigned_to);
+      }
+    } catch (fetchError) {
+      authError = `Database query failed: ${fetchError.message}`;
+      console.error('❌ Database query error:', fetchError);
+    }
+    
+    if (authError) {
+      return new Response(JSON.stringify({ 
+        error: authError,
+        details: 'Failed to authenticate with database',
+        assigned_to: record.assigned_to
+      }), { 
+        status: 401, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      })
+    }
 
     const targetPlayerId = userData[0]?.onesignal_id
 
@@ -80,19 +105,46 @@ serve(async (req) => {
     console.log('� Sending to OneSignal:', JSON.stringify(notification))
 
     // 6. Send to OneSignal
-    const osResponse = await fetch('https://onesignal.com/api/v1/notifications', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Basic ${API_KEY}`,
-      },
-      body: JSON.stringify(notification),
-    })
-
-    const osData = await osResponse.json()
-    console.log('✅ OneSignal Success:', JSON.stringify(osData))
+    console.log('📡 Sending to OneSignal API:', 'https://onesignal.com/api/v1/notifications')
+    console.log('🔑 Using App ID:', APP_ID)
+    
+    let osResponse;
+    let osError = null;
+    
+    try {
+      osResponse = await fetch('https://onesignal.com/api/v1/notifications', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Basic ${API_KEY}`,
+        },
+        body: JSON.stringify(notification),
+      })
+      
+      if (!osResponse.ok) {
+        osError = `HTTP ${osResponse.status}: ${osResponse.statusText}`;
+        console.error('❌ OneSignal API HTTP Error:', osResponse.status, osResponse.statusText);
+      }
+    } catch (fetchError) {
+      osError = `Network error: ${fetchError.message}`;
+      console.error('❌ OneSignal API Network Error:', fetchError);
+    }
+    
+    if (osError) {
+      return new Response(JSON.stringify({ 
+        error: 'Failed to send push notification',
+        details: osError,
+        oneSignal_status: 'API call failed'
+      }), { 
+        status: 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      })
+    }
 
     // 7. Return success response
+    const osData = await osResponse.json()
+    console.log('✅ OneSignal Success:', JSON.stringify(osData))
+    
     return new Response(JSON.stringify(osData), { 
       status: 200, 
       headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
