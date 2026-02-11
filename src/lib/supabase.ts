@@ -74,22 +74,28 @@ const createMockClient = () => {
         getPublicUrl: () => ({ data: { publicUrl: 'https://via.placeholder.com/300' } })
       })
     },
-    rpc: () => Promise.resolve({ data: null, error: null })
+    rpc: () => Promise.resolve({ data: null, error: null }),
+    auth: {
+      signInWithPassword: () => Promise.resolve({ data: { user: null }, error: null }),
+      getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+      signOut: () => Promise.resolve({ error: null }),
+    },
+    functions: {
+      invoke: () => Promise.resolve({ data: { mocked: true }, error: null }),
+    },
   };
 };
 
-// Use real client if credentials exist, otherwise use mock
-export const supabase = hasRealCredentials() 
-  ? createClient(
-      import.meta.env.VITE_SUPABASE_URL!, 
-      import.meta.env.VITE_SUPABASE_ANON_KEY!
-    )
-  : createMockClient();
-
-// Export auth client separately for login functionality
-export const supabaseAuth = hasRealCredentials()
+// Use a single real client instance to avoid multiple GoTrueClient warnings and session races.
+const realClient = hasRealCredentials()
   ? createClient(
       import.meta.env.VITE_SUPABASE_URL!,
       import.meta.env.VITE_SUPABASE_ANON_KEY!
-    ).auth
-  : createMockClient().auth;
+    )
+  : null;
+
+// Use real client if credentials exist, otherwise use mock
+export const supabase = realClient ?? createMockClient();
+
+// Export auth from the same client instance.
+export const supabaseAuth = realClient ? realClient.auth : createMockClient().auth;

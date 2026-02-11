@@ -650,7 +650,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
                   {isLoadingEmployees ? (
                     <option value="loading" className="text-slate-500">Loading staff...</option>
                   ) : (
-                    directEmployees.map(emp => (
+                    employees.map(emp => (
                       <option key={emp.id} value={emp.id} className="text-slate-900">
                         {emp.name} ({emp.role === 'manager' ? 'Manager' : 'Staff'})
                       </option>
