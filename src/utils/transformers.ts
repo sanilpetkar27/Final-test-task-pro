@@ -1,81 +1,81 @@
 import { DealershipTask } from '../types';
 
-// Database task interface (snake_case from Supabase)
+// Database task interface (camelCase from Supabase)
 export interface DatabaseTask {
   id: string;
   description: string;
   status: 'pending' | 'in-progress' | 'completed';
-  created_at: number;
+  createdAt: number;
   deadline?: number;
-  completed_at?: number;
+  completedAt?: number;
   proof?: {
-    image_url: string;
+    imageUrl: string;
     timestamp: number;
   };
-  require_photo?: boolean;
-  assigned_to?: string; // Employee ID (snake_case)
-  assigned_by?: string; // Employee ID (snake_case)
-  parent_task_id?: string; // ID of the master task if this is a sub-task
+  requirePhoto?: boolean;
+  assignedTo?: string; // Employee ID (camelCase)
+  assignedBy?: string; // Employee ID (camelCase)
+  parentTaskId?: string; // ID of master task if this is a sub-task
   remarks?: Array<{
     id: string;
-    task_id: string;
-    employee_id: string;
-    employee_name: string;
+    taskId: string;
+    employeeId: string;
+    employeeName: string;
     remark: string;
     timestamp: number;
   }>;
 }
 
-// Transform database task (snake_case) to app task (camelCase)
+// Transform database task (camelCase) to app task (camelCase)
 export const transformTaskToApp = (dbTask: DatabaseTask): DealershipTask => {
   return {
     id: dbTask.id,
     description: dbTask.description,
     status: dbTask.status,
-    createdAt: dbTask.created_at,
+    createdAt: dbTask.createdAt,
     deadline: dbTask.deadline,
-    completedAt: dbTask.completed_at,
+    completedAt: dbTask.completedAt,
     proof: dbTask.proof ? {
-      imageUrl: dbTask.proof.image_url,
+      imageUrl: dbTask.proof.imageUrl,
       timestamp: dbTask.proof.timestamp,
     } : undefined,
-    requirePhoto: dbTask.require_photo,
-    assignedTo: dbTask.assigned_to,
-    assignedBy: dbTask.assigned_by,
-    parentTaskId: dbTask.parent_task_id,
+    requirePhoto: dbTask.requirePhoto,
+    assignedTo: dbTask.assignedTo,
+    assignedBy: dbTask.assignedBy,
+    parentTaskId: dbTask.parentTaskId,
     remarks: dbTask.remarks?.map(remark => ({
       id: remark.id,
-      taskId: remark.task_id,
-      employeeId: remark.employee_id,
-      employeeName: remark.employee_name,
+      taskId: remark.taskId,
+      employeeId: remark.employeeId,
+      employeeName: remark.employeeName,
       remark: remark.remark,
       timestamp: remark.timestamp,
     })),
   };
 };
 
-// Transform app task (camelCase) to database task (snake_case)
+// Transform app task (camelCase) to database task (camelCase)
 export const transformTaskToDB = (appTask: DealershipTask): DatabaseTask => {
   return {
     id: appTask.id,
     description: appTask.description,
     status: appTask.status,
-    created_at: appTask.createdAt,
+    createdAt: appTask.createdAt,
     deadline: appTask.deadline,
-    completed_at: appTask.completedAt,
+    completedAt: appTask.completedAt,
     proof: appTask.proof ? {
-      image_url: appTask.proof.imageUrl,
+      imageUrl: appTask.proof.imageUrl,
       timestamp: appTask.proof.timestamp,
     } : undefined,
-    require_photo: appTask.requirePhoto,
-    assigned_to: appTask.assignedTo,
-    assigned_by: appTask.assignedBy,
-    parent_task_id: appTask.parentTaskId,
+    requirePhoto: appTask.requirePhoto,
+    assignedTo: appTask.assignedTo,
+    assignedBy: appTask.assignedBy,
+    parentTaskId: appTask.parentTaskId,
     remarks: appTask.remarks?.map(remark => ({
       id: remark.id,
-      task_id: remark.taskId,
-      employee_id: remark.employeeId,
-      employee_name: remark.employeeName,
+      taskId: remark.taskId,
+      employeeId: remark.employeeId,
+      employeeName: remark.employeeName,
       remark: remark.remark,
       timestamp: remark.timestamp,
     })),
