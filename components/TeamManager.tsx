@@ -24,7 +24,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
   onUpdateRewardConfig,
   rewardConfig,
   isSuperAdmin,
-  setEmployees
+  setEmployees // ✅ Use this prop for state updates
 }) => {
   // Feature flag - set to true to show points system
   const SHOW_POINTS_SYSTEM = false;
