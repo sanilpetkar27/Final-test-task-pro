@@ -624,15 +624,11 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none transition-all pr-10"
                 >
                   <option value="none" className="text-slate-900">Anyone / Unassigned</option>
-                  {isLoadingEmployees ? (
-                    <option value="loading" className="text-slate-500">Loading staff...</option>
-                  ) : (
-                    employees.map(emp => (
+                  {employees.map(emp => (
                       <option key={emp.id} value={emp.id} className="text-slate-900">
                         {emp.name} ({emp.role === 'manager' ? 'Manager' : 'Staff'})
                       </option>
-                    ))
-                  )}
+                    ))}
                 </select>
                 <UserPlus className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
