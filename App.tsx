@@ -90,8 +90,8 @@ const App: React.FC = () => {
       // Apply role-based filtering using currentUser from state
       if (employeesData && employeesData.length > 0 && currentUser) {
         // Filter for managers and staff: only their assigned or created tasks
-        // Database uses snake_case: assigned_to, assigned_by
-        tasksQuery = tasksQuery.or(`assigned_to.eq.${currentUser.id},assigned_by.eq.${currentUser.id}`);
+        // Database uses camelCase: assignedTo, assignedBy
+        tasksQuery = tasksQuery.or(`assignedTo.eq.${currentUser.id},assignedBy.eq.${currentUser.id}`);
       }
       // For super_admin, keep fetching all tasks (no filtering)
       
@@ -151,8 +151,8 @@ const App: React.FC = () => {
       // Apply role-based filtering using currentUser from state
       if (employeesData && employeesData.length > 0 && currentUser) {
         // Filter for managers and staff: only their assigned or created tasks
-        // Database uses snake_case: assigned_to, assigned_by
-        tasksQuery = tasksQuery.or(`assigned_to.eq.${currentUser.id},assigned_by.eq.${currentUser.id}`);
+        // Database uses camelCase: assignedTo, assignedBy
+        tasksQuery = tasksQuery.or(`assignedTo.eq.${currentUser.id},assignedBy.eq.${currentUser.id}`);
       }
       // For super_admin, keep fetching all tasks (no filtering)
       
@@ -680,10 +680,10 @@ const App: React.FC = () => {
 
   const reassignTask = async (taskId: string, newAssigneeId: string) => {
     try {
-      // Update task assignment in Supabase using snake_case
+      // Update task assignment in Supabase using camelCase
       const { error } = await supabase
         .from('tasks')
-        .update({ assigned_to: newAssigneeId })
+        .update({ assignedTo: newAssigneeId })
         .eq('id', taskId);
 
       if (error) {
