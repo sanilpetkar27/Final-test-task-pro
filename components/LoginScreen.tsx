@@ -138,15 +138,20 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
       } else if (data.user) {
         console.log('🔐 Auth ID from login:', data.user.id);
         
-        // Find employee by Auth ID to get role and other details
-        const employee = employees.find(emp => emp.id === data.user.id);
-        console.log('👤 Employee lookup in LoginScreen:', employee);
+        // Find employee by Auth ID from database to get role and other details
+        const { data: employeeData, error: employeeError } = await supabase
+          .from('employees')
+          .select('*')
+          .eq('id', data.user.id)
+          .single();
+
+        console.log('👤 Employee lookup from database:', { employeeData, employeeError });
         
-        if (employee) {
-          onLogin(employee);
-          toast.success('Login successful!');
-        } else {
+        if (employeeError || !employeeData) {
           setError('Profile missing. Please contact Admin.');
+        } else {
+          onLogin(employeeData);
+          toast.success('Login successful!');
         }
       }
     } catch (err) {
