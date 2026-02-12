@@ -80,19 +80,52 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
 
       if (authData.user) {
         // Step 3: Create employee record
-        const { data: employeeData, error: employeeError } = await supabase
+        // First check if employee already exists
+        const { data: existingEmployee, error: checkError } = await supabase
           .from('employees')
-          .upsert({
-            id: authData.user.id,
-            name: adminName,
-            mobile: adminMobile,
-            role: 'super_admin',
-            points: 0,
-            company_id: newCompany.id
-          }, {
-            onConflict: 'id'
-          })
-          .select();
+          .select('id')
+          .eq('id', authData.user.id)
+          .single();
+
+        let employeeData;
+        let employeeError;
+
+        if (checkError && checkError.code !== 'PGRST116') {
+          // Real error occurred
+          employeeError = checkError;
+        } else if (existingEmployee) {
+          // Update existing employee
+          const { data: updateData, error: updateError } = await supabase
+            .from('employees')
+            .update({
+              name: adminName,
+              mobile: adminMobile,
+              role: 'super_admin',
+              points: 0,
+              company_id: newCompany.id
+            })
+            .eq('id', authData.user.id)
+            .select();
+          
+          employeeData = updateData;
+          employeeError = updateError;
+        } else {
+          // Insert new employee
+          const { data: insertData, error: insertError } = await supabase
+            .from('employees')
+            .insert({
+              id: authData.user.id,
+              name: adminName,
+              mobile: adminMobile,
+              role: 'super_admin',
+              points: 0,
+              company_id: newCompany.id
+            })
+            .select();
+          
+          employeeData = insertData;
+          employeeError = insertError;
+        }
 
         if (employeeError) {
           setError(`Employee profile failed: ${employeeError.message || 'Please contact support.'}`);
