@@ -108,6 +108,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
         }
 
         const newEmployee = employeeData[0];
+        console.log('🎉 New employee created:', newEmployee);
+        console.log('🎉 Calling onLogin with employee:', newEmployee);
         onLogin(newEmployee);
         toast.success('Company account created successfully!');
       }
