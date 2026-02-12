@@ -40,8 +40,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
         .select('id')
         .limit(1);
 
+      console.log('Table check result:', { testCompanies, tableCheckError });
+
       if (tableCheckError) {
-        setError('Database setup required. Please run migrations first. Contact support.');
+        setError(`Database table check failed: ${tableCheckError.message || 'Companies table may not exist'}`);
         console.error('Companies table check error:', tableCheckError);
         return;
       }
