@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase';
 
 // Notification logic updated. Fail-safe mode active.
 console.log('🔔 Notification logic updated. Fail-safe mode active.');
+console.log('🚨 TIMESTAMP PROOF:', new Date().toISOString());
 
 type PushRecord = {
   description: string;
@@ -58,6 +59,9 @@ export const sendTaskAssignmentNotification = async (
   assignedBy: string,
   assignedToId: string
 ): Promise<void> => {
+  console.log('🚨 IMMEDIATE PROOF: sendTaskAssignmentNotification called!');
+  console.log('🚨 IMMEDIATE PROOF: Parameters:', { taskDescription, assignedToName, assignedBy, assignedToId });
+  
   try {
     console.log('Sending task assignment notification...', {
       taskDescription,
