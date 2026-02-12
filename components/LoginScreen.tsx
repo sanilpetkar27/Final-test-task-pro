@@ -85,7 +85,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
           .insert([{
             id: authData.user.id,
             name: adminName,
-            email: email,
             mobile: adminMobile,
             role: 'super_admin',
             points: 0,
