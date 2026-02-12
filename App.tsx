@@ -888,8 +888,9 @@ const App: React.FC = () => {
   }
 
   if (!currentUser) {
-    // Passing the updated employees list to LoginScreen
-    return <LoginScreen employees={employees} onLogin={handleLogin} />;
+    // Filter employees by company_id to prevent data contamination
+    const companyEmployees = employees.filter(emp => emp.company_id === currentUser?.company_id);
+    return <LoginScreen employees={companyEmployees} onLogin={handleLogin} />;
   }
 
   const isManager = currentUser.role === 'manager' || currentUser.role === 'super_admin';

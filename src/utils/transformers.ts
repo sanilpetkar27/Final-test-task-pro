@@ -16,7 +16,7 @@ export interface DatabaseTask {
   assignedTo?: string; // Employee ID (camelCase)
   assignedBy?: string; // Employee ID (camelCase)
   parentTaskId?: string; // ID of master task if this is a sub-task
-  company_id: string; // Company ID for multi-tenancy
+  company_id?: string; // Company ID for multi-tenancy
   remarks?: Array<{
     id: string;
     taskId: string;
