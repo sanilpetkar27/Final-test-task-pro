@@ -34,25 +34,16 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
         return;
       }
 
-      // Check if companies table exists by trying to query it first
-      const { data: testCompanies, error: tableCheckError } = await supabase
-        .from('companies')
-        .select('id')
-        .limit(1);
-
-      console.log('Table check result:', { testCompanies, tableCheckError });
-
-      if (tableCheckError) {
-        setError(`Database table check failed: ${tableCheckError.message || 'Companies table may not exist'}`);
-        console.error('Companies table check error:', tableCheckError);
-        return;
-      }
+      // Skip table check for now and try direct company creation
+      console.log('Attempting direct company creation...');
 
       // Step 1: Create company
       const { data: companyData, error: companyError } = await supabase
         .from('companies')
         .insert([{ name: companyName, subscription_status: 'active' }])
         .select();
+
+      console.log('Company creation result:', { companyData, companyError });
 
       if (companyError) {
         setError(`Company creation failed: ${companyError.message || 'Please try again.'}`);
