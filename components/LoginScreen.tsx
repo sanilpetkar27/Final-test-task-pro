@@ -82,14 +82,16 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
         // Step 3: Create employee record
         const { data: employeeData, error: employeeError } = await supabase
           .from('employees')
-          .insert([{
+          .upsert({
             id: authData.user.id,
             name: adminName,
             mobile: adminMobile,
             role: 'super_admin',
             points: 0,
             company_id: newCompany.id
-          }])
+          }, {
+            onConflict: 'id'
+          })
           .select();
 
         if (employeeError) {
