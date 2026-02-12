@@ -35,6 +35,10 @@ const createMockClient = () => {
         data: null, 
         error: null 
       }),
+      upsert: () => Promise.resolve({ 
+        data: mockData[table as keyof typeof mockData]?.[0] || null, 
+        error: null 
+      }),
       delete: () => Promise.resolve({ 
         data: null, 
         error: null 
@@ -77,6 +81,7 @@ const createMockClient = () => {
     rpc: () => Promise.resolve({ data: null, error: null }),
     auth: {
       signInWithPassword: () => Promise.resolve({ data: { user: null }, error: null }),
+      signUp: () => Promise.resolve({ data: { user: { id: 'mock-user-id' } }, error: null }),
       getSession: () => Promise.resolve({ data: { session: null }, error: null }),
       signOut: () => Promise.resolve({ error: null }),
     },
