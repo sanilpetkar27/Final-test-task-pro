@@ -72,15 +72,21 @@ export const sendTaskAssignmentNotification = async (
       .eq('id', assignedToId)
       .maybeSingle();
 
+    console.log('🚨 PROOF: Employee query result:', { employee, employeeError });
+
     if (employeeError) {
       console.error('Supabase query error:', employeeError);
+      console.log('🚨 PROOF: Returning due to employeeError');
       return;
     }
 
     if (!employee?.onesignal_id) {
       console.log('No OneSignal ID found for user:', assignedToId);
+      console.log('🚨 PROOF: Returning due to no OneSignal ID');
       return;
     }
+
+    console.log('🚨 PROOF: About to call invokeSendPush!');
 
     const record: PushRecord = {
       description: taskDescription,
