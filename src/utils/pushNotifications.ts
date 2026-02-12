@@ -2,8 +2,6 @@ import { supabase } from '../lib/supabase';
 
 // Notification logic updated. Fail-safe mode active.
 console.log('🔔 Notification logic updated. Fail-safe mode active.');
-console.log('🚨 TIMESTAMP PROOF:', new Date().toISOString());
-alert('🚨 NEW CODE DEPLOYED: Version 1.0.1 - Check console for proof logs!');
 
 type PushRecord = {
   description: string;
@@ -11,33 +9,18 @@ type PushRecord = {
 };
 
 const invokeSendPush = async (record: PushRecord) => {
-  console.log('🚨 PROOF: invokeSendPush called!');
-  console.log('🚨 PROOF: Record:', record);
-  
   try {
-    console.log('🔧 invokeSendPush called with record:', record);
-    
     const authClient = (supabase as any).auth;
     const session = authClient ? (await authClient.getSession())?.data?.session : null;
-    
-    console.log('🔧 Session info:', {
-      hasSession: !!session,
-      hasAccessToken: !!session?.access_token,
-      accessTokenLength: session?.access_token?.length || 0
-    });
 
     const headers = session?.access_token
       ? { Authorization: `Bearer ${session.access_token}` }
       : undefined;
-    
-    console.log('🔧 Headers being sent:', headers);
 
     const { data, error } = await supabase.functions.invoke('send-push', {
       body: { record },
       headers,
     });
-
-    console.log('🔧 Supabase response:', { data, error });
 
     if (error) {
       console.warn('⚠️ Push notification failed, but task was created:', error.message);
@@ -60,9 +43,6 @@ export const sendTaskAssignmentNotification = async (
   assignedBy: string,
   assignedToId: string
 ): Promise<void> => {
-  console.log('🚨 IMMEDIATE PROOF: sendTaskAssignmentNotification called!');
-  console.log('🚨 IMMEDIATE PROOF: Parameters:', { taskDescription, assignedToName, assignedBy, assignedToId });
-  
   try {
     console.log('Sending task assignment notification...', {
       taskDescription,
@@ -77,21 +57,15 @@ export const sendTaskAssignmentNotification = async (
       .eq('id', assignedToId)
       .maybeSingle();
 
-    console.log('🚨 PROOF: Employee query result:', { employee, employeeError });
-
     if (employeeError) {
       console.error('Supabase query error:', employeeError);
-      console.log('🚨 PROOF: Returning due to employeeError');
       return;
     }
 
     if (!employee?.onesignal_id) {
       console.log('No OneSignal ID found for user:', assignedToId);
-      console.log('🚨 PROOF: Returning due to no OneSignal ID');
       return;
     }
-
-    console.log('🚨 PROOF: About to call invokeSendPush!');
 
     const record: PushRecord = {
       description: taskDescription,

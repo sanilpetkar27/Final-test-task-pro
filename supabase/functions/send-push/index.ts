@@ -12,16 +12,11 @@ type PushRecord = {
 };
 
 serve(async (req) => {
-  console.log("🚀 Edge Function called - Method:", req.method);
-  console.log("🚀 Headers:", Object.fromEntries(req.headers.entries()));
-  
   if (req.method === "OPTIONS") {
-    console.log("🚀 OPTIONS request - returning ok");
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    console.log("🚀 Starting main function logic");
     const payload = await req.json();
     const record: PushRecord = payload?.record ?? payload ?? {};
     console.log("Payload received:", JSON.stringify(record));
@@ -30,11 +25,6 @@ serve(async (req) => {
     const API_KEY = Deno.env.get("ONESIGNAL_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    
-    console.log("🔧 Edge Function Config:");
-    console.log("APP_ID from env:", Deno.env.get("ONESIGNAL_APP_ID"));
-    console.log("Final APP_ID:", APP_ID);
-    console.log("API_KEY exists:", !!API_KEY);
 
     if (!APP_ID || !API_KEY || !SUPABASE_URL || !SERVICE_ROLE_KEY) {
       throw new Error("Missing required secrets in Supabase function environment");

@@ -202,8 +202,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
         }, 100);
       } else {
         // Create new task using parent's onAddTask function
-        console.log('� DASHBOARD PROOF: About to create task...');
-        console.log('� Creating task...', {
+        console.log('Creating task...', {
           description: newTaskDesc.trim(),
           assigneeId: assigneeId === 'none' ? null : assigneeId,
           requirePhoto: requirePhoto,
@@ -228,10 +227,8 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
         
         // Send push notification to assigned user
         if (assigneeId !== 'none') {
-          console.log('🚨 DASHBOARD PROOF: About to send notification...');
           const assignedEmployee = employees.find(emp => emp.id === assigneeId);
           if (assignedEmployee) {
-            console.log('🚨 DASHBOARD PROOF: Calling sendTaskAssignmentNotification...');
             await sendTaskAssignmentNotification(
               newTaskDesc.trim(),
               assignedEmployee.name,
