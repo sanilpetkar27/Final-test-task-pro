@@ -1,9 +1,9 @@
-
 import React, { useState } from 'react';
 import { Employee } from '../types';
 import { ClipboardList, Mail, Eye, EyeOff, ArrowRight, Lock, Loader2, AlertCircle, ShieldCheck, Info, Building2, User, Phone } from 'lucide-react';
 import { supabase, supabaseAuth } from '../src/lib/supabase';
 import { toast } from 'sonner';
+import { handleSignup, handleLogin } from '../src/utils/auth';
 
 interface LoginScreenProps {
   employees: Employee[];
