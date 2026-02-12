@@ -10,15 +10,29 @@ type PushRecord = {
 
 const invokeSendPush = async (record: PushRecord) => {
   try {
+    console.log('🔧 invokeSendPush called with record:', record);
+    
     const authClient = (supabase as any).auth;
     const session = authClient ? (await authClient.getSession())?.data?.session : null;
+    
+    console.log('🔧 Session info:', {
+      hasSession: !!session,
+      hasAccessToken: !!session?.access_token,
+      accessTokenLength: session?.access_token?.length || 0
+    });
+
+    const headers = session?.access_token
+      ? { Authorization: `Bearer ${session.access_token}` }
+      : undefined;
+    
+    console.log('🔧 Headers being sent:', headers);
 
     const { data, error } = await supabase.functions.invoke('send-push', {
       body: { record },
-      headers: session?.access_token
-        ? { Authorization: `Bearer ${session.access_token}` }
-        : undefined,
+      headers,
     });
+
+    console.log('🔧 Supabase response:', { data, error });
 
     if (error) {
       console.warn('⚠️ Push notification failed, but task was created:', error.message);

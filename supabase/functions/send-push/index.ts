@@ -12,11 +12,16 @@ type PushRecord = {
 };
 
 serve(async (req) => {
+  console.log("🚀 Edge Function called - Method:", req.method);
+  console.log("🚀 Headers:", Object.fromEntries(req.headers.entries()));
+  
   if (req.method === "OPTIONS") {
+    console.log("🚀 OPTIONS request - returning ok");
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
+    console.log("🚀 Starting main function logic");
     const payload = await req.json();
     const record: PushRecord = payload?.record ?? payload ?? {};
     console.log("Payload received:", JSON.stringify(record));
