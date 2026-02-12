@@ -29,6 +29,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
     setLoading(true);
 
     try {
+      // Force logout to prevent data leakage
+      await supabaseAuth.signOut();
+      
       if (!supabase) {
         setError('Signup not available in demo mode. Please use real credentials.');
         return;
@@ -79,22 +82,51 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
       }
 
       if (authData.user) {
-        // Step 3: Create employee record
-        const { data: employeeData, error: employeeError } = await supabase
-          .from('employees')
-          .upsert({
-            id: authData.user.id, // Match the Auth User ID
-            name: adminName,
-            mobile: adminMobile,
-            role: 'super_admin',
-            points: 0,
-            company_id: newCompany.id,
-            updated_at: new Date().toISOString()
-          }, { onConflict: 'id' }) // <--- CRITICAL: This fixes the duplicate key error
-          .select()
-          .single();
+        // Step 3: Create employee record with retry logic
+        let employeeData;
+        let employeeError;
+        let retryCount = 0;
+        const maxRetries = 3;
 
-        console.log('Employee upsert result:', { employeeData, employeeError });
+        while (retryCount < maxRetries) {
+          console.log(`🔄 Employee creation attempt ${retryCount + 1}/${maxRetries}`);
+          
+          const { data: empData, error: empError } = await supabase
+            .from('employees')
+            .upsert({
+              id: authData.user.id, // Matches Auth User ID
+              name: adminName,
+              mobile: adminMobile,
+              role: 'super_admin',
+              points: 0,
+              company_id: newCompany.id, // Uses company_id from Step 1
+              updated_at: new Date().toISOString()
+            }, { onConflict: 'id' }) // Critical: This fixes the duplicate key error
+            .select()
+            .single();
+
+          console.log(`Employee upsert result (attempt ${retryCount + 1}):`, { empData, empError });
+
+          if (!empError && empData) {
+            employeeData = Array.isArray(empData) ? empData[0] : empData;
+            employeeError = null;
+            break; // Success - exit retry loop
+          } else if (empError) {
+            employeeError = empError;
+          } else {
+            // No data returned, try again
+            employeeError = new Error('No employee data returned');
+          }
+
+          if (employeeError) {
+            retryCount++;
+            if (retryCount < maxRetries) {
+              await new Promise(resolve => setTimeout(resolve, 500)); // Wait 500ms before retry
+            }
+          } else {
+            break; // Max retries reached or success
+          }
+        }
 
         if (employeeError) {
           setError(`Employee profile failed: ${employeeError.message || 'Please contact support.'}`);
@@ -102,16 +134,24 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
           return;
         }
 
-        if (!employeeData || (Array.isArray(employeeData) && employeeData.length === 0)) {
+        if (!employeeData) {
           setError('Failed to create employee profile. Please contact support.');
           return;
         }
 
-        const newEmployee = Array.isArray(employeeData) ? employeeData[0] : employeeData;
+        const newEmployee = employeeData;
         console.log('🎉 New employee created:', newEmployee);
         console.log('🎉 Calling onLogin with employee:', newEmployee);
-        onLogin(newEmployee);
-        toast.success('Company account created successfully!');
+        
+        // Auto-login if session exists, otherwise show success message
+        if (authData.session) {
+          onLogin(newEmployee);
+          toast.success('Company account created successfully!');
+        } else {
+          // Email verification required
+          onLogin(newEmployee);
+          toast.success('Account created! Please check your email to verify.');
+        }
       }
     } catch (err) {
       setError(`Signup failed: ${err instanceof Error ? err.message : 'Unknown error occurred'}`);
