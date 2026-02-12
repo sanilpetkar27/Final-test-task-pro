@@ -9,6 +9,7 @@ const corsHeaders = {
 type PushRecord = {
   description?: string;
   assigned_to?: string;
+  company_id?: string;
 };
 
 serve(async (req) => {
@@ -37,11 +38,18 @@ serve(async (req) => {
       });
     }
 
+    if (!record.company_id) {
+      return new Response(JSON.stringify({ error: "Missing company_id field" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Resolve recipient by id first, then by mobile to support legacy callers.
     const searchValue = encodeURIComponent(record.assigned_to);
     const employeeUrl =
       `${SUPABASE_URL}/rest/v1/employees` +
-      `?or=(id.eq.${searchValue},mobile.eq.${searchValue})&select=id,onesignal_id`;
+      `?or=(id.eq.${searchValue},mobile.eq.${searchValue})&company_id=eq.${record.company_id}&select=id,onesignal_id,company_id`;
 
     const employeeRes = await fetch(employeeUrl, {
       headers: {
@@ -51,36 +59,31 @@ serve(async (req) => {
     });
 
     if (!employeeRes.ok) {
-      const errText = await employeeRes.text();
-      console.error("Employee lookup failed:", employeeRes.status, errText);
-      return new Response(
-        JSON.stringify({ error: "Employee lookup failed", details: errText }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
+      console.error('Failed to fetch employee:', await employeeRes.text());
+      throw new Error('Failed to fetch employee data');
     }
 
     const employees = await employeeRes.json();
-    const targetPlayerId = employees?.[0]?.onesignal_id;
+    if (!employees || employees.length === 0) {
+      console.log('No employee found for ID:', record.assigned_to);
+      return new Response(JSON.stringify({ error: "Employee not found" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
-    if (!targetPlayerId) {
-      return new Response(
-        JSON.stringify({
-          message: "No OneSignal device registered for this user",
-          assigned_to: record.assigned_to,
-        }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
+    const employee = employees[0];
+    if (!employee.onesignal_id) {
+      console.log('No OneSignal ID for employee:', employee.id);
+      return new Response(JSON.stringify({ error: "No OneSignal ID for employee" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const notification = {
       app_id: APP_ID,
-      include_player_ids: [targetPlayerId],
+      include_player_ids: [employee.onesignal_id],
       headings: { en: "Task Update" },
       contents: { en: record.description || "You have a new task update" },
       url: "https://final-test-task-pro.vercel.app/",

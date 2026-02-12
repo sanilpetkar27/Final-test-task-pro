@@ -442,7 +442,8 @@ const App: React.FC = () => {
       requirePhoto: requirePhoto || false,
       assignedTo: assignedTo === 'none' ? undefined : assignedTo,
       assignedBy: currentUser.id,
-      parentTaskId: parentTaskId
+      parentTaskId: parentTaskId,
+      company_id: currentUser.company_id || '00000000-0000-0000-0000-000000000001' // Use user's company_id or default
     };
 
     try {

@@ -1,6 +1,13 @@
 
 export type TaskStatus = 'pending' | 'in-progress' | 'completed';
-export type UserRole = 'owner' | 'manager' | 'staff';
+export type UserRole = 'owner' | 'manager' | 'staff' | 'super_admin';
+
+export interface Company {
+  id: string;
+  name: string;
+  subscription_status: string;
+  created_at: string;
+}
 
 export interface Employee {
   id: string;
@@ -9,6 +16,8 @@ export interface Employee {
   role: UserRole;
   mobile: string;
   points: number;
+  company_id: string;
+  auth_user_id?: string;
 }
 
 export interface RewardConfig {
@@ -40,6 +49,7 @@ export interface DealershipTask {
   assignedTo?: string; // Employee ID (The person doing the work)
   assignedBy?: string; // Employee ID (The person who created the task)
   parentTaskId?: string; // ID of the master task if this is a sub-task
+  company_id: string; // Company ID for multi-tenancy
   remarks?: TaskRemark[]; // Array of progress remarks
 }
 
