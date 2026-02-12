@@ -80,48 +80,21 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
 
       if (authData.user) {
         // Step 3: Create employee record
-        // Try to update first, then insert if update fails
-        console.log('Attempting to update employee with ID:', authData.user.id);
-        const { data: updateData, error: updateError } = await supabase
+        const { data: employeeData, error: employeeError } = await supabase
           .from('employees')
-          .update({
+          .upsert({
+            id: authData.user.id, // Match the Auth User ID
             name: adminName,
             mobile: adminMobile,
             role: 'super_admin',
             points: 0,
-            company_id: newCompany.id
-          })
-          .eq('id', authData.user.id)
-          .select();
+            company_id: newCompany.id,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'id' }) // <--- CRITICAL: This fixes the duplicate key error
+          .select()
+          .single();
 
-        console.log('Employee update result:', { updateData, updateError });
-
-        let employeeData;
-        let employeeError;
-
-        if (updateError) {
-          // If update fails, try to insert
-          console.log('Update failed, trying to insert new employee');
-          const { data: insertData, error: insertError } = await supabase
-            .from('employees')
-            .insert({
-              id: authData.user.id,
-              name: adminName,
-              mobile: adminMobile,
-              role: 'super_admin',
-              points: 0,
-              company_id: newCompany.id
-            })
-            .select();
-          
-          console.log('Employee insert result:', { insertData, insertError });
-          employeeData = insertData;
-          employeeError = insertError;
-        } else {
-          // Update succeeded
-          employeeData = updateData;
-          employeeError = null;
-        }
+        console.log('Employee upsert result:', { employeeData, employeeError });
 
         if (employeeError) {
           setError(`Employee profile failed: ${employeeError.message || 'Please contact support.'}`);
