@@ -34,15 +34,32 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
         return;
       }
 
+      // Check if companies table exists by trying to query it first
+      const { data: testCompanies, error: tableCheckError } = await supabase
+        .from('companies')
+        .select('id')
+        .limit(1);
+
+      if (tableCheckError) {
+        setError('Database setup required. Please run migrations first. Contact support.');
+        console.error('Companies table check error:', tableCheckError);
+        return;
+      }
+
       // Step 1: Create company
       const { data: companyData, error: companyError } = await supabase
         .from('companies')
         .insert([{ name: companyName, subscription_status: 'active' }])
         .select();
 
-      if (companyError || !companyData || companyData.length === 0) {
-        setError('Failed to create company. Please try again.');
+      if (companyError) {
+        setError(`Company creation failed: ${companyError.message || 'Please try again.'}`);
         console.error('Company creation error:', companyError);
+        return;
+      }
+
+      if (!companyData || companyData.length === 0) {
+        setError('Failed to create company. No data returned.');
         return;
       }
 
@@ -63,7 +80,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
       });
 
       if (authError) {
-        setError('Failed to create admin account. Please try again.');
+        setError(`Account creation failed: ${authError.message || 'Please try again.'}`);
         console.error('Auth signup error:', authError);
         return;
       }
@@ -84,9 +101,14 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
           }])
           .select();
 
-        if (employeeError || !employeeData || employeeData.length === 0) {
-          setError('Failed to create admin profile. Please contact support.');
+        if (employeeError) {
+          setError(`Employee profile failed: ${employeeError.message || 'Please contact support.'}`);
           console.error('Employee creation error:', employeeError);
+          return;
+        }
+
+        if (!employeeData || employeeData.length === 0) {
+          setError('Failed to create employee profile. Please contact support.');
           return;
         }
 
@@ -95,7 +117,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
         toast.success('Company account created successfully!');
       }
     } catch (err) {
-      setError('Signup failed. Please try again.');
+      setError(`Signup failed: ${err instanceof Error ? err.message : 'Unknown error occurred'}`);
       console.error('Signup exception:', err);
     } finally {
       setLoading(false);
