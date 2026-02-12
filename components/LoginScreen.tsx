@@ -1,8 +1,8 @@
 
 import React, { useState } from 'react';
 import { Employee } from '../types';
-import { ClipboardList, Mail, Eye, EyeOff, ArrowRight, Lock, Loader2, AlertCircle, ShieldCheck, Info } from 'lucide-react';
-import { supabaseAuth } from '../src/lib/supabase';
+import { ClipboardList, Mail, Eye, EyeOff, ArrowRight, Lock, Loader2, AlertCircle, ShieldCheck, Info, Building2, User, Phone } from 'lucide-react';
+import { supabase, supabaseAuth } from '../src/lib/supabase';
 import { toast } from 'sonner';
 
 interface LoginScreenProps {
@@ -11,11 +11,96 @@ interface LoginScreenProps {
 }
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
+  const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Signup form states
+  const [companyName, setCompanyName] = useState('');
+  const [adminName, setAdminName] = useState('');
+  const [adminMobile, setAdminMobile] = useState('');
+
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      if (!supabase) {
+        setError('Signup not available in demo mode. Please use real credentials.');
+        return;
+      }
+
+      // Step 1: Create company
+      const { data: companyData, error: companyError } = await supabase
+        .from('companies')
+        .insert([{ name: companyName, subscription_status: 'active' }])
+        .select();
+
+      if (companyError || !companyData || companyData.length === 0) {
+        setError('Failed to create company. Please try again.');
+        console.error('Company creation error:', companyError);
+        return;
+      }
+
+      const newCompany = companyData[0];
+
+      // Step 2: Create admin user in Supabase Auth
+      const { data: authData, error: authError } = await supabaseAuth.signUp({
+        email: email,
+        password: password,
+        options: {
+          data: {
+            company_id: newCompany.id,
+            role: 'super_admin',
+            name: adminName,
+            mobile: adminMobile,
+          }
+        }
+      });
+
+      if (authError) {
+        setError('Failed to create admin account. Please try again.');
+        console.error('Auth signup error:', authError);
+        return;
+      }
+
+      if (authData.user) {
+        // Step 3: Create employee record
+        const { data: employeeData, error: employeeError } = await supabase
+          .from('employees')
+          .insert([{
+            id: authData.user.id,
+            name: adminName,
+            email: email,
+            mobile: adminMobile,
+            role: 'super_admin',
+            points: 0,
+            company_id: newCompany.id,
+            auth_user_id: authData.user.id
+          }])
+          .select();
+
+        if (employeeError || !employeeData || employeeData.length === 0) {
+          setError('Failed to create admin profile. Please contact support.');
+          console.error('Employee creation error:', employeeError);
+          return;
+        }
+
+        const newEmployee = employeeData[0];
+        onLogin(newEmployee);
+        toast.success('Company account created successfully!');
+      }
+    } catch (err) {
+      setError('Signup failed. Please try again.');
+      console.error('Signup exception:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,75 +158,218 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
             {/* Header */}
             <div className="text-center mb-8">
               <div className="inline-flex items-center gap-3 bg-blue-600/20 p-4 rounded-2xl mb-4">
-                <ShieldCheck className="w-8 h-8 text-blue-400" />
+                {isLogin ? <ShieldCheck className="w-8 h-8 text-blue-400" /> : <Building2 className="w-8 h-8 text-blue-400" />}
                 <div>
                   <h1 className="text-2xl font-black text-white">TaskPro</h1>
-                  <p className="text-blue-200 text-sm">Secure Employee Portal</p>
+                  <p className="text-blue-200 text-sm">{isLogin ? 'Secure Employee Portal' : 'Create Company Account'}</p>
                 </div>
               </div>
-              <p className="text-slate-400 text-xs">Enter your credentials to access the system</p>
+              <p className="text-slate-400 text-xs">{isLogin ? 'Enter your credentials to access system' : 'Create your company account'}</p>
+            </div>
+
+            {/* Toggle Buttons */}
+            <div className="flex gap-2 mb-6">
+              <button
+                type="button"
+                onClick={() => setIsLogin(true)}
+                className={`flex-1 py-2 px-4 rounded-lg font-medium transition-all ${
+                  isLogin 
+                    ? 'bg-blue-600 text-white' 
+                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                }`}
+              >
+                Login
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsLogin(false)}
+                className={`flex-1 py-2 px-4 rounded-lg font-medium transition-all ${
+                  !isLogin 
+                    ? 'bg-blue-600 text-white' 
+                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                }`}
+              >
+                Sign Up
+              </button>
             </div>
 
             {/* Login Form */}
-            <form onSubmit={handleLogin} className="space-y-6">
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-2">
-                  Email Address
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                  <input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="john@company.com"
-                    className="w-full bg-slate-800/50 border border-slate-600 rounded-xl px-12 py-4 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    required
-                  />
+            {isLogin ? (
+              <form onSubmit={handleLogin} className="space-y-6">
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-2">
+                    Email Address
+                  </label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <input
+                      id="email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="john@company.com"
+                      className="w-full bg-slate-800/50 border border-slate-600 rounded-xl px-12 py-4 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      required
+                    />
+                  </div>
                 </div>
-              </div>
 
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-2">
-                  Password
-                </label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                  <input
-                    id="password"
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter your password"
-                    className="w-full bg-slate-800/50 border border-slate-600 rounded-xl px-12 py-4 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all pr-12"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300 transition-colors"
-                  >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
+                <div>
+                  <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-2">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Enter your password"
+                      className="w-full bg-slate-800/50 border border-slate-600 rounded-xl px-12 py-4 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all pr-12"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300 transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
                 </div>
-              </div>
 
-              {error && (
-                <div className="flex items-center gap-3 text-red-400 text-xs font-bold bg-red-400/10 p-4 rounded-2xl border border-red-400/20">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  {error}
+                {error && (
+                  <div className="flex items-center gap-3 text-red-400 text-xs font-bold bg-red-400/10 p-4 rounded-2xl border border-red-400/20">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    {error}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={loading || !email.trim() || !password.trim()}
+                  className="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-black py-5 rounded-lg shadow-lg shadow-indigo-100 active:scale-95 transition-all duration-200 flex items-center justify-center gap-3 disabled:opacity-40"
+                >
+                  {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <><span>Sign In</span> <ArrowRight className="w-5 h-5" /></>}
+                </button>
+              </form>
+            ) : (
+              /* Signup Form */
+              <form onSubmit={handleSignup} className="space-y-6">
+                <div>
+                  <label htmlFor="companyName" className="block text-sm font-medium text-slate-300 mb-2">
+                    Company Name
+                  </label>
+                  <div className="relative">
+                    <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <input
+                      id="companyName"
+                      type="text"
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                      placeholder="Your Company Name"
+                      className="w-full bg-slate-800/50 border border-slate-600 rounded-xl px-12 py-4 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      required
+                    />
+                  </div>
                 </div>
-              )}
 
-              <button
-                type="submit"
-                disabled={loading || !email.trim() || !password.trim()}
-                className="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-black py-5 rounded-lg shadow-lg shadow-indigo-100 active:scale-95 transition-all duration-200 flex items-center justify-center gap-3 disabled:opacity-40"
-              >
-                {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <>Sign In <ArrowRight className="w-5 h-5" /></>}
-              </button>
-            </form>
+                <div>
+                  <label htmlFor="adminName" className="block text-sm font-medium text-slate-300 mb-2">
+                    Admin Name
+                  </label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <input
+                      id="adminName"
+                      type="text"
+                      value={adminName}
+                      onChange={(e) => setAdminName(e.target.value)}
+                      placeholder="Admin Full Name"
+                      className="w-full bg-slate-800/50 border border-slate-600 rounded-xl px-12 py-4 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="adminMobile" className="block text-sm font-medium text-slate-300 mb-2">
+                    Mobile Number
+                  </label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <input
+                      id="adminMobile"
+                      type="tel"
+                      value={adminMobile}
+                      onChange={(e) => setAdminMobile(e.target.value)}
+                      placeholder="+1234567890"
+                      className="w-full bg-slate-800/50 border border-slate-600 rounded-xl px-12 py-4 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="signupEmail" className="block text-sm font-medium text-slate-300 mb-2">
+                    Email Address
+                  </label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <input
+                      id="signupEmail"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="admin@company.com"
+                      className="w-full bg-slate-800/50 border border-slate-600 rounded-xl px-12 py-4 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="signupPassword" className="block text-sm font-medium text-slate-300 mb-2">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <input
+                      id="signupPassword"
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Create a strong password"
+                      className="w-full bg-slate-800/50 border border-slate-600 rounded-xl px-12 py-4 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all pr-12"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300 transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                {error && (
+                  <div className="flex items-center gap-3 text-red-400 text-xs font-bold bg-red-400/10 p-4 rounded-2xl border border-red-400/20">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    {error}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={loading || !email.trim() || !password.trim() || !companyName.trim() || !adminName.trim() || !adminMobile.trim()}
+                  className="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-black py-5 rounded-lg shadow-lg shadow-indigo-100 active:scale-95 transition-all duration-200 flex items-center justify-center gap-3 disabled:opacity-40"
+                >
+                  {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <><span>Create Company</span> <ArrowRight className="w-5 h-5" /></>}
+                </button>
+              </form>
+            )}
 
             {/* Info Section */}
             <div className="mt-8 p-4 bg-slate-800/30 rounded-2xl border border-slate-700/30">
@@ -149,10 +377,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
                 <Info className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
                 <div>
                   <p className="text-slate-400 text-xs leading-relaxed">
-                    <strong className="text-slate-300">Secure Access:</strong> Your login credentials are encrypted and protected with enterprise-grade security.
+                    <strong className="text-slate-300">{isLogin ? 'Secure Access:' : 'Company Setup:'}</strong> {isLogin ? 'Your login credentials are encrypted and protected with enterprise-grade security.' : 'Create your company account and start managing tasks efficiently.'}
                   </p>
                   <p className="text-slate-400 text-xs leading-relaxed mt-2">
-                    <strong className="text-slate-300">Need Help?</strong> Contact your system administrator for account access.
+                    <strong className="text-slate-300">{isLogin ? 'Need Help?' : 'Questions?'}</strong> {isLogin ? 'Contact your system administrator for account access.' : 'Contact support for assistance with your company setup.'}
                   </p>
                 </div>
               </div>
