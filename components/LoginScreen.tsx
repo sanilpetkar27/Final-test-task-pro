@@ -80,44 +80,28 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
 
       if (authData.user) {
         // Step 3: Create employee record
-        // First check if employee already exists
-        console.log('Checking for existing employee with ID:', authData.user.id);
-        const { data: existingEmployee, error: checkError } = await supabase
+        // Try to update first, then insert if update fails
+        console.log('Attempting to update employee with ID:', authData.user.id);
+        const { data: updateData, error: updateError } = await supabase
           .from('employees')
-          .select('id')
+          .update({
+            name: adminName,
+            mobile: adminMobile,
+            role: 'super_admin',
+            points: 0,
+            company_id: newCompany.id
+          })
           .eq('id', authData.user.id)
-          .single();
+          .select();
 
-        console.log('Existing employee check result:', { existingEmployee, checkError });
+        console.log('Employee update result:', { updateData, updateError });
 
         let employeeData;
         let employeeError;
 
-        if (checkError && checkError.code !== 'PGRST116') {
-          // Real error occurred
-          console.error('Real error checking employee:', checkError);
-          employeeError = checkError;
-        } else if (existingEmployee) {
-          // Update existing employee
-          console.log('Updating existing employee:', existingEmployee.id);
-          const { data: updateData, error: updateError } = await supabase
-            .from('employees')
-            .update({
-              name: adminName,
-              mobile: adminMobile,
-              role: 'super_admin',
-              points: 0,
-              company_id: newCompany.id
-            })
-            .eq('id', authData.user.id)
-            .select();
-          
-          console.log('Employee update result:', { updateData, updateError });
-          employeeData = updateData;
-          employeeError = updateError;
-        } else {
-          // Insert new employee
-          console.log('Creating new employee with ID:', authData.user.id, 'Company:', newCompany.id);
+        if (updateError) {
+          // If update fails, try to insert
+          console.log('Update failed, trying to insert new employee');
           const { data: insertData, error: insertError } = await supabase
             .from('employees')
             .insert({
@@ -133,6 +117,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
           console.log('Employee insert result:', { insertData, insertError });
           employeeData = insertData;
           employeeError = insertError;
+        } else {
+          // Update succeeded
+          employeeData = updateData;
+          employeeError = null;
         }
 
         if (employeeError) {
