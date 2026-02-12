@@ -89,8 +89,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
             mobile: adminMobile,
             role: 'super_admin',
             points: 0,
-            company_id: newCompany.id,
-            auth_user_id: authData.user.id
+            company_id: newCompany.id
           }])
           .select();
 
