@@ -23,7 +23,7 @@ const App: React.FC = () => {
   // --- 1. USER & STATE MANAGEMENT ---
   const [currentUser, setCurrentUser] = useState<Employee | null>(() => {
     const saved = localStorage.getItem('universal_app_user');
-    return saved ? JSON.parse(saved) : null;
+    return saved && saved !== 'undefined' ? JSON.parse(saved) : null;
   });
 
   const [activeTab, setActiveTab] = useState<AppTab>(AppTab.TASKS);
