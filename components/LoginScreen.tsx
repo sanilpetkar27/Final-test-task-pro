@@ -102,12 +102,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
           return;
         }
 
-        if (!employeeData || employeeData.length === 0) {
+        if (!employeeData || (Array.isArray(employeeData) && employeeData.length === 0)) {
           setError('Failed to create employee profile. Please contact support.');
           return;
         }
 
-        const newEmployee = employeeData[0];
+        const newEmployee = Array.isArray(employeeData) ? employeeData[0] : employeeData;
         console.log('🎉 New employee created:', newEmployee);
         console.log('🎉 Calling onLogin with employee:', newEmployee);
         onLogin(newEmployee);
