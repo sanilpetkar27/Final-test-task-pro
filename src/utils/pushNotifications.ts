@@ -9,6 +9,9 @@ type PushRecord = {
 };
 
 const invokeSendPush = async (record: PushRecord) => {
+  console.log('🚨 PROOF: invokeSendPush called!');
+  console.log('🚨 PROOF: Record:', record);
+  
   try {
     console.log('🔧 invokeSendPush called with record:', record);
     
