@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 // Notification logic updated. Fail-safe mode active.
 console.log('🔔 Notification logic updated. Fail-safe mode active.');
 console.log('🚨 TIMESTAMP PROOF:', new Date().toISOString());
+alert('🚨 NEW CODE DEPLOYED: Version 1.0.1 - Check console for proof logs!');
 
 type PushRecord = {
   description: string;
