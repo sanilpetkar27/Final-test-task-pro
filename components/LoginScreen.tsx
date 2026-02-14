@@ -3,7 +3,121 @@ import { Employee } from '../types';
 import { ClipboardList, Mail, Eye, EyeOff, ArrowRight, Lock, Loader2, AlertCircle, ShieldCheck, Info, Building2, User, Phone } from 'lucide-react';
 import { supabase, supabaseAuth } from '../src/lib/supabase';
 import { toast } from 'sonner';
-import { handleSignup, handleLogin } from '../src/utils/auth';
+
+// --- HELPER FUNCTIONS (Comprehensive Auth Fixes) ---
+
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Handles robust login with retry logic to prevent race conditions
+ */
+const handleAuthLogin = async (email: string, password: string) => {
+  console.log('🔐 Starting login for:', email);
+  
+  // 1. Sign In
+  const { data: authData, error: authError } = await supabaseAuth.signInWithPassword({
+    email,
+    password,
+  });
+  
+  if (authError) {
+    console.error('❌ Auth error:', authError);
+    throw authError;
+  }
+
+  console.log('✅ Auth successful for user:', authData.user?.id);
+
+  // 2. Retry Logic for Employee Record (Fixes "Employee not found" race condition)
+  let attempts = 0;
+  let employeeData = null;
+
+  while (attempts < 3 && !employeeData) {
+    const { data, error } = await supabase
+      .from('employees')
+      .select('*')
+      .eq('id', authData.user.id)
+      .single();
+
+    if (!error && data) {
+      employeeData = data;
+      console.log('✅ Employee data found:', employeeData);
+      break;
+    }
+    
+    console.log(`Attempt ${attempts + 1}: Employee DB record not ready yet, waiting...`);
+    await delay(1000); // Wait 1 second
+    attempts++;
+  }
+
+  if (!employeeData) {
+    // One final check - sometimes the error is just 'PGRST116' (0 rows)
+    throw new Error("Login successful, but your employee profile is not ready. Please wait 10 seconds and try again.");
+  }
+
+  return { user: authData.user, employee: employeeData };
+};
+
+/**
+ * Handles robust signup with Forced Logout to prevent data leakage
+ */
+const handleAuthSignup = async (companyName: string, adminName: string, mobile: string, email: string, password: string) => {
+  console.log("Starting Clean Signup Process...");
+  
+  // 1. FORCE LOGOUT (CRITICAL: Prevents creating data in previously logged-in account)
+  await supabaseAuth.signOut();
+  localStorage.clear();
+  console.log('✅ Session cleared');
+
+  // 2. Create Company
+  const { data: newCompany, error: companyError } = await supabase
+    .from('companies')
+    .insert({ 
+      name: companyName, 
+      subscription_status: 'active' 
+    })
+    .select()
+    .single();
+
+  if (companyError) throw companyError;
+  console.log("✅ Company Created:", newCompany.id);
+
+  // 3. Create Auth User
+  const { data: authData, error: authError } = await supabaseAuth.signUp({
+    email,
+    password,
+    options: {
+      data: { 
+        company_id: newCompany.id,
+        role: 'super_admin',
+        name: adminName,
+        mobile: mobile
+      }
+    }
+  });
+
+  if (authError) throw authError;
+  if (!authData.user) throw new Error("User creation failed");
+  console.log("✅ Auth User Created:", authData.user.id);
+
+  // 4. Create Employee (Atomic Upsert)
+  // We strictly use 'newCompany.id' here to ensure isolation.
+  const { error: employeeError } = await supabase
+    .from('employees')
+    .upsert({
+      id: authData.user.id,
+      name: adminName,
+      mobile: mobile,
+      role: 'super_admin',
+      company_id: newCompany.id, // STRICTLY use the variable, not state
+      points: 0,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'id' });
+
+  if (employeeError) throw employeeError;
+  console.log("✅ Employee Record Synced");
+
+  return { user: authData.user, session: authData.session };
+};
 
 interface LoginScreenProps {
   employees: Employee[];
@@ -23,180 +137,42 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
   const [adminName, setAdminName] = useState('');
   const [adminMobile, setAdminMobile] = useState('');
 
-  const handleSignup = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
     setLoading(true);
+    setError('');
 
     try {
-      // Force logout to prevent data leakage
-      await supabaseAuth.signOut();
-      
-      if (!supabase) {
-        setError('Signup not available in demo mode. Please use real credentials.');
-        return;
-      }
-
-      // Skip table check for now and try direct company creation
-      console.log('Attempting direct company creation...');
-
-      // Step 1: Create company
-      const { data: companyData, error: companyError } = await supabase
-        .from('companies')
-        .insert([{ name: companyName, subscription_status: 'active' }])
-        .select();
-
-      console.log('Company creation result:', { companyData, companyError });
-
-      if (companyError) {
-        setError(`Company creation failed: ${companyError.message || 'Please try again.'}`);
-        console.error('Company creation error:', companyError);
-        return;
-      }
-
-      if (!companyData || companyData.length === 0) {
-        setError('Failed to create company. No data returned.');
-        return;
-      }
-
-      const newCompany = companyData[0];
-
-      // Step 2: Create admin user in Supabase Auth
-      const { data: authData, error: authError } = await supabaseAuth.signUp({
-        email: email,
-        password: password,
-        options: {
-          data: {
-            company_id: newCompany.id,
-            role: 'super_admin',
-            name: adminName,
-            mobile: adminMobile,
-          }
-        }
-      });
-
-      if (authError) {
-        setError(`Account creation failed: ${authError.message || 'Please try again.'}`);
-        console.error('Auth signup error:', authError);
-        return;
-      }
-
-      if (authData.user) {
-        // Step 3: Create employee record with retry logic
-        let employeeData;
-        let employeeError;
-        let retryCount = 0;
-        const maxRetries = 3;
-
-        while (retryCount < maxRetries) {
-          console.log(`🔄 Employee creation attempt ${retryCount + 1}/${maxRetries}`);
-          
-          const { data: empData, error: empError } = await supabase
-            .from('employees')
-            .upsert({
-              id: authData.user.id, // Matches Auth User ID
-              name: adminName,
-              mobile: adminMobile,
-              role: 'super_admin',
-              points: 0,
-              company_id: newCompany.id, // Uses company_id from Step 1
-              updated_at: new Date().toISOString()
-            }, { onConflict: 'id' }) // Critical: This fixes the duplicate key error
-            .select()
-            .single();
-
-          console.log(`Employee upsert result (attempt ${retryCount + 1}):`, { empData, empError });
-
-          if (!empError && empData) {
-            employeeData = Array.isArray(empData) ? empData[0] : empData;
-            employeeError = null;
-            break; // Success - exit retry loop
-          } else if (empError) {
-            employeeError = empError;
-          } else {
-            // No data returned, try again
-            employeeError = new Error('No employee data returned');
-          }
-
-          if (employeeError) {
-            retryCount++;
-            if (retryCount < maxRetries) {
-              await new Promise(resolve => setTimeout(resolve, 500)); // Wait 500ms before retry
-            }
-          } else {
-            break; // Max retries reached or success
-          }
-        }
-
-        if (employeeError) {
-          setError(`Employee profile failed: ${employeeError.message || 'Please contact support.'}`);
-          console.error('Employee creation error:', employeeError);
-          return;
-        }
-
-        if (!employeeData) {
-          setError('Failed to create employee profile. Please contact support.');
-          return;
-        }
-
-        const newEmployee = employeeData;
-        console.log('🎉 New employee created:', newEmployee);
-        console.log('🎉 Calling onLogin with employee:', newEmployee);
+      if (isLogin) {
+        // --- LOGIN FLOW ---
+        const result = await handleAuthLogin(email, password);
+        onLogin(result.employee);
+        toast.success('Welcome back!');
+      } else {
+        // --- SIGNUP FLOW ---
+        const result = await handleAuthSignup(companyName, adminName, adminMobile, email, password);
         
-        // Auto-login if session exists, otherwise show success message
-        if (authData.session) {
-          onLogin(newEmployee);
-          toast.success('Company account created successfully!');
-        } else {
-          // Email verification required
-          onLogin(newEmployee);
-          toast.success('Account created! Please check your email to verify.');
-        }
-      }
-    } catch (err) {
-      setError(`Signup failed: ${err instanceof Error ? err.message : 'Unknown error occurred'}`);
-      console.error('Signup exception:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-
-    try {
-      const { data, error } = await supabaseAuth.signInWithPassword({
-        email: email,
-        password: password
-      });
-
-      if (error) {
-        setError('Invalid email or password. Please try again.');
-        console.error('Login error:', error);
-      } else if (data.user) {
-        console.log('🔐 Auth ID from login:', data.user.id);
-        
-        // Find employee by Auth ID from database to get role and other details
-        const { data: employeeData, error: employeeError } = await supabase
+        // Get the created employee record
+        const { data: employeeData } = await supabase
           .from('employees')
           .select('*')
-          .eq('id', data.user.id)
+          .eq('id', result.user.id)
           .single();
 
-        console.log('👤 Employee lookup from database:', { employeeData, employeeError });
-        
-        if (employeeError || !employeeData) {
-          setError('Profile missing. Please contact Admin.');
-        } else {
+        if (result.session) {
+          // Auto-login if session exists (Email confirmation disabled)
           onLogin(employeeData);
-          toast.success('Login successful!');
+          toast.success('Company registered successfully!');
+        } else {
+          // Email confirmation enabled
+          onLogin(employeeData);
+          toast.success('Registration successful! Please check your email to verify.');
         }
       }
-    } catch (err) {
-      setError('Login failed. Please try again.');
-      console.error('Login exception:', err);
+    } catch (error: any) {
+      console.error('Auth Error:', error);
+      setError(error.message || 'Authentication failed');
+      toast.error(error.message || 'Authentication failed');
     } finally {
       setLoading(false);
     }
@@ -259,7 +235,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
 
             {/* Login Form */}
             {isLogin ? (
-              <form onSubmit={handleLogin} className="space-y-6">
+              <form onSubmit={handleSubmit} className="space-y-6">
                 <div>
                   <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-2">
                     Email Address
@@ -320,7 +296,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
               </form>
             ) : (
               /* Signup Form */
-              <form onSubmit={handleSignup} className="space-y-6">
+              <form onSubmit={handleSubmit} className="space-y-6">
                 <div>
                   <label htmlFor="companyName" className="block text-sm font-medium text-slate-300 mb-2">
                     Company Name
