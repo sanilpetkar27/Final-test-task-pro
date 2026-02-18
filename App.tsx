@@ -77,6 +77,20 @@ const parseCachedArray = <T,>(key: string): T[] => {
   }
 };
 
+const filterEmployeesByCompany = (employeeRows: Employee[], companyId: string | null): Employee[] => {
+  if (!companyId) {
+    return employeeRows;
+  }
+  return employeeRows.filter((employee) => String(employee?.company_id || '').trim() === companyId);
+};
+
+const filterTasksByCompany = (taskRows: DealershipTask[], companyId: string | null): DealershipTask[] => {
+  if (!companyId) {
+    return taskRows;
+  }
+  return taskRows.filter((task) => String(task?.company_id || '').trim() === companyId);
+};
+
 const normalizeEmployeeProfile = (employee: Partial<Employee> & { id: string }): Employee => {
   const safeId = String(employee.id || `temp-${Date.now()}`);
   const safeEmail = String(employee.email || `${safeId}@taskpro.local`).trim();
@@ -368,20 +382,25 @@ const App: React.FC = () => {
       
       const { data: tasksData, error: tasksError } = await tasksQuery;
 
-      // Check if we have valid data or if there were errors
-      // If errors or empty data, use defaults
-      const cachedEmployees = parseCachedArray<Employee>(EMPLOYEES_CACHE_KEY);
-      const cachedTasks = parseCachedArray<DealershipTask>(TASKS_CACHE_KEY);
+      // Cache fallback is always tenant-scoped to avoid leaking demo/other-company users.
+      const cachedEmployees = filterEmployeesByCompany(
+        parseCachedArray<Employee>(EMPLOYEES_CACHE_KEY),
+        activeCompanyId
+      );
+      const cachedTasks = filterTasksByCompany(
+        parseCachedArray<DealershipTask>(TASKS_CACHE_KEY),
+        activeCompanyId
+      );
 
       const finalEmployeesBase = (employeesData && employeesData.length > 0)
         ? employeesData
-        : (cachedEmployees.length > 0 ? cachedEmployees : (employees.length > 0 ? employees : DEFAULT_EMPLOYEES));
+        : (cachedEmployees.length > 0 ? cachedEmployees : []);
       const finalEmployees = mergeCurrentUserIntoEmployees(finalEmployeesBase as Employee[], currentUser);
 
       // Transform database tasks to app tasks
       const finalTasks = (tasksData && tasksData.length > 0)
         ? transformTasksToApp(tasksData as DatabaseTask[])
-        : (cachedTasks.length > 0 ? cachedTasks : (tasks.length > 0 ? tasks : transformTasksToApp(DEFAULT_TASKS as DatabaseTask[])));
+        : (cachedTasks.length > 0 ? cachedTasks : []);
 
       if (employeesError || tasksError) {
         console.warn('using fallback data due to Supabase error');
@@ -406,12 +425,18 @@ const App: React.FC = () => {
       };
     } catch (error) {
       console.error('Supabase connection failed - using cached fallback data');
-      // FALLBACK TO CACHED DATA first instead of hard reset to defaults
-      const cachedEmployees = parseCachedArray<Employee>(EMPLOYEES_CACHE_KEY);
-      const cachedTasks = parseCachedArray<DealershipTask>(TASKS_CACHE_KEY);
+      const activeCompanyId = currentUser?.company_id || null;
+      const cachedEmployees = filterEmployeesByCompany(
+        parseCachedArray<Employee>(EMPLOYEES_CACHE_KEY),
+        activeCompanyId
+      );
+      const cachedTasks = filterTasksByCompany(
+        parseCachedArray<DealershipTask>(TASKS_CACHE_KEY),
+        activeCompanyId
+      );
       return {
-        employees: mergeCurrentUserIntoEmployees(cachedEmployees.length > 0 ? cachedEmployees : DEFAULT_EMPLOYEES, currentUser),
-        tasks: cachedTasks.length > 0 ? cachedTasks : transformTasksToApp(DEFAULT_TASKS as DatabaseTask[])
+        employees: mergeCurrentUserIntoEmployees(cachedEmployees, currentUser),
+        tasks: cachedTasks
       };
     } finally {
       setLoading(false);
