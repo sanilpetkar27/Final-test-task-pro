@@ -5,22 +5,30 @@ export interface DatabaseTask {
   id: string;
   description: string;
   status: 'pending' | 'in-progress' | 'completed';
+  // Recurrence fields may come from either snake_case or camelCase.
   task_type?: TaskType;
   recurrence_frequency?: RecurrenceFrequency | null;
-  // Backward-compatible aliases if some rows were written in camelCase
+  // Backward-compatible aliases if some rows were written in camelCase.
   taskType?: TaskType;
   recurrenceFrequency?: RecurrenceFrequency | null;
-  createdAt: number;
+  // Timestamp fields may be camelCase or snake_case depending on schema history.
+  createdAt?: number;
+  created_at?: number;
   deadline?: number;
   completedAt?: number;
+  completed_at?: number;
   proof?: {
     imageUrl: string;
     timestamp: number;
   };
   requirePhoto?: boolean;
+  require_photo?: boolean;
   assignedTo?: string; // Employee ID (camelCase)
+  assigned_to?: string; // Employee ID (snake_case)
   assignedBy?: string; // Employee ID (camelCase)
+  assigned_by?: string; // Employee ID (snake_case)
   parentTaskId?: string; // ID of master task if this is a sub-task
+  parent_task_id?: string; // ID of master task if this is a sub-task (snake_case)
   company_id?: string; // Company ID for multi-tenancy
   remarks?: Array<{
     id: string;
@@ -48,17 +56,18 @@ export const transformTaskToApp = (dbTask: DatabaseTask): DealershipTask => {
     status: dbTask.status,
     taskType: normalizedTaskType,
     recurrenceFrequency: normalizedRecurrenceFrequency,
-    createdAt: dbTask.createdAt,
+    createdAt: Number(dbTask.createdAt ?? dbTask.created_at ?? Date.now()),
     deadline: dbTask.deadline,
-    completedAt: dbTask.completedAt,
+    completedAt: dbTask.completedAt ?? dbTask.completed_at,
     proof: dbTask.proof ? {
       imageUrl: dbTask.proof.imageUrl,
       timestamp: dbTask.proof.timestamp,
     } : undefined,
-    requirePhoto: dbTask.requirePhoto,
-    assignedTo: dbTask.assignedTo,
-    assignedBy: dbTask.assignedBy,
-    parentTaskId: dbTask.parentTaskId,
+    requirePhoto: dbTask.requirePhoto ?? dbTask.require_photo,
+    assignedTo: dbTask.assignedTo ?? dbTask.assigned_to,
+    assignedBy: dbTask.assignedBy ?? dbTask.assigned_by,
+    parentTaskId: dbTask.parentTaskId ?? dbTask.parent_task_id,
+    company_id: String(dbTask.company_id || '00000000-0000-0000-0000-000000000001'),
     remarks: dbTask.remarks?.map(remark => ({
       id: remark.id,
       taskId: remark.taskId,

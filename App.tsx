@@ -88,7 +88,11 @@ const filterTasksByCompany = (taskRows: DealershipTask[], companyId: string | nu
   if (!companyId) {
     return taskRows;
   }
-  return taskRows.filter((task) => String(task?.company_id || '').trim() === companyId);
+  return taskRows.filter((task) => {
+    const taskCompanyId = String(task?.company_id || '').trim();
+    // Keep legacy cached tasks that were missing company_id due older transforms.
+    return !taskCompanyId || taskCompanyId === companyId;
+  });
 };
 
 const normalizeEmployeeProfile = (employee: Partial<Employee> & { id: string }): Employee => {
@@ -493,7 +497,7 @@ const App: React.FC = () => {
         console.error('❌ Failed to fetch tasks:', tasksError);
       } else {
         console.log('✅ Successfully fetched tasks:', tasksData);
-        setTasks(tasksData || []);
+        setTasks(transformTasksToApp((tasksData || []) as DatabaseTask[]));
       }
     } catch (err) {
       console.error('🚨 Unexpected error fetching tasks:', err);
@@ -838,21 +842,22 @@ const App: React.FC = () => {
       // Insert task into Supabase
       const { data, error } = await supabase
         .from('tasks')
-        .insert([dbTask]);
+        .insert([dbTask])
+        .select('*')
+        .single();
 
       if (error) {
         console.error('Error adding task:', error);
-        // Fallback to local state
-        setTasks(prev => [newTask, ...prev]);
-      } else if (data) {
-        // Transform returned database task back to app format
-        const appTask = transformTaskToApp(data[0] as DatabaseTask);
-        setTasks(prev => [appTask, ...prev]);
+        toast.error(`Failed to save task: ${error.message}`);
+        return;
       }
+
+      // Transform returned database task back to app format
+      const appTask = transformTaskToApp(data as DatabaseTask);
+      setTasks(prev => [appTask, ...prev]);
     } catch (error) {
       console.error('Error adding task:', error);
-      // Fallback to local state
-      setTasks(prev => [newTask, ...prev]);
+      toast.error(`Failed to save task: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -866,28 +871,19 @@ const App: React.FC = () => {
 
       if (error) {
         console.error('Error starting task:', error);
-        // Fallback to local state
-        setTasks(prev => prev.map(t =>
-          t.id === taskId
-            ? { ...t, status: 'in-progress' as TaskStatus }
-            : t
-        ));
-      } else {
-        // Update local state
-        setTasks(prev => prev.map(t =>
-          t.id === taskId
-            ? { ...t, status: 'in-progress' as TaskStatus }
-            : t
-        ));
+        toast.error(`Failed to update task: ${error.message}`);
+        return;
       }
-    } catch (error) {
-      console.error('Error starting task:', error);
-      // Fallback to local state
+
+      // Update local state
       setTasks(prev => prev.map(t =>
         t.id === taskId
           ? { ...t, status: 'in-progress' as TaskStatus }
           : t
       ));
+    } catch (error) {
+      console.error('Error starting task:', error);
+      toast.error(`Failed to update task: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -905,28 +901,19 @@ const App: React.FC = () => {
 
       if (error) {
         console.error('Error reopening task:', error);
-        // Fallback to local state
-        setTasks(prev => prev.map(t =>
-          t.id === taskId
-            ? { ...t, status: 'pending' as TaskStatus, completedAt: undefined, proof: undefined }
-            : t
-        ));
-      } else {
-        // Update local state
-        setTasks(prev => prev.map(t =>
-          t.id === taskId
-            ? { ...t, status: 'pending' as TaskStatus, completedAt: undefined, proof: undefined }
-            : t
-        ));
+        toast.error(`Failed to update task: ${error.message}`);
+        return;
       }
-    } catch (error) {
-      console.error('Error reopening task:', error);
-      // Fallback to local state
+
+      // Update local state
       setTasks(prev => prev.map(t =>
         t.id === taskId
           ? { ...t, status: 'pending' as TaskStatus, completedAt: undefined, proof: undefined }
           : t
       ));
+    } catch (error) {
+      console.error('Error reopening task:', error);
+      toast.error(`Failed to update task: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -944,20 +931,16 @@ const App: React.FC = () => {
 
       if (taskError) {
         console.error('Error completing task:', taskError);
-        // Fallback to local state
-        setTasks(prev => prev.map(t =>
-          t.id === taskId
-            ? { ...t, status: 'completed' as TaskStatus, completedAt: proofData.timestamp, proof: proofData }
-            : t
-        ));
-      } else {
-        // Update local state
-        setTasks(prev => prev.map(t =>
-          t.id === taskId
-            ? { ...t, status: 'completed' as TaskStatus, completedAt: proofData.timestamp, proof: proofData }
-            : t
-        ));
+        toast.error(`Failed to complete task: ${taskError.message}`);
+        return;
       }
+
+      // Update local state
+      setTasks(prev => prev.map(t =>
+        t.id === taskId
+          ? { ...t, status: 'completed' as TaskStatus, completedAt: proofData.timestamp, proof: proofData }
+          : t
+      ));
 
       // Add 10 points to the user who completed the task
       const task = tasks.find(t => t.id === taskId);
@@ -989,12 +972,7 @@ const App: React.FC = () => {
       }
     } catch (error) {
       console.error('Error completing task:', error);
-      // Fallback to local state
-      setTasks(prev => prev.map(t =>
-        t.id === taskId
-          ? { ...t, status: 'completed' as TaskStatus, completedAt: proofData.timestamp, proof: proofData }
-          : t
-      ));
+      toast.error(`Failed to complete task: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -1005,25 +983,19 @@ const App: React.FC = () => {
         .from('tasks')
         .update({ status: 'completed' as TaskStatus, completedAt: Date.now() })
         .eq('id', taskId);
-      
-      const { error } = taskError;
 
-      if (error) {
-        console.error('Error completing task:', error);
-        // Fallback to local state
-        setTasks(prev => prev.map(t =>
-          t.id === taskId
-            ? { ...t, status: 'completed' as TaskStatus, completedAt: Date.now() }
-            : t
-        ));
-      } else {
-        // Update local state
-        setTasks(prev => prev.map(t =>
-          t.id === taskId
-            ? { ...t, status: 'completed' as TaskStatus, completedAt: Date.now() }
-            : t
-        ));
+      if (taskError) {
+        console.error('Error completing task:', taskError);
+        toast.error(`Failed to complete task: ${taskError.message}`);
+        return;
       }
+
+      // Update local state
+      setTasks(prev => prev.map(t =>
+        t.id === taskId
+          ? { ...t, status: 'completed' as TaskStatus, completedAt: Date.now() }
+          : t
+      ));
 
       // Add 10 points to the user who completed the task
       const task = tasks.find(t => t.id === taskId);
@@ -1055,12 +1027,7 @@ const App: React.FC = () => {
       }
     } catch (error) {
       console.error('Error completing task:', error);
-      // Fallback to local state
-      setTasks(prev => prev.map(t =>
-        t.id === taskId
-          ? { ...t, status: 'completed' as TaskStatus, completedAt: Date.now() }
-          : t
-      ));
+      toast.error(`Failed to complete task: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -1074,22 +1041,17 @@ const App: React.FC = () => {
 
       if (error) {
         console.error('Error reassigning task:', error);
-        // Fallback to local state
-        setTasks(prev => prev.map(t =>
-          t.id === taskId ? { ...t, assignedTo: newAssigneeId } : t
-        ));
-      } else {
-        // Update local state
-        setTasks(prev => prev.map(t =>
-          t.id === taskId ? { ...t, assignedTo: newAssigneeId } : t
-        ));
+        toast.error(`Failed to reassign task: ${error.message}`);
+        return;
       }
-    } catch (error) {
-      console.error('Error reassigning task:', error);
-      // Fallback to local state
+
+      // Update local state
       setTasks(prev => prev.map(t =>
         t.id === taskId ? { ...t, assignedTo: newAssigneeId } : t
       ));
+    } catch (error) {
+      console.error('Error reassigning task:', error);
+      toast.error(`Failed to reassign task: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -1103,25 +1065,18 @@ const App: React.FC = () => {
       
       if (error) {
         console.error('Error deleting task:', error);
-        // Fallback to local state
-        const subTasks = tasks.filter(t => t.parentTaskId === taskId);
-        setTasks(prev => prev.filter(t =>
-          t.id !== taskId && !subTasks.some(st => st.id === t.id)
-        ));
-      } else {
-        // Update local state
-        const subTasks = tasks.filter(t => t.parentTaskId === taskId);
-        setTasks(prev => prev.filter(t =>
-          t.id !== taskId && !subTasks.some(st => st.id === t.id)
-        ));
+        toast.error(`Failed to delete task: ${error.message}`);
+        return;
       }
-    } catch (error) {
-      console.error('Error deleting task:', error);
-      // Fallback to local state
+
+      // Update local state
       const subTasks = tasks.filter(t => t.parentTaskId === taskId);
       setTasks(prev => prev.filter(t =>
         t.id !== taskId && !subTasks.some(st => st.id === t.id)
       ));
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      toast.error(`Failed to delete task: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
