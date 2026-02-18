@@ -77,6 +77,11 @@ const clearPendingCompanySignup = () => {
   localStorage.removeItem(PENDING_COMPANY_SIGNUP_KEY);
 };
 
+const getEmailRedirectTo = (): string | undefined => {
+  if (typeof window === 'undefined') return undefined;
+  return window.location.origin;
+};
+
 const finalizeCompanySetupForUser = async (
   authUser: any,
   input: { companyName: string; adminName: string; mobile: string; email: string }
@@ -246,6 +251,9 @@ const handleAuthLogin = async (email: string, password: string) => {
         await supabaseAuth.resend({
           type: 'signup',
           email: email.trim(),
+          options: {
+            emailRedirectTo: getEmailRedirectTo(),
+          },
         });
       } catch (resendError) {
         console.warn('Could not resend verification email:', resendError);
@@ -369,6 +377,7 @@ const handleAuthSignup = async (companyName: string, adminName: string, mobile: 
     email,
     password,
     options: {
+      emailRedirectTo: getEmailRedirectTo(),
       data: {
         role: 'super_admin',
         name: adminName,
