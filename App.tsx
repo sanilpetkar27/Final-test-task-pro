@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { AppTab, DealershipTask, Employee, UserRole, TaskStatus, RewardConfig, TaskType, RecurrenceFrequency } from './types';
+import { AppTab, DealershipTask, Employee, UserRole, TaskStatus, RewardConfig, TaskType, RecurrenceFrequency, TaskRemark } from './types';
 import Dashboard from './components/Dashboard';
 import StatsScreen from './components/StatsScreen';
 import TeamManager from './components/TeamManager';
@@ -1114,6 +1114,16 @@ const App: React.FC = () => {
     }
   };
 
+  const updateTaskRemarks = (taskId: string, remarks: TaskRemark[]) => {
+    setTasks(prev =>
+      prev.map(task =>
+        task.id === taskId
+          ? { ...task, remarks }
+          : task
+      )
+    );
+  };
+
   const addEmployee = async (name: string, mobile: string, role: UserRole = 'staff') => {
     if (!currentUser) return;
 
@@ -1379,6 +1389,7 @@ const App: React.FC = () => {
             onCompleteTaskWithoutPhoto={completeTaskWithoutPhoto}
             onReassignTask={reassignTask}
             onDeleteTask={deleteTask}
+            onUpdateTaskRemarks={updateTaskRemarks}
           />
         )}
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { DealershipTask, Employee, UserRole, TaskStatus, TaskType, RecurrenceFrequency } from '../types';
+import { DealershipTask, Employee, UserRole, TaskStatus, TaskType, RecurrenceFrequency, TaskRemark } from '../types';
 import { supabase } from '../src/lib/supabase';
 import { sendTaskAssignmentNotification, sendTaskCompletionNotification } from '../src/utils/pushNotifications';
 import TaskItem from './TaskItem';
@@ -27,6 +27,7 @@ interface DashboardProps {
   onCompleteTaskWithoutPhoto: (id: string) => void;
   onReassignTask: (taskId: string, newAssigneeId: string) => void;
   onDeleteTask: (id: string) => void;
+  onUpdateTaskRemarks?: (taskId: string, remarks: TaskRemark[]) => void;
 }
 
 const isMissingTaskRecurrenceColumnError = (error: any): boolean => {
@@ -47,7 +48,7 @@ const stripTaskRecurrenceFields = (payload: Record<string, any>) => {
   return legacyPayload;
 };
 
-const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, onAddTask, onStartTask, onReopenTask, onCompleteTask, onCompleteTaskWithoutPhoto, onReassignTask, onDeleteTask }) => {
+const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, onAddTask, onStartTask, onReopenTask, onCompleteTask, onCompleteTaskWithoutPhoto, onReassignTask, onDeleteTask, onUpdateTaskRemarks }) => {
   const [view, setView] = useState<'pending' | 'in-progress' | 'completed'>('pending');
   const [deadlineView, setDeadlineView] = useState<'overdue' | 'today' | 'upcoming' | 'all'>('all');
   
@@ -592,6 +593,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
         }
         
         console.log('Remark added successfully');
+        onUpdateTaskRemarks?.(taskId, updatedRemarks as TaskRemark[]);
       }
     } catch (err) {
       console.error('🚨 Unexpected error adding remark:', err);
