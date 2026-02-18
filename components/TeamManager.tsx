@@ -307,26 +307,26 @@ const TeamManager: React.FC<TeamManagerProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="bg-gradient-to-br from-indigo-50 to-purple-50 p-6 rounded-3xl shadow-md border border-slate-200">
+      <div className="bg-[#f0f2f5] p-6 rounded-3xl shadow-md border border-[#d1d7db]">
         <div className="flex items-center gap-2 mb-2">
-          <ShieldCheck className="w-5 h-5 text-indigo-500" />
-          <h2 className="text-xl font-bold italic text-slate-800">Team</h2>
+          <ShieldCheck className="w-5 h-5 text-[#008069]" />
+          <h2 className="text-xl font-bold italic text-[#202c33]">Team</h2>
         </div>
-        <p className="text-slate-600 text-sm">
+        <p className="text-[#54656f] text-sm">
           Manage staff members and assign their access permissions.
         </p>
       </div>
 
       {canAddMembers && (
-        <section className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-          <h3 className="text-xs font-bold text-slate-500 mb-3 uppercase tracking-wider">Add Staff Member</h3>
+        <section className="bg-[#f0f2f5] p-4 rounded-2xl shadow-sm border border-[#d1d7db]">
+          <h3 className="text-xs font-bold text-[#54656f] mb-3 uppercase tracking-wider">Add Staff Member</h3>
           <form onSubmit={handleCreateUser} className="space-y-3">
             <input 
               type="text" 
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder="Full Name..."
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+              className="w-full bg-white border border-[#d1d7db] rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#00a884] transition-all"
               required
             />
             <input 
@@ -334,7 +334,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
               value={newEmail}
               onChange={(e) => setNewEmail(e.target.value)}
               placeholder="Email Address..."
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+              className="w-full bg-white border border-[#d1d7db] rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#00a884] transition-all"
               required
             />
             <input 
@@ -342,7 +342,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               placeholder="Password..."
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+              className="w-full bg-white border border-[#d1d7db] rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#00a884] transition-all"
               required
             />
             <div className="relative">
@@ -354,7 +354,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
                   setNewMobile(val);
                 }}
                 placeholder="Mobile Number"
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                className="w-full bg-white border border-[#d1d7db] rounded-xl pl-10 pr-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#00a884] transition-all"
                 required
               />
               <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -363,7 +363,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
               <select 
                 value={newRole}
                 onChange={(e) => setNewRole(e.target.value as UserRole)}
-                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 h-10 text-sm text-slate-900 outline-none"
+                className="flex-1 bg-white border border-[#d1d7db] rounded-xl px-4 h-10 text-sm text-slate-900 outline-none"
               >
                 {assignableRoles.map((roleOption) => (
                   <option key={roleOption} value={roleOption} className="text-slate-900">
@@ -375,7 +375,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
               </select>
               <button 
                 type="submit"
-                className="bg-indigo-500 hover:bg-indigo-600 text-white p-3 px-6 h-10 rounded-lg active:scale-95 transition-all duration-200 flex items-center gap-2 font-bold text-sm"
+                className="bg-[#00a884] hover:bg-[#008069] text-white p-3 px-6 h-10 rounded-xl active:scale-95 transition-all duration-200 flex items-center gap-2 font-bold text-sm"
               >
                 <UserPlus className="w-5 h-5" />
                 Create User
@@ -401,7 +401,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
                 value={targetPoints}
                 onChange={(e) => setTargetPoints(e.target.value)}
                 min="1"
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                className="w-full bg-white border border-[#d1d7db] rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#00a884] transition-all"
                 required
               />
             </div>
@@ -412,14 +412,14 @@ const TeamManager: React.FC<TeamManagerProps> = ({
                 value={rewardName}
                 onChange={(e) => setRewardName(e.target.value)}
                 placeholder="e.g., Bonus Day Off"
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                className="w-full bg-white border border-[#d1d7db] rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#00a884] transition-all"
                 required
               />
             </div>
           </div>
           <button 
             type="submit"
-            className="w-full bg-purple-600 text-white py-3 rounded-xl active:scale-95 transition-transform flex items-center justify-center gap-2 shadow-lg shadow-purple-100 font-bold"
+            className="w-full bg-[#00a884] text-white py-3 rounded-xl active:scale-95 transition-transform flex items-center justify-center gap-2 shadow-lg shadow-[#00a884]/20 font-bold"
           >
             <Target className="w-5 h-5" />
             Update Reward
@@ -461,7 +461,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="font-bold text-lg text-purple-600">{emp.points}</p>
+                  <p className="font-bold text-lg text-[#008069]">{emp.points}</p>
                   <p className="text-xs text-slate-500">points</p>
                 </div>
               </div>
@@ -474,7 +474,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
             <p className="text-sm text-slate-500 mb-4">No team members yet.</p>
             <button 
               onClick={handleRefresh}
-              className="bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-700 active:scale-95 transition-all flex items-center gap-2 mx-auto mb-4"
+              className="bg-[#00a884] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#008069] active:scale-95 transition-all flex items-center gap-2 mx-auto mb-4"
             >
               <RefreshCw className="w-4 h-4" />
               Refresh List
@@ -493,7 +493,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
 
       <div className="space-y-2">
         
-        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider px-1">Registered Team ({teamMembers.length})</h3>
+        <h3 className="text-xs font-bold text-[#54656f] uppercase tracking-wider px-1">Registered Team ({teamMembers.length})</h3>
         {teamMembers.length > 0 ? (
           teamMembers.map((emp) => {
             // Strict safety filter: prevent all invalid data from rendering
@@ -502,27 +502,29 @@ const TeamManager: React.FC<TeamManagerProps> = ({
             return (
             <div 
               key={emp.id} 
-              className="bg-white p-4 rounded-2xl border border-slate-200 flex items-center justify-between group transition-all active:bg-slate-50"
+              className="bg-white p-4 rounded-2xl border border-[#d1d7db] flex items-start justify-between gap-3 group transition-all hover:bg-[#f5f6f6]"
             >
               <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${emp.role === 'manager' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${emp.role === 'manager' || emp.role === 'super_admin' ? 'bg-[#d9fdd3] text-[#008069]' : 'bg-[#e9edef] text-[#54656f]'}`}>
                   {emp.name.charAt(0).toUpperCase()}
                 </div>
                 <div>
-                  <p className="font-semibold text-slate-700">{emp.name}</p>
+                  <p className="font-semibold text-[#202c33]">{emp.name}</p>
                   <div className="flex items-center gap-2">
-                    <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${emp.role === 'manager' ? 'bg-amber-500 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                    <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${emp.role === 'super_admin' || emp.role === 'owner' ? 'bg-[#202c33] text-white' : emp.role === 'manager' ? 'bg-[#00a884] text-white' : 'bg-[#e9edef] text-[#54656f]'}`}>
                       {emp.role}
                     </span>
-                    <span className="text-[10px] text-slate-400 font-medium">{emp.mobile}</span>
+                    <span className="text-[10px] text-[#667781] font-medium">{emp.mobile}</span>
                     {SHOW_POINTS_SYSTEM && (
-                    <span className="text-[9px] font-black text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded">
+                    <span className="text-[9px] font-black text-[#008069] bg-[#d9fdd3] px-1.5 py-0.5 rounded">
                       {emp.points} pts
                     </span>
                     )}
                   </div>
                 </div>
               </div>
+              <div className="flex flex-col items-end gap-2 shrink-0">
+                <span className="text-[10px] font-semibold text-[#00a884]">ACTIVE</span>
               {(currentUser.role === 'super_admin' || currentUser.role === 'owner') && (
                 <button 
                   type="button"
@@ -547,13 +549,14 @@ const TeamManager: React.FC<TeamManagerProps> = ({
                   <Trash2 className="w-5 h-5" />
                 </button>
               )}
+              </div>
             </div>
             );
           })
         ) : (
-          <div className="text-center py-12 bg-slate-100/50 rounded-3xl border border-dashed border-slate-200">
+          <div className="text-center py-12 bg-[#f0f2f5] rounded-3xl border border-dashed border-[#d1d7db]">
             <User className="w-10 h-10 mx-auto mb-2 text-slate-300" />
-            <p className="text-sm text-slate-500">No staff members registered yet.</p>
+            <p className="text-sm text-[#667781]">No staff members registered yet.</p>
           </div>
         )}
       </div>

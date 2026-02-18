@@ -599,29 +599,29 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
   };
 
   return (
-    <div className="flex flex-col min-h-screen max-w-md mx-auto bg-gradient-to-br from-[#F6F1FF] via-[#F3EEFF] to-[#ECE4FF] items-center justify-start sm:justify-center p-4 sm:p-8 relative overflow-x-hidden overflow-y-auto font-sans">
+    <div className="flex flex-col min-h-screen max-w-md mx-auto bg-[#efeae2] items-center justify-start sm:justify-center p-4 sm:p-6 relative overflow-x-hidden overflow-y-auto font-sans">
       {/* Premium Gradient Overlays */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[120%] h-[50%] bg-fuchsia-400/20 blur-[120px] rounded-full" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[80%] h-[40%] bg-violet-400/20 blur-[120px] rounded-full" />
+        <div className="absolute top-[-10%] left-[-10%] w-[120%] h-[50%] bg-[#00a884]/10 blur-[120px] rounded-full" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[80%] h-[40%] bg-[#008069]/10 blur-[120px] rounded-full" />
       </div>
 
       <div className="z-10 w-full py-4 sm:py-0 pb-8">
         <div className="flex justify-center mb-8 sm:mb-12">
-          <div className="bg-gradient-to-br from-violet-500 to-fuchsia-500 p-5 rounded-[2.5rem] shadow-[0_20px_50px_rgba(147,51,234,0.3)] animate-pulse-slow">
+          <div className="bg-[#00a884] p-5 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,168,132,0.28)] animate-pulse-slow">
             <ClipboardList className="w-10 h-10 text-white" />
           </div>
         </div>
 
         <div className="w-full max-w-sm mx-auto">
-          <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-6 sm:p-8 border border-violet-100 shadow-2xl shadow-violet-200/40">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#d1d7db] shadow-2xl shadow-[#111b21]/10">
             {/* Header */}
             <div className="text-center mb-8">
-              <div className="inline-flex items-center gap-3 bg-gradient-to-r from-violet-100 to-fuchsia-100 p-4 rounded-2xl mb-4">
-                {isLogin ? <ShieldCheck className="w-8 h-8 text-violet-600" /> : <Building2 className="w-8 h-8 text-violet-600" />}
+              <div className="inline-flex items-center gap-3 bg-[#d9fdd3] p-4 rounded-2xl mb-4">
+                {isLogin ? <ShieldCheck className="w-8 h-8 text-[#008069]" /> : <Building2 className="w-8 h-8 text-[#008069]" />}
                 <div>
-                  <h1 className="text-2xl font-black text-slate-900">TaskPro</h1>
-                  <p className="text-violet-700 text-sm">{isLogin ? 'Secure Employee Portal' : 'Create Company Account'}</p>
+                  <h1 className="text-2xl font-black text-[#202c33]">TaskPro</h1>
+                  <p className="text-[#008069] text-sm">{isLogin ? 'Secure Employee Portal' : 'Create Company Account'}</p>
                 </div>
               </div>
               <p className="text-slate-500 text-xs">{isLogin ? 'Enter your credentials to access system' : 'Create your company account'}</p>
@@ -634,8 +634,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
                 onClick={() => setIsLogin(true)}
                 className={`flex-1 py-2 px-4 rounded-lg font-medium transition-all ${
                   isLogin 
-                    ? 'bg-violet-600 text-white shadow-sm shadow-violet-200/80'
-                    : 'bg-white text-slate-600 hover:bg-violet-50 border border-violet-100'
+                    ? 'bg-[#00a884] text-white shadow-sm shadow-[#00a884]/30'
+                    : 'bg-white text-slate-600 hover:bg-[#f0f2f5] border border-[#d1d7db]'
                 }`}
               >
                 Login
@@ -645,8 +645,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
                 onClick={() => setIsLogin(false)}
                 className={`flex-1 py-2 px-4 rounded-lg font-medium transition-all ${
                   !isLogin 
-                    ? 'bg-violet-600 text-white shadow-sm shadow-violet-200/80'
-                    : 'bg-white text-slate-600 hover:bg-violet-50 border border-violet-100'
+                    ? 'bg-[#00a884] text-white shadow-sm shadow-[#00a884]/30'
+                    : 'bg-white text-slate-600 hover:bg-[#f0f2f5] border border-[#d1d7db]'
                 }`}
               >
                 Sign Up
@@ -668,7 +668,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="john@company.com"
-                      className="w-full bg-white/90 border border-violet-100 rounded-xl px-12 py-4 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-400 focus:border-transparent transition-all"
+                      className="w-full bg-white border border-[#d1d7db] rounded-xl px-12 py-4 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#00a884] focus:border-transparent transition-all"
                       required
                     />
                   </div>
@@ -686,7 +686,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="Enter your password"
-                      className="w-full bg-white/90 border border-violet-100 rounded-xl px-12 py-4 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-400 focus:border-transparent transition-all pr-12"
+                      className="w-full bg-white border border-[#d1d7db] rounded-xl px-12 py-4 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#00a884] focus:border-transparent transition-all pr-12"
                       required
                     />
                     <button
@@ -709,7 +709,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
                 <button
                   type="submit"
                   disabled={loading || !email.trim() || !password.trim()}
-                  className="w-full bg-violet-600 hover:bg-violet-700 text-white font-black py-5 rounded-lg shadow-lg shadow-violet-200 active:scale-95 transition-all duration-200 flex items-center justify-center gap-3 disabled:opacity-40"
+                  className="w-full bg-[#00a884] hover:bg-[#008069] text-white font-black py-5 rounded-lg shadow-lg shadow-[#00a884]/30 active:scale-95 transition-all duration-200 flex items-center justify-center gap-3 disabled:opacity-40"
                 >
                   {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <><span>Sign In</span> <ArrowRight className="w-5 h-5" /></>}
                 </button>
@@ -729,7 +729,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
                       value={companyName}
                       onChange={(e) => setCompanyName(e.target.value)}
                       placeholder="Your Company Name"
-                      className="w-full bg-white/90 border border-violet-100 rounded-xl px-12 py-4 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-400 focus:border-transparent transition-all"
+                      className="w-full bg-white border border-[#d1d7db] rounded-xl px-12 py-4 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#00a884] focus:border-transparent transition-all"
                       required
                     />
                   </div>
@@ -747,7 +747,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
                       value={adminName}
                       onChange={(e) => setAdminName(e.target.value)}
                       placeholder="Admin Full Name"
-                      className="w-full bg-white/90 border border-violet-100 rounded-xl px-12 py-4 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-400 focus:border-transparent transition-all"
+                      className="w-full bg-white border border-[#d1d7db] rounded-xl px-12 py-4 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#00a884] focus:border-transparent transition-all"
                       required
                     />
                   </div>
@@ -765,7 +765,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
                       value={adminMobile}
                       onChange={(e) => setAdminMobile(e.target.value)}
                       placeholder="+1234567890"
-                      className="w-full bg-white/90 border border-violet-100 rounded-xl px-12 py-4 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-400 focus:border-transparent transition-all"
+                      className="w-full bg-white border border-[#d1d7db] rounded-xl px-12 py-4 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#00a884] focus:border-transparent transition-all"
                       required
                     />
                   </div>
@@ -783,7 +783,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="admin@company.com"
-                      className="w-full bg-white/90 border border-violet-100 rounded-xl px-12 py-4 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-400 focus:border-transparent transition-all"
+                      className="w-full bg-white border border-[#d1d7db] rounded-xl px-12 py-4 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#00a884] focus:border-transparent transition-all"
                       required
                     />
                   </div>
@@ -801,7 +801,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="Create a strong password"
-                      className="w-full bg-white/90 border border-violet-100 rounded-xl px-12 py-4 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-400 focus:border-transparent transition-all pr-12"
+                      className="w-full bg-white border border-[#d1d7db] rounded-xl px-12 py-4 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#00a884] focus:border-transparent transition-all pr-12"
                       required
                     />
                     <button
@@ -824,7 +824,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
                 <button
                   type="submit"
                   disabled={loading || !email.trim() || !password.trim() || !companyName.trim() || !adminName.trim() || !adminMobile.trim()}
-                  className="w-full bg-violet-600 hover:bg-violet-700 text-white font-black py-5 rounded-lg shadow-lg shadow-violet-200 active:scale-95 transition-all duration-200 flex items-center justify-center gap-3 disabled:opacity-40"
+                  className="w-full bg-[#00a884] hover:bg-[#008069] text-white font-black py-5 rounded-lg shadow-lg shadow-[#00a884]/30 active:scale-95 transition-all duration-200 flex items-center justify-center gap-3 disabled:opacity-40"
                 >
                   {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <><span>Create Company</span> <ArrowRight className="w-5 h-5" /></>}
                 </button>
@@ -832,9 +832,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
             )}
 
             {/* Info Section */}
-            <div className="mt-8 p-4 bg-violet-50/70 rounded-2xl border border-violet-100">
+            <div className="mt-8 p-4 bg-[#f0f2f5] rounded-2xl border border-[#d1d7db]">
               <div className="flex items-start gap-3">
-                <Info className="w-4 h-4 text-violet-600 mt-0.5 shrink-0" />
+                <Info className="w-4 h-4 text-[#008069] mt-0.5 shrink-0" />
                 <div>
                   <p className="text-slate-600 text-xs leading-relaxed">
                     <strong className="text-slate-800">{isLogin ? 'Secure Access:' : 'Company Setup:'}</strong> {isLogin ? 'Your login credentials are encrypted and protected with enterprise-grade security.' : 'Create your company account and start managing tasks efficiently.'}

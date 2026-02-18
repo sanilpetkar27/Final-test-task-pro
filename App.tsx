@@ -1266,8 +1266,8 @@ const App: React.FC = () => {
 
   if (!appReady) {
     return (
-      <div className="h-screen bg-gradient-to-br from-[#F6F1FF] to-[#ECE4FF] flex flex-col items-center justify-center text-slate-900 p-8">
-        <Loader2 className="w-12 h-12 text-violet-600 animate-spin mb-4" />
+      <div className="h-screen bg-[#efeae2] flex flex-col items-center justify-center text-slate-900 p-8">
+        <Loader2 className="w-12 h-12 text-[#00a884] animate-spin mb-4" />
         <p className="text-xs font-black uppercase tracking-[0.3em] text-slate-500">Starting App...</p>
       </div>
     );
@@ -1275,9 +1275,9 @@ const App: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex flex-col h-screen max-w-md mx-auto bg-gradient-to-br from-[#F6F1FF] to-[#ECE4FF] items-center justify-center p-8 relative overflow-hidden font-sans">
+      <div className="flex flex-col h-screen max-w-md mx-auto bg-[#efeae2] items-center justify-center p-8 relative overflow-hidden font-sans">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 text-violet-600 animate-spin mx-auto mb-4" />
+          <Loader2 className="w-12 h-12 text-[#00a884] animate-spin mx-auto mb-4" />
           <p className="text-slate-900 text-lg font-semibold">Loading data...</p>
           <p className="text-slate-500 text-sm mt-2">Please wait while we connect to the database</p>
         </div>
@@ -1314,20 +1314,20 @@ const App: React.FC = () => {
   const isSuperAdmin = currentUser.role === 'super_admin';
 
   return (
-    <div className="flex flex-col h-screen max-w-md mx-auto bg-gradient-to-br from-[#F8F4FF] via-[#F3EEFF] to-[#ECE4FF] relative overflow-hidden font-sans">
+    <div className="flex flex-col h-screen max-w-md mx-auto bg-[#efeae2] relative overflow-hidden font-sans">
 
       {/* Notification Banner */}
       {notification && (
         <div className="fixed top-2 left-2 right-2 max-w-md mx-auto z-[100] animate-in slide-in-from-top-4 duration-500">
-          <div className="bg-white/95 text-slate-900 p-4 rounded-2xl shadow-2xl border border-violet-200 flex items-center gap-4">
-            <div className="bg-violet-600 p-2 rounded-xl">
+          <div className="bg-[#202c33] text-white p-4 rounded-2xl shadow-2xl border border-[#111b21] flex items-center gap-4">
+            <div className="bg-[#00a884] p-2 rounded-xl">
               <Bell className="w-5 h-5 animate-bounce text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-widest text-violet-600">{notification.title}</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-[#86ead8]">{notification.title}</p>
               <p className="text-sm font-bold truncate">{notification.message}</p>
             </div>
-            <button onClick={() => setNotification(null)} className="p-1 hover:bg-violet-50 rounded-lg">
+            <button onClick={() => setNotification(null)} className="p-1 hover:bg-white/10 rounded-lg">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -1335,16 +1335,16 @@ const App: React.FC = () => {
       )}
 
       {/* Header */}
-      <header className="bg-white/80 backdrop-blur-md text-slate-800 p-5 pt-safe-top sticky top-0 z-30 flex items-center justify-between shadow-md border-b border-slate-200/50" style={{ paddingTop: 'max(3rem, 1.25rem)' }}>
+      <header className="bg-[#202c33] text-white p-5 pt-safe-top sticky top-0 z-30 flex items-center justify-between shadow-md border-b border-[#111b21]" style={{ paddingTop: 'max(3rem, 1.25rem)' }}>
         <div className="flex items-center gap-2">
-          <div className="bg-violet-500 p-1.5 rounded-lg shadow-lg shadow-violet-500/20">
+          <div className="bg-[#00a884] p-1.5 rounded-lg shadow-lg shadow-[#00a884]/30">
             <LayoutDashboard className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-lg font-black tracking-tighter italic leading-none text-slate-800">TaskPro</h1>
+            <h1 className="text-lg font-black tracking-tighter italic leading-none text-white">TaskPro</h1>
             <div className="flex items-center gap-1.5 mt-1">
-              <div className={`w-1.5 h-1.5 rounded-full ${isSyncing ? 'bg-indigo-500 animate-pulse' : 'bg-emerald-500'}`} />
-              <span className="text-[7px] font-black uppercase tracking-widest text-slate-500">
+              <div className={`w-1.5 h-1.5 rounded-full ${isSyncing ? 'bg-[#25d366] animate-pulse' : 'bg-[#25d366]'}`} />
+              <span className="text-[7px] font-black uppercase tracking-widest text-slate-300">
                 {isSyncing ? 'Syncing...' : 'Online'}
               </span>
             </div>
@@ -1353,12 +1353,12 @@ const App: React.FC = () => {
 
         <div className="flex items-center gap-4">
           <div className="text-right">
-            <p className="text-[10px] font-black leading-none text-slate-800">{currentUser.name}</p>
-            <p className="text-[8px] text-violet-600 uppercase font-black tracking-widest mt-0.5">{currentUser.role}</p>
+            <p className="text-[10px] font-black leading-none text-white">{currentUser.name}</p>
+            <p className="text-[8px] text-[#25d366] uppercase font-black tracking-widest mt-0.5">{currentUser.role}</p>
           </div>
           <button
             onClick={handleLogout}
-            className="p-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600 hover:text-slate-800 transition-all border border-slate-200"
+            className="p-2.5 bg-[#2a3942] hover:bg-[#374248] rounded-xl text-slate-100 transition-all border border-[#41525d]"
           >
             <LogOut className="w-4 h-4" />
           </button>
@@ -1408,7 +1408,7 @@ const App: React.FC = () => {
       </main>
 
       {/* Simplified Bottom Nav (Dashboard, Tasks, Team) */}
-      <nav className="bg-white border-t border-slate-200 fixed bottom-0 left-0 right-0 max-w-md mx-auto z-40 safe-bottom shadow-[0_-10px_40px_rgba(15,23,42,0.1)] rounded-t-[2.5rem]">
+      <nav className="bg-[#f0f2f5] border-t border-[#d1d7db] fixed bottom-0 left-0 right-0 max-w-md mx-auto z-40 safe-bottom shadow-[0_-10px_40px_rgba(17,27,33,0.08)] rounded-t-[2.5rem]">
         <div className="flex justify-around items-center h-20 px-2">
 
           {/* Hidden: Business Overview Tab */}
@@ -1443,8 +1443,8 @@ const App: React.FC = () => {
 };
 
 const NavBtn = ({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: any, label: string }) => (
-  <button onClick={onClick} className={`flex-1 flex flex-col items-center gap-1.5 transition-all duration-200 min-w-[70px] ${active ? 'text-violet-600' : 'text-slate-400'}`}>
-    <div className={`p-2.5 rounded-[1.2rem] transition-all duration-500 rounded-lg ${active ? 'bg-violet-50 scale-110 shadow-inner ring-4 ring-violet-500/10' : ''}`}>{icon}</div>
+  <button onClick={onClick} className={`flex-1 flex flex-col items-center gap-1.5 transition-all duration-200 min-w-[70px] ${active ? 'text-[#008069]' : 'text-slate-500'}`}>
+    <div className={`p-2.5 rounded-[1.2rem] transition-all duration-500 rounded-lg ${active ? 'bg-[#d9fdd3] scale-110 shadow-inner ring-4 ring-[#00a884]/10' : ''}`}>{icon}</div>
     <span className={`text-[8px] font-black uppercase tracking-[0.15em] ${active ? 'opacity-100' : 'opacity-40'}`}>{label}</span>
   </button>
 );

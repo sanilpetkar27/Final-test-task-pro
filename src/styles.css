@@ -2,11 +2,24 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --wa-bg: #efeae2;
+  --wa-surface: #f0f2f5;
+  --wa-card: #ffffff;
+  --wa-header: #202c33;
+  --wa-primary: #00a884;
+  --wa-primary-dark: #008069;
+  --wa-text: #202c33;
+  --wa-muted: #667781;
+  --wa-border: #d1d7db;
+}
+
 @layer base {
   body {
     font-family: 'Plus Jakarta Sans', sans-serif;
     -webkit-tap-highlight-color: transparent;
-    background-color: #f6f1ff;
+    background-color: var(--wa-bg);
+    color: var(--wa-text);
   }
 }
 
@@ -45,7 +58,7 @@ input[type='time'] {
   color: #1e293b !important;
   font-size: 16px !important;
   font-weight: 600 !important;
-  border: 2px solid #ddd6fe !important;
+  border: 1px solid #d1d7db !important;
   min-height: 48px !important;
   padding: 12px !important;
 }
@@ -53,7 +66,7 @@ input[type='time'] {
 input[type='date']:focus,
 input[type='datetime-local']:focus,
 input[type='time']:focus {
-  border-color: #8b5cf6 !important;
+  border-color: #00a884 !important;
   outline: none !important;
 }
 
@@ -64,7 +77,7 @@ input[type='datetime-local']::-webkit-calendar-picker-indicator {
   cursor: pointer;
   filter: invert(0);
   background: transparent;
-  color: #7c3aed;
+  color: #008069;
   font-size: 18px;
 }
 
