@@ -8,115 +8,198 @@ import { toast } from 'sonner';
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+const DEFAULT_COMPANY_ID = '00000000-0000-0000-0000-000000000001';
+
+const normalizeRole = (role: unknown): Employee['role'] => {
+  return role === 'owner' || role === 'manager' || role === 'staff' || role === 'super_admin'
+    ? role
+    : 'staff';
+};
+
+const isEmployeesPolicyError = (error: any): boolean => {
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes('infinite recursion') && message.includes('employees');
+};
+
+const toFallbackEmployee = (authUser: any, overrides: Partial<Employee> = {}): Employee => {
+  const metadata = authUser?.user_metadata || {};
+  const inferredEmail = String(overrides.email || authUser?.email || metadata.email || '').trim();
+  const inferredName = String(overrides.name || metadata.name || inferredEmail.split('@')[0] || 'User').trim();
+  const inferredMobile = String(overrides.mobile || metadata.mobile || '').trim();
+
+  return {
+    id: String(overrides.id || authUser?.id || `temp-${Date.now()}`),
+    name: inferredName || 'User',
+    email: inferredEmail || `${authUser?.id || 'user'}@taskpro.local`,
+    mobile: inferredMobile || String(authUser?.id || '0000000000').slice(0, 10),
+    role: normalizeRole(overrides.role || metadata.role),
+    points: Number(overrides.points || 0),
+    company_id: String(overrides.company_id || metadata.company_id || DEFAULT_COMPANY_ID),
+  };
+};
+
+const fetchEmployeeById = async (id: string) => {
+  return supabase
+    .from('employees')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+};
+
 /**
  * Handles robust login with retry logic to prevent race conditions
  */
 const handleAuthLogin = async (email: string, password: string) => {
-  console.log('🔐 Starting login for:', email);
-  
-  // 1. Sign In
+  console.log('Starting login for:', email);
+
   const { data: authData, error: authError } = await supabaseAuth.signInWithPassword({
     email,
     password,
   });
-  
+
   if (authError) {
-    console.error('❌ Auth error:', authError);
+    console.error('Auth error:', authError);
     throw authError;
   }
 
-  console.log('✅ Auth successful for user:', authData.user?.id);
+  if (!authData.user) {
+    throw new Error('Login failed: missing auth user.');
+  }
 
-  // 2. Retry Logic for Employee Record (Fixes "Employee not found" race condition)
+  console.log('Auth successful for user:', authData.user.id);
+
   let attempts = 0;
-  let employeeData = null;
+  let employeeData: Employee | null = null;
+  let lastEmployeeError: any = null;
 
   while (attempts < 3 && !employeeData) {
-    const { data, error } = await supabase
-      .from('employees')
-      .select('*')
-      .eq('id', authData.user.id)
-      .single();
+    const { data, error } = await fetchEmployeeById(authData.user.id);
+    lastEmployeeError = error;
 
     if (!error && data) {
-      employeeData = data;
-      console.log('✅ Employee data found:', employeeData);
+      employeeData = data as Employee;
+      console.log('Employee data found:', employeeData);
       break;
     }
-    
+
+    if (isEmployeesPolicyError(error)) {
+      console.warn('Employee policy issue detected. Falling back to auth metadata profile.');
+      break;
+    }
+
     console.log(`Attempt ${attempts + 1}: Employee DB record not ready yet, waiting...`);
-    await delay(1000); // Wait 1 second
+    await delay(1000);
     attempts++;
   }
 
   if (!employeeData) {
-    // One final check - sometimes the error is just 'PGRST116' (0 rows)
-    throw new Error("Login successful, but your employee profile is not ready. Please wait 10 seconds and try again.");
+    const fallbackEmployee = toFallbackEmployee(authData.user);
+
+    const { error: upsertError } = await supabase
+      .from('employees')
+      .upsert({
+        id: fallbackEmployee.id,
+        email: fallbackEmployee.email,
+        name: fallbackEmployee.name,
+        mobile: fallbackEmployee.mobile,
+        role: fallbackEmployee.role,
+        points: fallbackEmployee.points,
+        company_id: fallbackEmployee.company_id,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' });
+
+    if (!upsertError) {
+      const { data: recoveredEmployee } = await fetchEmployeeById(authData.user.id);
+      if (recoveredEmployee) {
+        return { user: authData.user, employee: recoveredEmployee as Employee, usedFallback: false };
+      }
+    } else {
+      console.warn('Employee sync failed during login:', upsertError);
+    }
+
+    console.warn('Using fallback profile for login.', lastEmployeeError || upsertError);
+    return { user: authData.user, employee: fallbackEmployee, usedFallback: true };
   }
 
-  return { user: authData.user, employee: employeeData };
+  return { user: authData.user, employee: employeeData, usedFallback: false };
 };
 
 /**
- * Handles robust signup with Forced Logout to prevent data leakage
+ * Handles robust signup with forced logout to prevent data leakage
  */
 const handleAuthSignup = async (companyName: string, adminName: string, mobile: string, email: string, password: string) => {
-  console.log("Starting Clean Signup Process...");
-  
-  // 1. FORCE LOGOUT (CRITICAL: Prevents creating data in previously logged-in account)
+  console.log('Starting clean signup process...');
+
   await supabaseAuth.signOut();
   localStorage.clear();
-  console.log('✅ Session cleared');
 
-  // 2. Create Company
   const { data: newCompany, error: companyError } = await supabase
     .from('companies')
-    .insert({ 
-      name: companyName, 
-      subscription_status: 'active' 
+    .insert({
+      name: companyName,
+      subscription_status: 'active',
     })
     .select()
     .single();
 
   if (companyError) throw companyError;
-  console.log("✅ Company Created:", newCompany.id);
 
-  // 3. Create Auth User
   const { data: authData, error: authError } = await supabaseAuth.signUp({
     email,
     password,
     options: {
-      data: { 
+      data: {
         company_id: newCompany.id,
         role: 'super_admin',
         name: adminName,
-        mobile: mobile
-      }
-    }
+        mobile,
+      },
+    },
   });
 
   if (authError) throw authError;
-  if (!authData.user) throw new Error("User creation failed");
-  console.log("✅ Auth User Created:", authData.user.id);
+  if (!authData.user) throw new Error('User creation failed');
 
-  // 4. Create Employee (Atomic Upsert)
-  // We strictly use 'newCompany.id' here to ensure isolation.
+  const fallbackEmployee = toFallbackEmployee(authData.user, {
+    id: authData.user.id,
+    email: email.trim(),
+    name: adminName.trim(),
+    mobile: mobile.trim(),
+    role: 'super_admin',
+    company_id: newCompany.id,
+    points: 0,
+  });
+
+  let profileSynced = true;
+
   const { error: employeeError } = await supabase
     .from('employees')
     .upsert({
       id: authData.user.id,
       name: adminName,
-      mobile: mobile,
+      mobile,
       role: 'super_admin',
-      company_id: newCompany.id, // STRICTLY use the variable, not state
+      email,
+      company_id: newCompany.id,
       points: 0,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     }, { onConflict: 'id' });
 
-  if (employeeError) throw employeeError;
-  console.log("✅ Employee Record Synced");
+  if (employeeError) {
+    profileSynced = false;
+    if (isEmployeesPolicyError(employeeError)) {
+      console.warn('Employee profile sync skipped due to DB policy recursion.');
+    } else {
+      console.warn('Employee profile sync failed:', employeeError);
+    }
+  }
 
-  return { user: authData.user, session: authData.session };
+  return {
+    user: authData.user,
+    session: authData.session,
+    employee: fallbackEmployee,
+    profileSynced,
+  };
 };
 
 interface LoginScreenProps {
@@ -147,32 +230,50 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
         // --- LOGIN FLOW ---
         const result = await handleAuthLogin(email, password);
         onLogin(result.employee);
-        toast.success('Welcome back!');
+        if (result.usedFallback) {
+          toast.warning('Logged in, but profile sync is pending. Please contact admin if this persists.');
+        } else {
+          toast.success('Welcome back!');
+        }
       } else {
         // --- SIGNUP FLOW ---
         const result = await handleAuthSignup(companyName, adminName, adminMobile, email, password);
-        
-        // Get the created employee record
-        const { data: employeeData } = await supabase
-          .from('employees')
-          .select('*')
-          .eq('id', result.user.id)
-          .single();
 
         if (result.session) {
           // Auto-login if session exists (Email confirmation disabled)
-          onLogin(employeeData);
+          onLogin(result.employee);
           toast.success('Company registered successfully!');
         } else {
           // Email confirmation enabled
-          onLogin(employeeData);
-          toast.success('Registration successful! Please check your email to verify.');
+          setIsLogin(true);
+          toast.success('Registration successful! Please verify your email, then sign in.');
+        }
+
+        if (!result.profileSynced) {
+          toast.warning('Account created, but employee profile sync is pending.');
         }
       }
     } catch (error: any) {
       console.error('Auth Error:', error);
-      setError(error.message || 'Authentication failed');
-      toast.error(error.message || 'Authentication failed');
+      const message = error?.message || 'Authentication failed';
+
+      // Defensive fallback for any legacy path still returning the old profile-ready error.
+      if (isLogin && String(message).toLowerCase().includes('employee profile is not ready')) {
+        try {
+          const { data: { session } } = await supabaseAuth.getSession();
+          if (session?.user) {
+            const fallbackEmployee = toFallbackEmployee(session.user);
+            onLogin(fallbackEmployee);
+            toast.warning('Logged in with fallback profile. Profile sync will complete shortly.');
+            return;
+          }
+        } catch (sessionError) {
+          console.warn('Fallback login after legacy error failed:', sessionError);
+        }
+      }
+
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }

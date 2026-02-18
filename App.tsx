@@ -19,11 +19,50 @@ import {
   X
 } from 'lucide-react';
 
+const DEFAULT_COMPANY_ID = '00000000-0000-0000-0000-000000000001';
+
+const normalizeRole = (role: unknown): Employee['role'] => {
+  return role === 'owner' || role === 'manager' || role === 'staff' || role === 'super_admin'
+    ? role
+    : 'staff';
+};
+
+const toFallbackEmployeeFromAuthUser = (authUser: any): Employee => {
+  const metadata = authUser?.user_metadata || {};
+  const email = String(authUser?.email || metadata.email || '').trim();
+  const name = String(metadata.name || email.split('@')[0] || 'User').trim();
+  const mobile = String(metadata.mobile || '').trim();
+
+  return {
+    id: String(authUser?.id || `temp-${Date.now()}`),
+    name: name || 'User',
+    email: email || `${authUser?.id || 'user'}@taskpro.local`,
+    mobile: mobile || String(authUser?.id || '0000000000').slice(0, 10),
+    role: normalizeRole(metadata.role),
+    points: 0,
+    company_id: String(metadata.company_id || DEFAULT_COMPANY_ID),
+  };
+};
+
 const App: React.FC = () => {
   // --- 1. USER & STATE MANAGEMENT ---
   const [currentUser, setCurrentUser] = useState<Employee | null>(() => {
-    const saved = localStorage.getItem('universal_app_user');
-    return saved && saved !== 'undefined' ? JSON.parse(saved) : null;
+    try {
+      const saved = localStorage.getItem('universal_app_user');
+      if (!saved || saved === 'undefined') return null;
+
+      const parsed = JSON.parse(saved);
+      return {
+        ...parsed,
+        role: normalizeRole(parsed?.role),
+        email: parsed?.email || `${parsed?.id || 'user'}@taskpro.local`,
+        company_id: parsed?.company_id || DEFAULT_COMPANY_ID,
+      } as Employee;
+    } catch (error) {
+      console.warn('Failed to parse cached user profile, clearing local cache.', error);
+      localStorage.removeItem('universal_app_user');
+      return null;
+    }
   });
 
   const [activeTab, setActiveTab] = useState<AppTab>(AppTab.TASKS);
@@ -179,33 +218,39 @@ const App: React.FC = () => {
     // Check for existing auth session on app load
     const checkAuthSession = async () => {
       try {
-        const { data: session, error } = await supabaseAuth.getSession();
-        
-        if (session?.user) {
-          console.log('🔐 Auth ID:', session.user.id);
-          
-          // Query employee by Auth ID (not mobile/email)
-          const { data: employeeData, error: empError } = await supabase
-            .from('employees')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
-          
-          console.log('👤 Employee Lookup Result:', employeeData);
-          
-          if (empError) {
-            console.error('Error fetching employee data:', empError);
-            setLoadError('Profile missing. Please contact Admin.');
-            return;
-          }
-          
-          if (employeeData) {
-            setCurrentUser(employeeData);
-            localStorage.setItem('universal_app_user', JSON.stringify(employeeData));
-          } else {
-            setLoadError('Profile missing. Please contact Admin.');
-          }
+        const { data: { session }, error } = await supabaseAuth.getSession();
+
+        if (error) {
+          console.error('Error fetching auth session:', error);
+          return;
         }
+
+        if (!session?.user) {
+          return;
+        }
+
+        const authUserId = session.user.id;
+        console.log('Auth session found:', authUserId);
+
+        const { data: employeeData, error: empError } = await supabase
+          .from('employees')
+          .select('*')
+          .eq('id', authUserId)
+          .maybeSingle();
+
+        if (employeeData) {
+          setCurrentUser(employeeData);
+          localStorage.setItem('universal_app_user', JSON.stringify(employeeData));
+          return;
+        }
+
+        if (empError) {
+          console.warn('Employee profile lookup failed on session restore. Using auth metadata fallback.', empError);
+        }
+
+        const fallbackUser = toFallbackEmployeeFromAuthUser(session.user);
+        setCurrentUser(fallbackUser);
+        localStorage.setItem('universal_app_user', JSON.stringify(fallbackUser));
       } catch (err) {
         console.error('Auth session check error:', err);
       } finally {
@@ -797,45 +842,34 @@ const App: React.FC = () => {
   };
 
   const handleLogin = async (user: Employee) => {
+    setCurrentUser(user);
+    localStorage.setItem('universal_app_user', JSON.stringify(user));
+    setActiveTab(AppTab.TASKS);
+
     try {
-      // Get current auth session to get the Auth ID
-      const { data: session } = await supabaseAuth.getSession();
-      
-      if (session?.user) {
-        console.log('🔐 Auth ID:', session.user.id);
-        
-        // Query employee by Auth ID (not mobile/email)
-        const { data: employeeData, error } = await supabase
-          .from('employees')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-        
-        console.log('👤 Employee Lookup Result:', employeeData);
-        
-        if (error) {
-          console.error('Error fetching employee data:', error);
-          setLoadError('Profile missing. Please contact Admin.');
-          return;
-        }
-        
-        if (employeeData) {
-          setCurrentUser(employeeData);
-          localStorage.setItem('universal_app_user', JSON.stringify(employeeData));
-        } else {
-          setLoadError('Profile missing. Please contact Admin.');
-        }
-      } else {
-        // Fallback to provided user data
-        setCurrentUser(user);
-        localStorage.setItem('universal_app_user', JSON.stringify(user));
+      const { data: { session } } = await supabaseAuth.getSession();
+      if (!session?.user) {
+        return;
+      }
+
+      const { data: employeeData, error } = await supabase
+        .from('employees')
+        .select('*')
+        .eq('id', session.user.id)
+        .maybeSingle();
+
+      if (employeeData) {
+        setCurrentUser(employeeData);
+        localStorage.setItem('universal_app_user', JSON.stringify(employeeData));
+        return;
+      }
+
+      if (error) {
+        console.warn('Using provided login profile because employee lookup failed.', error);
       }
     } catch (err) {
-      console.error('Login error:', err);
-      setCurrentUser(user);
-      localStorage.setItem('universal_app_user', JSON.stringify(user));
+      console.warn('Login profile sync skipped due to session/profile fetch error:', err);
     }
-    setActiveTab(AppTab.TASKS);
   };
 
   const handleLogout = () => {
@@ -888,9 +922,7 @@ const App: React.FC = () => {
   }
 
   if (!currentUser) {
-    // Filter employees by company_id to prevent data contamination
-    const companyEmployees = employees.filter(emp => emp.company_id === currentUser?.company_id);
-    return <LoginScreen employees={companyEmployees} onLogin={handleLogin} />;
+    return <LoginScreen employees={employees} onLogin={handleLogin} />;
   }
 
   const isManager = currentUser.role === 'manager' || currentUser.role === 'super_admin';
