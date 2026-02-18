@@ -60,7 +60,8 @@ const TeamManager: React.FC<TeamManagerProps> = ({
       console.log('🔍 Testing database connection...');
       const { data, error } = await supabase
         .from('employees')
-        .select('*');
+        .select('*')
+        .eq('company_id', currentUser.company_id);
       
       if (error) {
         console.error('❌ Connection Test Failed:', error);
@@ -90,13 +91,32 @@ const TeamManager: React.FC<TeamManagerProps> = ({
     try {
       setIsAdding(true);
       // 2. Call Server (RPC)
-      const { data, error } = await supabase.rpc('create_user_by_admin', {
+      let { data, error } = await supabase.rpc('create_user_by_admin', {
         email: newEmail.trim(),
         password: newPassword.trim(),
         name: newName.trim(),
         role: newRole,
-        mobile: newMobile.trim()
+        mobile: newMobile.trim(),
+        company_id: currentUser.company_id
       });
+
+      if (error) {
+        const message = String(error.message || '').toLowerCase();
+        const isLegacySignature = message.includes('function') && message.includes('create_user_by_admin');
+
+        // Backward compatibility if database still has old RPC signature without company_id.
+        if (isLegacySignature) {
+          const retry = await supabase.rpc('create_user_by_admin', {
+            email: newEmail.trim(),
+            password: newPassword.trim(),
+            name: newName.trim(),
+            role: newRole,
+            mobile: newMobile.trim()
+          });
+          data = retry.data;
+          error = retry.error;
+        }
+      }
 
       if (error) {
         console.error('Error creating user:', error);
