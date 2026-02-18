@@ -107,24 +107,45 @@ const TeamManager: React.FC<TeamManagerProps> = ({
         }
         return; // STOP here. Do not proceed.
       }
-      // 3. Success! NOW we create the object safely.
-      // 'data' from RPC is the new User ID (UUID string)
-      const safeId = typeof data === 'string' ? data : data?.id; 
-      const createdEmployee: Employee = {
-        id: safeId || `temp-${Date.now()}`,
-        name: newName.trim(),
-        role: newRole,
-        mobile: newMobile.trim(),
-        email: newEmail.trim(),
-        points: 0
-      };
-      
-      console.log('👤 New employee object created:', createdEmployee);
-      console.log('🔧 Source: TeamManager handleSubmit - ID:', createdEmployee.id, 'Source:', 'TeamManager');
-      
-      // 4. Call parent function to update state
-      onAddEmployee(newName.trim(), newMobile.trim(), newRole);
-      
+
+      // 3. Success! Ensure this user is linked to the current company.
+      const safeId = typeof data === 'string' ? data : data?.id;
+
+      if (safeId) {
+        const { error: companyPatchError } = await supabase
+          .from('employees')
+          .update({
+            company_id: currentUser.company_id,
+            name: newName.trim(),
+            email: newEmail.trim(),
+            mobile: newMobile.trim(),
+            role: newRole,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', safeId);
+
+        if (companyPatchError) {
+          console.warn('Could not patch new employee company context:', companyPatchError);
+        }
+      }
+
+      // 4. Refresh team list for this company; fallback to local add only if refresh fails.
+      if (setEmployees && currentUser.company_id) {
+        const { data: refreshedEmployees, error: refreshError } = await supabase
+          .from('employees')
+          .select('*')
+          .eq('company_id', currentUser.company_id);
+
+        if (!refreshError && refreshedEmployees) {
+          setEmployees(refreshedEmployees as Employee[]);
+        } else {
+          console.warn('Failed to refresh employees after create_user_by_admin:', refreshError);
+          onAddEmployee(newName.trim(), newMobile.trim(), newRole);
+        }
+      } else {
+        onAddEmployee(newName.trim(), newMobile.trim(), newRole);
+      }
+
       // 5. Cleanup
       toast.success('User created successfully!');
       setNewName('');
@@ -405,3 +426,4 @@ const TeamManager: React.FC<TeamManagerProps> = ({
 };
 
 export default TeamManager;
+

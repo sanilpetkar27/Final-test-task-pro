@@ -59,14 +59,20 @@ const findLegacyEmployeeProfile = async (authUser: any): Promise<Employee | null
   const authUserId = String(authUser?.id || '').trim();
   const authEmail = String(authUser?.email || '').trim().toLowerCase();
   const authMobile = normalizeMobile(authUser?.user_metadata?.mobile || authUser?.phone || '');
+  const authCompanyId = String(authUser?.user_metadata?.company_id || '').trim();
 
   if (authUserId) {
-    const { data: byAuthUserId, error: authUserIdError } = await supabase
+    let byAuthUserIdQuery = supabase
       .from('employees')
       .select('*')
       .eq('auth_user_id', authUserId)
-      .limit(1)
-      .maybeSingle();
+      .limit(1);
+
+    if (authCompanyId) {
+      byAuthUserIdQuery = byAuthUserIdQuery.eq('company_id', authCompanyId);
+    }
+
+    const { data: byAuthUserId, error: authUserIdError } = await byAuthUserIdQuery.maybeSingle();
 
     if (byAuthUserId) {
       return byAuthUserId as Employee;
@@ -78,12 +84,17 @@ const findLegacyEmployeeProfile = async (authUser: any): Promise<Employee | null
   }
 
   if (authEmail) {
-    const { data: byEmail, error: emailError } = await supabase
+    let byEmailQuery = supabase
       .from('employees')
       .select('*')
       .eq('email', authEmail)
-      .limit(1)
-      .maybeSingle();
+      .limit(1);
+
+    if (authCompanyId) {
+      byEmailQuery = byEmailQuery.eq('company_id', authCompanyId);
+    }
+
+    const { data: byEmail, error: emailError } = await byEmailQuery.maybeSingle();
 
     if (byEmail) {
       return byEmail as Employee;
@@ -95,10 +106,16 @@ const findLegacyEmployeeProfile = async (authUser: any): Promise<Employee | null
   }
 
   if (authMobile) {
-    const { data: mobileMatches, error: mobileError } = await supabase
+    let mobileQuery = supabase
       .from('employees')
       .select('*')
       .limit(200);
+
+    if (authCompanyId) {
+      mobileQuery = mobileQuery.eq('company_id', authCompanyId);
+    }
+
+    const { data: mobileMatches, error: mobileError } = await mobileQuery;
 
     if (mobileMatches && mobileMatches.length > 0) {
       const matchedByMobile = mobileMatches.find((emp: any) => normalizeMobile(emp?.mobile) === authMobile);

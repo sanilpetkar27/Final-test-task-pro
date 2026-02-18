@@ -81,6 +81,7 @@ const resolveEmployeeProfileFromAuthUser = async (authUser: any): Promise<Employ
   const authUserId = String(authUser?.id || '').trim();
   const authEmail = String(authUser?.email || '').trim().toLowerCase();
   const authMobile = normalizeMobile(authUser?.user_metadata?.mobile || authUser?.phone || '');
+  const authCompanyId = String(authUser?.user_metadata?.company_id || '').trim();
 
   if (authUserId) {
     const { data: byId, error: byIdError } = await supabase
@@ -98,12 +99,17 @@ const resolveEmployeeProfileFromAuthUser = async (authUser: any): Promise<Employ
       console.warn('Session profile lookup by id failed:', byIdError);
     }
 
-    const { data: byAuthUserId, error: byAuthUserIdError } = await supabase
+    let byAuthUserIdQuery = supabase
       .from('employees')
       .select('*')
       .eq('auth_user_id', authUserId)
-      .limit(1)
-      .maybeSingle();
+      .limit(1);
+
+    if (authCompanyId) {
+      byAuthUserIdQuery = byAuthUserIdQuery.eq('company_id', authCompanyId);
+    }
+
+    const { data: byAuthUserId, error: byAuthUserIdError } = await byAuthUserIdQuery.maybeSingle();
 
     if (byAuthUserId) {
       return byAuthUserId as Employee;
@@ -115,12 +121,17 @@ const resolveEmployeeProfileFromAuthUser = async (authUser: any): Promise<Employ
   }
 
   if (authEmail) {
-    const { data: byEmail, error: byEmailError } = await supabase
+    let byEmailQuery = supabase
       .from('employees')
       .select('*')
       .eq('email', authEmail)
-      .limit(1)
-      .maybeSingle();
+      .limit(1);
+
+    if (authCompanyId) {
+      byEmailQuery = byEmailQuery.eq('company_id', authCompanyId);
+    }
+
+    const { data: byEmail, error: byEmailError } = await byEmailQuery.maybeSingle();
 
     if (byEmail) {
       return byEmail as Employee;
@@ -132,10 +143,16 @@ const resolveEmployeeProfileFromAuthUser = async (authUser: any): Promise<Employ
   }
 
   if (authMobile) {
-    const { data: employeeRows, error: mobileError } = await supabase
+    let mobileQuery = supabase
       .from('employees')
       .select('*')
       .limit(200);
+
+    if (authCompanyId) {
+      mobileQuery = mobileQuery.eq('company_id', authCompanyId);
+    }
+
+    const { data: employeeRows, error: mobileError } = await mobileQuery;
 
     if (employeeRows && employeeRows.length > 0) {
       const matchedByMobile = employeeRows.find((emp: any) => normalizeMobile(emp?.mobile) === authMobile);
@@ -184,7 +201,9 @@ const App: React.FC = () => {
 
   // --- OneSignal Notification Setup ---
   useNotificationSetup({
+    userId: currentUser?.id || null,
     userMobile: currentUser?.mobile || null,
+    companyId: currentUser?.company_id || null,
     isLoggedIn: !!currentUser
   });
 
@@ -227,13 +246,25 @@ const App: React.FC = () => {
       }
       setLoadError(null);
 
-      // Fetch employees from Supabase
-      const { data: employeesData, error: employeesError } = await supabase
+      const activeCompanyId = currentUser?.company_id || null;
+
+      // Fetch employees from Supabase (company-scoped when available)
+      let employeesQuery = supabase
         .from('employees')
         .select('*');
 
-      // Fetch tasks from Supabase with role-based filtering
+      if (activeCompanyId) {
+        employeesQuery = employeesQuery.eq('company_id', activeCompanyId);
+      }
+
+      const { data: employeesData, error: employeesError } = await employeesQuery;
+
+      // Fetch tasks from Supabase with role + company filtering
       let tasksQuery = supabase.from('tasks').select('*');
+
+      if (activeCompanyId) {
+        tasksQuery = tasksQuery.eq('company_id', activeCompanyId);
+      }
       
       // Apply role-based filtering using currentUser from state
       if (
@@ -312,13 +343,25 @@ const App: React.FC = () => {
     try {
       console.log('🔄 Fetching tasks...');
       
-      // Fetch employees from Supabase
-      const { data: employeesData, error: employeesError } = await supabase
+      const activeCompanyId = currentUser?.company_id || null;
+
+      // Fetch employees from Supabase (company-scoped when available)
+      let employeesQuery = supabase
         .from('employees')
         .select('*');
 
-      // Fetch tasks from Supabase with role-based filtering
+      if (activeCompanyId) {
+        employeesQuery = employeesQuery.eq('company_id', activeCompanyId);
+      }
+
+      const { data: employeesData, error: employeesError } = await employeesQuery;
+
+      // Fetch tasks from Supabase with role + company filtering
       let tasksQuery = supabase.from('tasks').select('*');
+
+      if (activeCompanyId) {
+        tasksQuery = tasksQuery.eq('company_id', activeCompanyId);
+      }
       
       // Apply role-based filtering using currentUser from state
       if (
@@ -345,7 +388,7 @@ const App: React.FC = () => {
     } catch (err) {
       console.error('🚨 Unexpected error fetching tasks:', err);
     }
-  }, [fetchTasksRef]); // Add fetchTasks to dependencies
+  }, [currentUser?.id, currentUser?.role, currentUser?.company_id]); // Keep scoped to active user/company
 
   // Keep ref updated with latest fetchTasks function
   useEffect(() => {
@@ -402,14 +445,20 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    // Initial Load
+    if (!currentUser) {
+      setEmployees([]);
+      setTasks([]);
+      return;
+    }
+
+    // Initial Load for the active logged-in user/company
     loadInitialData(false).then(data => {
       if (data) {
         setEmployees(data.employees);
         setTasks(data.tasks);
       }
     });
-  }, []);
+  }, [currentUser?.id, currentUser?.company_id, currentUser?.role]);
 
   // --- REALTIME SUBSCRIPTION FOR TASKS ---
   useEffect(() => {
@@ -546,6 +595,10 @@ const App: React.FC = () => {
 
   // --- APP RESUME LISTENERS FOR TASK SYNC ---
   useEffect(() => {
+    if (!currentUser) {
+      return;
+    }
+
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         console.log('📱 App became visible, refreshing tasks...');
@@ -577,7 +630,7 @@ const App: React.FC = () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };
-  }, []);
+  }, [currentUser?.id, currentUser?.company_id, currentUser?.role]);
 
   // --- 3. EFFECTS (Notifications & Auto-Save) ---
 
@@ -932,30 +985,39 @@ const App: React.FC = () => {
   };
 
   const addEmployee = async (name: string, mobile: string, role: UserRole = 'staff') => {
-    const newEmployee = { id: `emp-${Date.now()}`, name, mobile, role, points: 0 };
-    
-    console.log('📝 Adding employee:', newEmployee);
-    
-    // Add to local state IMMEDIATELY for instant UI feedback
+    if (!currentUser) return;
+
+    const newEmployee: Employee = {
+      id: `emp-${Date.now()}`,
+      name,
+      mobile,
+      role,
+      points: 0,
+      email: `${mobile}@taskpro.local`,
+      company_id: currentUser.company_id || DEFAULT_COMPANY_ID
+    };
+
+    console.log('Adding employee:', newEmployee);
+
+    // Add to local state immediately for instant UI feedback
     setEmployees(prev => [...prev, newEmployee]);
-    console.log('✅ Employee added to local state immediately');
 
     try {
-      // Insert employee into Supabase
       const { data, error } = await supabase
         .from('employees')
-        .insert([newEmployee]);
-      
+        .insert([newEmployee])
+        .select()
+        .maybeSingle();
+
       if (error) {
-        console.error('❌ Error adding employee to database:', error);
+        console.error('Error adding employee to database:', error);
         toast.error(`Database Error: ${error.message}. Employee added locally.`);
-      } else if (data && data.length > 0) {
-        console.log('✅ Employee synced with database:', data[0]);
-        // Update local state with the DB version (may have different ID)
-        setEmployees(prev => prev.map(e => e.id === newEmployee.id ? data[0] : e));
+      } else if (data) {
+        console.log('Employee synced with database:', data);
+        setEmployees(prev => prev.map(e => e.id === newEmployee.id ? data as Employee : e));
       }
     } catch (error) {
-      console.error('🚨 Unexpected error adding employee:', error);
+      console.error('Unexpected error adding employee:', error);
       toast.error(`Error: ${error instanceof Error ? error.message : 'Unknown error'}. Employee added locally.`);
     }
   };
@@ -972,7 +1034,8 @@ const App: React.FC = () => {
       const { error } = await supabase
         .from('employees')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .eq('company_id', currentUser?.company_id || DEFAULT_COMPANY_ID);
 
       if (error) {
         console.error('❌ Error removing employee from database:', error);
@@ -988,6 +1051,19 @@ const App: React.FC = () => {
   };
 
   const handleLogin = async (user: Employee) => {
+    try {
+      const rawCachedUser = localStorage.getItem(USER_CACHE_KEY);
+      if (rawCachedUser) {
+        const previousUser = JSON.parse(rawCachedUser) as Partial<Employee>;
+        if (previousUser?.company_id && user.company_id && previousUser.company_id !== user.company_id) {
+          localStorage.removeItem(EMPLOYEES_CACHE_KEY);
+          localStorage.removeItem(TASKS_CACHE_KEY);
+        }
+      }
+    } catch {
+      // Ignore cache parse issues and continue login flow.
+    }
+
     setCurrentUser(user);
     localStorage.setItem(USER_CACHE_KEY, JSON.stringify(user));
     setActiveTab(AppTab.TASKS);
@@ -1002,6 +1078,7 @@ const App: React.FC = () => {
         .from('employees')
         .select('*')
         .eq('id', session.user.id)
+        .eq('company_id', user.company_id || DEFAULT_COMPANY_ID)
         .maybeSingle();
 
       if (employeeData) {
@@ -1021,6 +1098,8 @@ const App: React.FC = () => {
   const handleLogout = () => {
     setCurrentUser(null);
     localStorage.removeItem(USER_CACHE_KEY);
+    localStorage.removeItem(EMPLOYEES_CACHE_KEY);
+    localStorage.removeItem(TASKS_CACHE_KEY);
   };
 
   // --- 5. RENDER UI ---
@@ -1210,4 +1289,5 @@ const NavBtn = ({ active, onClick, icon, label }: { active: boolean, onClick: ()
 );
 
 export default App;
+
 

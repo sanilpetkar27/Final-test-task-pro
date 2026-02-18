@@ -8,126 +8,98 @@ import {
 } from '../utils/notifications';
 
 interface UseNotificationSetupProps {
+  userId: string | null;
   userMobile: string | null;
+  companyId: string | null;
   isLoggedIn: boolean;
 }
 
 /**
- * Hook to set up OneSignal notifications when user logs in
- * 
- * Step A: Check if notifications are enabled. If not, show the native prompt.
- * Step B: Once user accepts, get the Subscription ID (Player ID).
- * Step C: Save this ID to the employees table for the current logged-in user.
+ * Hook to set up OneSignal notifications when user logs in.
+ * We scope writes by employee id + company id to avoid cross-tenant updates.
  */
-export const useNotificationSetup = ({ userMobile, isLoggedIn }: UseNotificationSetupProps) => {
-  
-  const saveOneSignalIdToDatabase = useCallback(async (oneSignalId: string, mobile: string) => {
+export const useNotificationSetup = ({ userId, userMobile, companyId, isLoggedIn }: UseNotificationSetupProps) => {
+  const saveOneSignalIdToDatabase = useCallback(async (oneSignalId: string, employeeId: string, tenantCompanyId: string) => {
     try {
-      console.log('💾 Saving OneSignal ID to database...', { oneSignalId, mobile });
-      
-      // First, fetch current value from database to prevent unnecessary updates
+      console.log('Saving OneSignal ID to database...', { oneSignalId, employeeId, companyId: tenantCompanyId });
+
       const { data: currentEmployee, error: fetchError } = await supabase
         .from('employees')
         .select('onesignal_id')
-        .eq('mobile', mobile)
-        .single();
-      
+        .eq('id', employeeId)
+        .eq('company_id', tenantCompanyId)
+        .maybeSingle();
+
       if (fetchError) {
-        console.error('❌ Failed to fetch current OneSignal ID:', fetchError);
+        console.error('Failed to fetch current OneSignal ID:', fetchError);
       } else if (currentEmployee && currentEmployee.onesignal_id === oneSignalId) {
-        console.log('✅ OneSignal ID already synced. Skipping update to prevent refresh loop.');
-        return; // STOP HERE - no update needed
+        console.log('OneSignal ID already synced. Skipping update to prevent refresh loop.');
+        return;
       }
-      
-      // Only update if the ID is actually different
+
       const { error } = await supabase
         .from('employees')
         .update({ onesignal_id: oneSignalId })
-        .eq('mobile', mobile);
-      
+        .eq('id', employeeId)
+        .eq('company_id', tenantCompanyId);
+
       if (error) {
-        console.error('❌ Failed to save OneSignal ID:', error);
+        console.error('Failed to save OneSignal ID:', error);
       } else {
-        console.log('✅ OneSignal ID saved to database');
+        console.log('OneSignal ID saved to database');
       }
     } catch (error) {
-      console.error('❌ Error saving OneSignal ID:', error);
+      console.error('Error saving OneSignal ID:', error);
     }
   }, []);
 
   const setupNotifications = useCallback(async () => {
-    if (!isLoggedIn || !userMobile) {
-      console.log('🔔 Skipping notification setup - user not logged in or no mobile');
+    if (!isLoggedIn || !userId || !companyId) {
+      console.log('Skipping notification setup - user not logged in or missing tenant context');
       return;
     }
 
     try {
-      console.log('🔔 Starting notification setup for user:', userMobile);
-      
-      // For localhost test mode, skip the permission flow and directly get/save ID
+      console.log('Starting notification setup for user:', userId);
+
       if (window.location.hostname === 'localhost') {
-        console.log('🧪 Localhost test mode - using mock OneSignal');
-        
-        // Check if we already have a mock ID in localStorage
         let testId = localStorage.getItem('mock_onesignal_id');
-        
+
         if (!testId) {
-          // Only generate a new ID if one doesn't exist
           testId = 'test-localhost-device-id-' + Math.random().toString(36).substr(2, 9);
           localStorage.setItem('mock_onesignal_id', testId);
-          console.log('🧪 Generated new mock OneSignal ID:', testId);
-        } else {
-          console.log('🧪 Using existing mock OneSignal ID:', testId);
         }
-        
-        await saveOneSignalIdToDatabase(testId, userMobile);
+
+        await saveOneSignalIdToDatabase(testId, userId, companyId);
         return;
       }
-      
-      // Step A: Check if notifications are enabled
+
       const isEnabled = await areNotificationsEnabled();
-      console.log('🔔 Notifications enabled:', isEnabled);
-      
       if (!isEnabled) {
-        console.log('🔔 Showing push notification prompt...');
         await promptPushNotifications();
-        
-        // Wait a moment for the user to respond to the prompt
         await new Promise(resolve => setTimeout(resolve, 2000));
       }
-      
-      // Step B: Get the OneSignal Subscription ID
+
       const subscriptionId = await getOneSignalSubscriptionId();
-      
       if (subscriptionId) {
-        console.log('🔔 Got subscription ID:', subscriptionId);
-        
-        // Step C: Save to database
-        await saveOneSignalIdToDatabase(subscriptionId, userMobile);
-      } else {
-        console.log('🔔 No subscription ID available - user may have declined notifications');
+        await saveOneSignalIdToDatabase(subscriptionId, userId, companyId);
       }
     } catch (error) {
-      console.error('❌ Error in notification setup:', error);
+      console.error('Error in notification setup:', error);
     }
-  }, [isLoggedIn, userMobile, saveOneSignalIdToDatabase]);
+  }, [isLoggedIn, userId, companyId, saveOneSignalIdToDatabase]);
 
   useEffect(() => {
-    console.log('🔔 useNotificationSetup effect triggered:', { isLoggedIn, userMobile });
-    
-    // Initialize OneSignal when the hook is first used
-    initializeOneSignal().then(() => {
-      console.log('🔔 OneSignal init complete, checking if should setup:', { isLoggedIn, userMobile });
-      // After initialization, set up notifications if user is logged in
-      if (isLoggedIn && userMobile) {
-        setupNotifications();
-      } else {
-        console.log('🔔 Skipping setup - not logged in or no mobile');
-      }
-    }).catch((err) => {
-      console.error('❌ OneSignal init failed:', err);
-    });
-  }, [isLoggedIn, userMobile, setupNotifications]);
+    initializeOneSignal()
+      .then(() => {
+        if (isLoggedIn && userId && companyId) {
+          setupNotifications();
+        }
+      })
+      .catch((err) => {
+        console.error('OneSignal init failed:', err);
+      });
+  }, [isLoggedIn, userId, userMobile, companyId, setupNotifications]);
 };
 
 export default useNotificationSetup;
