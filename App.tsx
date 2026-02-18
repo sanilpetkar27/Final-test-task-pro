@@ -518,6 +518,11 @@ const App: React.FC = () => {
         }
 
         if (!session?.user) {
+          // Prevent stale cached profile from bypassing login after refresh.
+          setCurrentUser(null);
+          localStorage.removeItem(USER_CACHE_KEY);
+          localStorage.removeItem(EMPLOYEES_CACHE_KEY);
+          localStorage.removeItem(TASKS_CACHE_KEY);
           return;
         }
 
@@ -1245,11 +1250,17 @@ const App: React.FC = () => {
     }
   };
 
-  const handleLogout = () => {
-    setCurrentUser(null);
-    localStorage.removeItem(USER_CACHE_KEY);
-    localStorage.removeItem(EMPLOYEES_CACHE_KEY);
-    localStorage.removeItem(TASKS_CACHE_KEY);
+  const handleLogout = async () => {
+    try {
+      await supabaseAuth.signOut();
+    } catch (error) {
+      console.warn('Auth sign-out failed, clearing local session anyway.', error);
+    } finally {
+      setCurrentUser(null);
+      localStorage.removeItem(USER_CACHE_KEY);
+      localStorage.removeItem(EMPLOYEES_CACHE_KEY);
+      localStorage.removeItem(TASKS_CACHE_KEY);
+    }
   };
 
   // --- 5. RENDER UI ---
