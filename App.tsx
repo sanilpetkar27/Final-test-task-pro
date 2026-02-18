@@ -44,6 +44,95 @@ const toFallbackEmployeeFromAuthUser = (authUser: any): Employee => {
   };
 };
 
+const normalizeMobile = (mobile: unknown): string => {
+  return String(mobile || '').replace(/\D/g, '');
+};
+
+const isMissingColumnError = (error: any): boolean => {
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes('column') && message.includes('does not exist');
+};
+
+const isEmployeesPolicyError = (error: any): boolean => {
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes('infinite recursion') && message.includes('employees');
+};
+
+const resolveEmployeeProfileFromAuthUser = async (authUser: any): Promise<Employee | null> => {
+  const authUserId = String(authUser?.id || '').trim();
+  const authEmail = String(authUser?.email || '').trim().toLowerCase();
+  const authMobile = normalizeMobile(authUser?.user_metadata?.mobile || authUser?.phone || '');
+
+  if (authUserId) {
+    const { data: byId, error: byIdError } = await supabase
+      .from('employees')
+      .select('*')
+      .eq('id', authUserId)
+      .limit(1)
+      .maybeSingle();
+
+    if (byId) {
+      return byId as Employee;
+    }
+
+    if (byIdError && !isEmployeesPolicyError(byIdError)) {
+      console.warn('Session profile lookup by id failed:', byIdError);
+    }
+
+    const { data: byAuthUserId, error: byAuthUserIdError } = await supabase
+      .from('employees')
+      .select('*')
+      .eq('auth_user_id', authUserId)
+      .limit(1)
+      .maybeSingle();
+
+    if (byAuthUserId) {
+      return byAuthUserId as Employee;
+    }
+
+    if (byAuthUserIdError && !isMissingColumnError(byAuthUserIdError) && !isEmployeesPolicyError(byAuthUserIdError)) {
+      console.warn('Session profile lookup by auth_user_id failed:', byAuthUserIdError);
+    }
+  }
+
+  if (authEmail) {
+    const { data: byEmail, error: byEmailError } = await supabase
+      .from('employees')
+      .select('*')
+      .eq('email', authEmail)
+      .limit(1)
+      .maybeSingle();
+
+    if (byEmail) {
+      return byEmail as Employee;
+    }
+
+    if (byEmailError && !isMissingColumnError(byEmailError) && !isEmployeesPolicyError(byEmailError)) {
+      console.warn('Session profile lookup by email failed:', byEmailError);
+    }
+  }
+
+  if (authMobile) {
+    const { data: employeeRows, error: mobileError } = await supabase
+      .from('employees')
+      .select('*')
+      .limit(200);
+
+    if (employeeRows && employeeRows.length > 0) {
+      const matchedByMobile = employeeRows.find((emp: any) => normalizeMobile(emp?.mobile) === authMobile);
+      if (matchedByMobile) {
+        return matchedByMobile as Employee;
+      }
+    }
+
+    if (mobileError && !isEmployeesPolicyError(mobileError)) {
+      console.warn('Session profile lookup by mobile failed:', mobileError);
+    }
+  }
+
+  return null;
+};
+
 const App: React.FC = () => {
   // --- 1. USER & STATE MANAGEMENT ---
   const [currentUser, setCurrentUser] = useState<Employee | null>(() => {
@@ -127,7 +216,13 @@ const App: React.FC = () => {
       let tasksQuery = supabase.from('tasks').select('*');
       
       // Apply role-based filtering using currentUser from state
-      if (employeesData && employeesData.length > 0 && currentUser) {
+      if (
+        employeesData &&
+        employeesData.length > 0 &&
+        currentUser &&
+        currentUser.role !== 'super_admin' &&
+        currentUser.role !== 'owner'
+      ) {
         // Filter for managers and staff: only their assigned or created tasks
         // Database uses camelCase: assignedTo, assignedBy
         tasksQuery = tasksQuery.or(`assignedTo.eq.${currentUser.id},assignedBy.eq.${currentUser.id}`);
@@ -188,7 +283,13 @@ const App: React.FC = () => {
       let tasksQuery = supabase.from('tasks').select('*');
       
       // Apply role-based filtering using currentUser from state
-      if (employeesData && employeesData.length > 0 && currentUser) {
+      if (
+        employeesData &&
+        employeesData.length > 0 &&
+        currentUser &&
+        currentUser.role !== 'super_admin' &&
+        currentUser.role !== 'owner'
+      ) {
         // Filter for managers and staff: only their assigned or created tasks
         // Database uses camelCase: assignedTo, assignedBy
         tasksQuery = tasksQuery.or(`assignedTo.eq.${currentUser.id},assignedBy.eq.${currentUser.id}`);
@@ -232,23 +333,24 @@ const App: React.FC = () => {
         const authUserId = session.user.id;
         console.log('Auth session found:', authUserId);
 
-        const { data: employeeData, error: empError } = await supabase
-          .from('employees')
-          .select('*')
-          .eq('id', authUserId)
-          .maybeSingle();
+        const resolvedProfile = await resolveEmployeeProfileFromAuthUser(session.user);
 
-        if (employeeData) {
-          setCurrentUser(employeeData);
-          localStorage.setItem('universal_app_user', JSON.stringify(employeeData));
+        if (resolvedProfile) {
+          setCurrentUser(resolvedProfile);
+          localStorage.setItem('universal_app_user', JSON.stringify(resolvedProfile));
           return;
         }
 
-        if (empError) {
-          console.warn('Employee profile lookup failed on session restore. Using auth metadata fallback.', empError);
+        const fallbackUser = toFallbackEmployeeFromAuthUser(session.user);
+
+        if (
+          currentUser &&
+          String(currentUser.email || '').toLowerCase() === String(fallbackUser.email || '').toLowerCase() &&
+          currentUser.role !== 'staff'
+        ) {
+          return;
         }
 
-        const fallbackUser = toFallbackEmployeeFromAuthUser(session.user);
         setCurrentUser(fallbackUser);
         localStorage.setItem('universal_app_user', JSON.stringify(fallbackUser));
       } catch (err) {
@@ -925,7 +1027,7 @@ const App: React.FC = () => {
     return <LoginScreen employees={employees} onLogin={handleLogin} />;
   }
 
-  const isManager = currentUser.role === 'manager' || currentUser.role === 'super_admin';
+  const isManager = currentUser.role === 'manager' || currentUser.role === 'super_admin' || currentUser.role === 'owner';
   const isSuperAdmin = currentUser.role === 'super_admin';
 
   return (

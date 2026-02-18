@@ -149,9 +149,9 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
 
   // Dashboard uses tasks from props, not fetched independently
 
-  const isManager = currentUser.role === 'manager'; // Only actual managers, not super_admin
+  const isManager = currentUser.role === 'manager' || currentUser.role === 'owner';
   const isSuperAdmin = currentUser.role === 'super_admin';
-  const canAssignTasks = currentUser.role === 'manager' || currentUser.role === 'super_admin'; // For UI permissions
+  const canAssignTasks = currentUser.role === 'manager' || currentUser.role === 'super_admin' || currentUser.role === 'owner'; // For UI permissions
 
   const handleAddTask = async (e: React.FormEvent) => {
     e.preventDefault();

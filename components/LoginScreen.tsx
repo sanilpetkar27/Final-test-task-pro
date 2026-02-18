@@ -46,6 +46,75 @@ const fetchEmployeeById = async (id: string) => {
     .maybeSingle();
 };
 
+const normalizeMobile = (mobile: unknown): string => {
+  return String(mobile || '').replace(/\D/g, '');
+};
+
+const isMissingColumnError = (error: any): boolean => {
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes('column') && message.includes('does not exist');
+};
+
+const findLegacyEmployeeProfile = async (authUser: any): Promise<Employee | null> => {
+  const authUserId = String(authUser?.id || '').trim();
+  const authEmail = String(authUser?.email || '').trim().toLowerCase();
+  const authMobile = normalizeMobile(authUser?.user_metadata?.mobile || authUser?.phone || '');
+
+  if (authUserId) {
+    const { data: byAuthUserId, error: authUserIdError } = await supabase
+      .from('employees')
+      .select('*')
+      .eq('auth_user_id', authUserId)
+      .limit(1)
+      .maybeSingle();
+
+    if (byAuthUserId) {
+      return byAuthUserId as Employee;
+    }
+
+    if (authUserIdError && !isMissingColumnError(authUserIdError) && !isEmployeesPolicyError(authUserIdError)) {
+      console.warn('Legacy profile lookup by auth_user_id failed:', authUserIdError);
+    }
+  }
+
+  if (authEmail) {
+    const { data: byEmail, error: emailError } = await supabase
+      .from('employees')
+      .select('*')
+      .eq('email', authEmail)
+      .limit(1)
+      .maybeSingle();
+
+    if (byEmail) {
+      return byEmail as Employee;
+    }
+
+    if (emailError && !isMissingColumnError(emailError) && !isEmployeesPolicyError(emailError)) {
+      console.warn('Legacy profile lookup by email failed:', emailError);
+    }
+  }
+
+  if (authMobile) {
+    const { data: mobileMatches, error: mobileError } = await supabase
+      .from('employees')
+      .select('*')
+      .limit(200);
+
+    if (mobileMatches && mobileMatches.length > 0) {
+      const matchedByMobile = mobileMatches.find((emp: any) => normalizeMobile(emp?.mobile) === authMobile);
+      if (matchedByMobile) {
+        return matchedByMobile as Employee;
+      }
+    }
+
+    if (mobileError && !isEmployeesPolicyError(mobileError)) {
+      console.warn('Legacy profile lookup by mobile failed:', mobileError);
+    }
+  }
+
+  return null;
+};
+
 /**
  * Handles robust login with retry logic to prevent race conditions
  */
@@ -90,6 +159,17 @@ const handleAuthLogin = async (email: string, password: string) => {
     console.log(`Attempt ${attempts + 1}: Employee DB record not ready yet, waiting...`);
     await delay(1000);
     attempts++;
+  }
+
+  if (!employeeData) {
+    const legacyEmployee = await findLegacyEmployeeProfile(authData.user);
+
+    if (legacyEmployee) {
+      if (legacyEmployee.id !== authData.user.id) {
+        console.log('Using legacy employee profile linked by identity:', legacyEmployee.id);
+      }
+      return { user: authData.user, employee: legacyEmployee, usedFallback: false };
+    }
   }
 
   if (!employeeData) {
@@ -229,8 +309,22 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
       if (isLogin) {
         // --- LOGIN FLOW ---
         const result = await handleAuthLogin(email, password);
-        onLogin(result.employee);
-        if (result.usedFallback) {
+        let loginEmployee = result.employee;
+        let usedFallback = result.usedFallback;
+
+        if (usedFallback) {
+          const emailMatch = employees.find(
+            (emp) => String(emp.email || '').trim().toLowerCase() === String(email).trim().toLowerCase()
+          );
+
+          if (emailMatch) {
+            loginEmployee = emailMatch;
+            usedFallback = false;
+          }
+        }
+
+        onLogin(loginEmployee);
+        if (usedFallback) {
           toast.warning('Logged in, but profile sync is pending. Please contact admin if this persists.');
         } else {
           toast.success('Welcome back!');
