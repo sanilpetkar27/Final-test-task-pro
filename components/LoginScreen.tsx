@@ -9,6 +9,15 @@ import { toast } from 'sonner';
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const DEFAULT_COMPANY_ID = '00000000-0000-0000-0000-000000000001';
+const PENDING_COMPANY_SIGNUP_KEY = 'pending_company_signup';
+
+interface PendingCompanySignup {
+  email: string;
+  companyName: string;
+  adminName: string;
+  mobile: string;
+  createdAt: number;
+}
 
 const normalizeRole = (role: unknown): Employee['role'] => {
   return role === 'owner' || role === 'manager' || role === 'staff' || role === 'super_admin'
@@ -44,6 +53,92 @@ const fetchEmployeeById = async (id: string) => {
     .select('*')
     .eq('id', id)
     .maybeSingle();
+};
+
+const readPendingCompanySignup = (): PendingCompanySignup | null => {
+  try {
+    const raw = localStorage.getItem(PENDING_COMPANY_SIGNUP_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PendingCompanySignup;
+    if (!parsed?.email || !parsed?.companyName || !parsed?.adminName || !parsed?.mobile) {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+const writePendingCompanySignup = (payload: PendingCompanySignup) => {
+  localStorage.setItem(PENDING_COMPANY_SIGNUP_KEY, JSON.stringify(payload));
+};
+
+const clearPendingCompanySignup = () => {
+  localStorage.removeItem(PENDING_COMPANY_SIGNUP_KEY);
+};
+
+const finalizeCompanySetupForUser = async (
+  authUser: any,
+  input: { companyName: string; adminName: string; mobile: string; email: string }
+) => {
+  const { data: newCompany, error: companyError } = await supabase
+    .from('companies')
+    .insert({
+      name: input.companyName,
+      subscription_status: 'active',
+    })
+    .select()
+    .single();
+
+  if (companyError) throw companyError;
+
+  const { error: metadataError } = await supabaseAuth.updateUser({
+    data: {
+      company_id: newCompany.id,
+      role: 'super_admin',
+      name: input.adminName,
+      mobile: input.mobile,
+    },
+  });
+
+  if (metadataError) {
+    console.warn('Auth metadata update failed during company setup:', metadataError);
+  }
+
+  const fallbackEmployee = toFallbackEmployee(authUser, {
+    id: authUser.id,
+    email: input.email.trim(),
+    name: input.adminName.trim(),
+    mobile: input.mobile.trim(),
+    role: 'super_admin',
+    company_id: newCompany.id,
+    points: 0,
+  });
+
+  let profileSynced = true;
+  const { error: employeeError } = await supabase
+    .from('employees')
+    .upsert({
+      id: authUser.id,
+      name: input.adminName.trim(),
+      mobile: input.mobile.trim(),
+      role: 'super_admin',
+      email: input.email.trim(),
+      company_id: newCompany.id,
+      points: 0,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'id' });
+
+  if (employeeError) {
+    profileSynced = false;
+    if (isEmployeesPolicyError(employeeError)) {
+      console.warn('Employee profile sync skipped due to DB policy recursion.');
+    } else {
+      console.warn('Employee profile sync failed:', employeeError);
+    }
+  }
+
+  return { employee: fallbackEmployee, profileSynced };
 };
 
 const normalizeMobile = (mobile: unknown): string => {
@@ -145,6 +240,18 @@ const handleAuthLogin = async (email: string, password: string) => {
 
   if (authError) {
     console.error('Auth error:', authError);
+    const authMessage = String(authError?.message || '').toLowerCase();
+    if (authMessage.includes('email not confirmed')) {
+      try {
+        await supabaseAuth.resend({
+          type: 'signup',
+          email: email.trim(),
+        });
+      } catch (resendError) {
+        console.warn('Could not resend verification email:', resendError);
+      }
+      throw new Error('Email not confirmed. Please verify your email from inbox/spam, then sign in again.');
+    }
     throw authError;
   }
 
@@ -153,6 +260,33 @@ const handleAuthLogin = async (email: string, password: string) => {
   }
 
   console.log('Auth successful for user:', authData.user.id);
+
+  const pendingSignup = readPendingCompanySignup();
+  const pendingMatchesUser =
+    !!pendingSignup &&
+    String(pendingSignup.email || '').trim().toLowerCase() ===
+      String(authData.user.email || email || '').trim().toLowerCase();
+
+  const existingCompanyId = String(authData.user?.user_metadata?.company_id || '').trim();
+  if (pendingMatchesUser && !existingCompanyId) {
+    try {
+      const finalized = await finalizeCompanySetupForUser(authData.user, {
+        companyName: pendingSignup!.companyName,
+        adminName: pendingSignup!.adminName,
+        mobile: pendingSignup!.mobile,
+        email: pendingSignup!.email,
+      });
+      clearPendingCompanySignup();
+      return { user: authData.user, employee: finalized.employee, usedFallback: !finalized.profileSynced };
+    } catch (finalizeError) {
+      console.error('Deferred company setup failed after email confirmation:', finalizeError);
+      throw new Error('Login succeeded, but company setup failed. Please retry once or contact support.');
+    }
+  }
+
+  if (pendingMatchesUser && existingCompanyId) {
+    clearPendingCompanySignup();
+  }
 
   let attempts = 0;
   let employeeData: Employee | null = null;
@@ -229,6 +363,7 @@ const handleAuthSignup = async (companyName: string, adminName: string, mobile: 
 
   await supabaseAuth.signOut();
   localStorage.clear();
+  clearPendingCompanySignup();
 
   const { data: authData, error: authError } = await supabaseAuth.signUp({
     email,
@@ -247,85 +382,48 @@ const handleAuthSignup = async (companyName: string, adminName: string, mobile: 
 
   let activeSession = authData.session || null;
   if (!activeSession) {
-    const { data: signInData, error: signInError } = await supabaseAuth.signInWithPassword({
-      email,
-      password,
+    writePendingCompanySignup({
+      email: email.trim().toLowerCase(),
+      companyName: companyName.trim(),
+      adminName: adminName.trim(),
+      mobile: mobile.trim(),
+      createdAt: Date.now(),
     });
 
-    if (!signInError && signInData.session) {
-      activeSession = signInData.session;
-    }
-  }
-
-  if (!activeSession) {
-    throw new Error(
-      'Account created, but no active session yet. Please verify your email, then sign in once to finish company setup.'
-    );
-  }
-
-  const { data: newCompany, error: companyError } = await supabase
-    .from('companies')
-    .insert({
-      name: companyName,
-      subscription_status: 'active',
-    })
-    .select()
-    .single();
-
-  if (companyError) throw companyError;
-
-  const { error: metadataError } = await supabaseAuth.updateUser({
-    data: {
-      company_id: newCompany.id,
-      role: 'super_admin',
-      name: adminName,
-      mobile,
-    },
-  });
-
-  if (metadataError) {
-    console.warn('Auth metadata update failed during signup:', metadataError);
-  }
-
-  const fallbackEmployee = toFallbackEmployee(authData.user, {
-    id: authData.user.id,
-    email: email.trim(),
-    name: adminName.trim(),
-    mobile: mobile.trim(),
-    role: 'super_admin',
-    company_id: newCompany.id,
-    points: 0,
-  });
-
-  let profileSynced = true;
-
-  const { error: employeeError } = await supabase
-    .from('employees')
-    .upsert({
+    const pendingEmployee = toFallbackEmployee(authData.user, {
       id: authData.user.id,
-      name: adminName,
-      mobile,
+      email: email.trim(),
+      name: adminName.trim(),
+      mobile: mobile.trim(),
       role: 'super_admin',
-      email,
-      company_id: newCompany.id,
+      company_id: DEFAULT_COMPANY_ID,
       points: 0,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'id' });
+    });
 
-  if (employeeError) {
-    profileSynced = false;
-    if (isEmployeesPolicyError(employeeError)) {
-      console.warn('Employee profile sync skipped due to DB policy recursion.');
-    } else {
-      console.warn('Employee profile sync failed:', employeeError);
-    }
+    return {
+      user: authData.user,
+      session: null,
+      employee: pendingEmployee,
+      profileSynced: false,
+      requiresEmailConfirmation: true,
+    };
   }
+
+  const finalized = await finalizeCompanySetupForUser(authData.user, {
+    companyName,
+    adminName,
+    mobile,
+    email,
+  });
+
+  clearPendingCompanySignup();
 
   return {
     user: authData.user,
     session: activeSession,
-    employee: fallbackEmployee,
-    profileSynced,
+    employee: finalized.employee,
+    profileSynced: finalized.profileSynced,
+    requiresEmailConfirmation: false,
   };
 };
 
@@ -407,7 +505,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
         } else {
           // Email confirmation enabled
           setIsLogin(true);
-          toast.success('Registration successful! Please verify your email, then sign in.');
+          toast.success('Registration successful. Verify your email, then sign in to complete company setup.');
         }
 
         if (!result.profileSynced) {
