@@ -10,6 +10,7 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const DEFAULT_COMPANY_ID = '00000000-0000-0000-0000-000000000001';
 const PENDING_COMPANY_SIGNUP_KEY = 'pending_company_signup';
+const VERIFICATION_RESEND_COOLDOWN_MS = 90 * 1000;
 
 interface PendingCompanySignup {
   email: string;
@@ -80,6 +81,58 @@ const clearPendingCompanySignup = () => {
 const getEmailRedirectTo = (): string | undefined => {
   if (typeof window === 'undefined') return undefined;
   return window.location.origin;
+};
+
+const getVerificationResendKey = (email: string): string =>
+  `verification_resend_${String(email || '').trim().toLowerCase()}`;
+
+const markVerificationResendAttempt = (email: string) => {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(getVerificationResendKey(email), Date.now().toString());
+};
+
+const getVerificationResendRemainingMs = (email: string): number => {
+  if (typeof window === 'undefined') return 0;
+  const raw = localStorage.getItem(getVerificationResendKey(email));
+  const lastAttempt = Number(raw || 0);
+  if (!lastAttempt) return 0;
+  const elapsed = Date.now() - lastAttempt;
+  return Math.max(0, VERIFICATION_RESEND_COOLDOWN_MS - elapsed);
+};
+
+const tryResendVerificationEmail = async (email: string) => {
+  const remainingMs = getVerificationResendRemainingMs(email);
+  if (remainingMs > 0) {
+    return { resent: false, rateLimited: false, waitMs: remainingMs };
+  }
+
+  try {
+    const { error } = await supabaseAuth.resend({
+      type: 'signup',
+      email: email.trim(),
+      options: {
+        emailRedirectTo: getEmailRedirectTo(),
+      },
+    });
+
+    if (error) {
+      const statusText = String((error as any)?.status || '').trim();
+      const message = String(error?.message || '').toLowerCase();
+      const isRateLimited = statusText === '429' || message.includes('rate limit');
+      if (isRateLimited) {
+        markVerificationResendAttempt(email);
+        return { resent: false, rateLimited: true, waitMs: VERIFICATION_RESEND_COOLDOWN_MS };
+      }
+      console.warn('Could not resend verification email:', error);
+      return { resent: false, rateLimited: false, waitMs: 0 };
+    }
+
+    markVerificationResendAttempt(email);
+    return { resent: true, rateLimited: false, waitMs: 0 };
+  } catch (resendError) {
+    console.warn('Could not resend verification email:', resendError);
+    return { resent: false, rateLimited: false, waitMs: 0 };
+  }
 };
 
 const finalizeCompanySetupForUser = async (
@@ -247,16 +300,13 @@ const handleAuthLogin = async (email: string, password: string) => {
     console.error('Auth error:', authError);
     const authMessage = String(authError?.message || '').toLowerCase();
     if (authMessage.includes('email not confirmed')) {
-      try {
-        await supabaseAuth.resend({
-          type: 'signup',
-          email: email.trim(),
-          options: {
-            emailRedirectTo: getEmailRedirectTo(),
-          },
-        });
-      } catch (resendError) {
-        console.warn('Could not resend verification email:', resendError);
+      const resend = await tryResendVerificationEmail(email);
+      if (resend.rateLimited || resend.waitMs > 0) {
+        const waitSeconds = Math.max(1, Math.ceil(resend.waitMs / 1000));
+        throw new Error(`Email not confirmed. Check inbox/spam and retry after ${waitSeconds}s.`);
+      }
+      if (resend.resent) {
+        throw new Error('Email not confirmed. Verification email sent again. Check inbox/spam, then sign in.');
       }
       throw new Error('Email not confirmed. Please verify your email from inbox/spam, then sign in again.');
     }
@@ -398,6 +448,7 @@ const handleAuthSignup = async (companyName: string, adminName: string, mobile: 
       mobile: mobile.trim(),
       createdAt: Date.now(),
     });
+    markVerificationResendAttempt(email);
 
     const pendingEmployee = toFallbackEmployee(authData.user, {
       id: authData.user.id,
