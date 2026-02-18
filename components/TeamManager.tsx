@@ -49,6 +49,19 @@ const TeamManager: React.FC<TeamManagerProps> = ({
   const [targetPoints, setTargetPoints] = useState(rewardConfig.targetPoints.toString());
   const [rewardName, setRewardName] = useState(rewardConfig.rewardName);
   const [isAdding, setIsAdding] = useState(false);
+  const canAddMembers = ['super_admin', 'manager', 'owner'].includes(currentUser.role);
+
+  const assignableRoles = useMemo<UserRole[]>(() => {
+    if (currentUser.role === 'super_admin' || currentUser.role === 'owner') {
+      return ['super_admin', 'manager', 'staff'];
+    }
+
+    if (currentUser.role === 'manager') {
+      return ['staff'];
+    }
+
+    return [];
+  }, [currentUser.role]);
 
   // Always show the logged-in admin/super-admin in team list, even if DB sync lags.
   const teamMembers = useMemo(() => {
@@ -85,6 +98,13 @@ const TeamManager: React.FC<TeamManagerProps> = ({
     console.log('👥 TeamManager: employees data:', employees.map(e => ({ id: e.id, name: e.name })));
   }, [employees]);
 
+  useEffect(() => {
+    if (assignableRoles.length === 0) return;
+    if (!assignableRoles.includes(newRole)) {
+      setNewRole(assignableRoles[0]);
+    }
+  }, [assignableRoles, newRole]);
+
   const handleRefresh = () => {
     window.location.reload();
   };
@@ -110,10 +130,14 @@ const TeamManager: React.FC<TeamManagerProps> = ({
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!isSuperAdmin) {
-      toast.error('Only super admin can add staff members.');
+    if (!canAddMembers) {
+      toast.error('You do not have permission to add team members.');
       return;
     }
+
+    const roleToCreate: UserRole = assignableRoles.includes(newRole)
+      ? newRole
+      : (assignableRoles[0] || 'staff');
     
     // 1. Validate Form
     if (!newName.trim() || !newEmail.trim() || !newPassword.trim() || !newMobile.trim()) {
@@ -134,7 +158,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
         email: newEmail.trim(),
         password: newPassword.trim(),
         name: newName.trim(),
-        role: newRole,
+        role: roleToCreate,
         mobile: newMobile.trim(),
         company_id: currentUser.company_id
       });
@@ -149,7 +173,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
             email: newEmail.trim(),
             password: newPassword.trim(),
             name: newName.trim(),
-            role: newRole,
+            role: roleToCreate,
             mobile: newMobile.trim()
           });
           data = retry.data;
@@ -187,7 +211,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
         name: newName.trim(),
         email: newEmail.trim() || `${newMobile.trim()}@taskpro.local`,
         mobile: newMobile.trim(),
-        role: newRole,
+        role: roleToCreate,
         points: 0,
         company_id: currentUser.company_id || '00000000-0000-0000-0000-000000000001',
       };
@@ -199,7 +223,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
           name: newName.trim(),
           email: newEmail.trim(),
           mobile: newMobile.trim(),
-          role: newRole,
+          role: roleToCreate,
           points: 0,
           updated_at: new Date().toISOString()
         };
@@ -216,7 +240,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
               company_id: currentUser.company_id,
               name: newName.trim(),
               mobile: newMobile.trim(),
-              role: newRole,
+              role: roleToCreate,
               points: 0,
               updated_at: new Date().toISOString()
             }, { onConflict: 'id' });
@@ -248,7 +272,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
             : [localCreatedEmployee, ...(teamMembers as Employee[])]);
         }
       } else {
-        onAddEmployee(newName.trim(), newMobile.trim(), newRole);
+        onAddEmployee(newName.trim(), newMobile.trim(), roleToCreate);
       }
 
       // 5. Cleanup
@@ -293,7 +317,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
         </p>
       </div>
 
-      {isSuperAdmin && (
+      {canAddMembers && (
         <section className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
           <h3 className="text-xs font-bold text-slate-500 mb-3 uppercase tracking-wider">Add Staff Member</h3>
           <form onSubmit={handleCreateUser} className="space-y-3">
@@ -341,8 +365,13 @@ const TeamManager: React.FC<TeamManagerProps> = ({
                 onChange={(e) => setNewRole(e.target.value as UserRole)}
                 className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 h-10 text-sm text-slate-900 outline-none"
               >
-                <option value="staff" className="text-slate-900">Staff</option>
-                <option value="manager" className="text-slate-900">Manager</option>
+                {assignableRoles.map((roleOption) => (
+                  <option key={roleOption} value={roleOption} className="text-slate-900">
+                    {roleOption === 'super_admin'
+                      ? 'Super Admin'
+                      : roleOption.charAt(0).toUpperCase() + roleOption.slice(1)}
+                  </option>
+                ))}
               </select>
               <button 
                 type="submit"
