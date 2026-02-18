@@ -353,7 +353,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
                   const val = e.target.value.replace(/\D/g, '').slice(0, 10);
                   setNewMobile(val);
                 }}
-                placeholder="Mobile Number (Login ID)"
+                placeholder="Mobile Number"
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                 required
               />

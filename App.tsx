@@ -299,7 +299,7 @@ const App: React.FC = () => {
       id: 'emp-admin',
       name: 'Sanil Petkar', // Updated Name
       email: 'sanil@company.com', // Added email
-      mobile: '8668678238', // Updated Number (Login with this + OTP 1234)
+      mobile: '8668678238',
       role: 'manager',
       points: 0
     },
