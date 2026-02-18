@@ -230,6 +230,39 @@ const handleAuthSignup = async (companyName: string, adminName: string, mobile: 
   await supabaseAuth.signOut();
   localStorage.clear();
 
+  const { data: authData, error: authError } = await supabaseAuth.signUp({
+    email,
+    password,
+    options: {
+      data: {
+        role: 'super_admin',
+        name: adminName,
+        mobile,
+      },
+    },
+  });
+
+  if (authError) throw authError;
+  if (!authData.user) throw new Error('User creation failed');
+
+  let activeSession = authData.session || null;
+  if (!activeSession) {
+    const { data: signInData, error: signInError } = await supabaseAuth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (!signInError && signInData.session) {
+      activeSession = signInData.session;
+    }
+  }
+
+  if (!activeSession) {
+    throw new Error(
+      'Account created, but no active session yet. Please verify your email, then sign in once to finish company setup.'
+    );
+  }
+
   const { data: newCompany, error: companyError } = await supabase
     .from('companies')
     .insert({
@@ -241,21 +274,18 @@ const handleAuthSignup = async (companyName: string, adminName: string, mobile: 
 
   if (companyError) throw companyError;
 
-  const { data: authData, error: authError } = await supabaseAuth.signUp({
-    email,
-    password,
-    options: {
-      data: {
-        company_id: newCompany.id,
-        role: 'super_admin',
-        name: adminName,
-        mobile,
-      },
+  const { error: metadataError } = await supabaseAuth.updateUser({
+    data: {
+      company_id: newCompany.id,
+      role: 'super_admin',
+      name: adminName,
+      mobile,
     },
   });
 
-  if (authError) throw authError;
-  if (!authData.user) throw new Error('User creation failed');
+  if (metadataError) {
+    console.warn('Auth metadata update failed during signup:', metadataError);
+  }
 
   const fallbackEmployee = toFallbackEmployee(authData.user, {
     id: authData.user.id,
@@ -293,7 +323,7 @@ const handleAuthSignup = async (companyName: string, adminName: string, mobile: 
 
   return {
     user: authData.user,
-    session: authData.session,
+    session: activeSession,
     employee: fallbackEmployee,
     profileSynced,
   };
