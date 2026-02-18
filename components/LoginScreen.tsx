@@ -599,22 +599,22 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
   };
 
   return (
-    <div className="flex flex-col h-screen max-w-md mx-auto bg-[#0F172A] items-center justify-center p-8 relative overflow-hidden font-sans">
+    <div className="flex flex-col min-h-screen max-w-md mx-auto bg-[#0F172A] items-center justify-start sm:justify-center p-4 sm:p-8 relative overflow-x-hidden overflow-y-auto font-sans">
       {/* Premium Gradient Overlays */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[120%] h-[50%] bg-blue-600/10 blur-[120px] rounded-full" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[80%] h-[40%] bg-indigo-600/10 blur-[120px] rounded-full" />
       </div>
 
-      <div className="z-10 w-full">
-        <div className="flex justify-center mb-12">
+      <div className="z-10 w-full py-4 sm:py-0 pb-8">
+        <div className="flex justify-center mb-8 sm:mb-12">
           <div className="bg-gradient-to-br from-blue-500 to-blue-700 p-5 rounded-[2.5rem] shadow-[0_20px_50px_rgba(59,130,246,0.3)] animate-pulse-slow">
             <ClipboardList className="w-10 h-10 text-white" />
           </div>
         </div>
 
         <div className="w-full max-w-sm mx-auto">
-          <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/10 shadow-2xl">
+          <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-6 sm:p-8 border border-white/10 shadow-2xl">
             {/* Header */}
             <div className="text-center mb-8">
               <div className="inline-flex items-center gap-3 bg-blue-600/20 p-4 rounded-2xl mb-4">
