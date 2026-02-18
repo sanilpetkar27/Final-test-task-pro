@@ -16,6 +16,11 @@ interface TeamManagerProps {
   setEmployees?: (employees: Employee[]) => void;
 }
 
+const isMissingColumnError = (error: any): boolean => {
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes('column') && message.includes('does not exist');
+};
+
 const TeamManager: React.FC<TeamManagerProps> = ({ 
   employees, 
   currentUser, 
@@ -165,27 +170,65 @@ const TeamManager: React.FC<TeamManagerProps> = ({
       }
 
       // 3. Success! Ensure this user is linked to the current company.
-      const safeId = typeof data === 'string' ? data : data?.id;
+      const safeId =
+        typeof data === 'string'
+          ? data
+          : String(
+              data?.id ||
+              data?.user_id ||
+              data?.uid ||
+              data?.employee_id ||
+              data?.user?.id ||
+              ''
+            ).trim();
+
+      const localCreatedEmployee: Employee = {
+        id: safeId || `emp-${Date.now()}`,
+        name: newName.trim(),
+        email: newEmail.trim() || `${newMobile.trim()}@taskpro.local`,
+        mobile: newMobile.trim(),
+        role: newRole,
+        points: 0,
+        company_id: currentUser.company_id || '00000000-0000-0000-0000-000000000001',
+      };
 
       if (safeId) {
-        const { error: companyPatchError } = await supabase
+        const payloadWithEmail = {
+          id: safeId,
+          company_id: currentUser.company_id,
+          name: newName.trim(),
+          email: newEmail.trim(),
+          mobile: newMobile.trim(),
+          role: newRole,
+          points: 0,
+          updated_at: new Date().toISOString()
+        };
+
+        let { error: companyPatchError } = await supabase
           .from('employees')
-          .update({
-            company_id: currentUser.company_id,
-            name: newName.trim(),
-            email: newEmail.trim(),
-            mobile: newMobile.trim(),
-            role: newRole,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', safeId);
+          .upsert(payloadWithEmail, { onConflict: 'id' });
+
+        if (companyPatchError && isMissingColumnError(companyPatchError)) {
+          const retry = await supabase
+            .from('employees')
+            .upsert({
+              id: safeId,
+              company_id: currentUser.company_id,
+              name: newName.trim(),
+              mobile: newMobile.trim(),
+              role: newRole,
+              points: 0,
+              updated_at: new Date().toISOString()
+            }, { onConflict: 'id' });
+          companyPatchError = retry.error;
+        }
 
         if (companyPatchError) {
-          console.warn('Could not patch new employee company context:', companyPatchError);
+          console.warn('Could not sync new employee profile row:', companyPatchError);
         }
       }
 
-      // 4. Refresh team list for this company; fallback to local add only if refresh fails.
+      // 4. Refresh team list for this company; fallback to local append if refresh fails.
       if (setEmployees && currentUser.company_id) {
         const { data: refreshedEmployees, error: refreshError } = await supabase
           .from('employees')
@@ -193,10 +236,16 @@ const TeamManager: React.FC<TeamManagerProps> = ({
           .eq('company_id', currentUser.company_id);
 
         if (!refreshError && refreshedEmployees) {
-          setEmployees(refreshedEmployees as Employee[]);
+          const employeeRows = refreshedEmployees as Employee[];
+          const hasCreatedEmployee = employeeRows.some(
+            (emp) => String(emp?.id || '').trim() === String(localCreatedEmployee.id).trim()
+          );
+          setEmployees(hasCreatedEmployee ? employeeRows : [localCreatedEmployee, ...employeeRows]);
         } else {
           console.warn('Failed to refresh employees after create_user_by_admin:', refreshError);
-          onAddEmployee(newName.trim(), newMobile.trim(), newRole);
+          setEmployees((teamMembers as Employee[]).some((emp) => emp.id === localCreatedEmployee.id)
+            ? teamMembers as Employee[]
+            : [localCreatedEmployee, ...(teamMembers as Employee[])]);
         }
       } else {
         onAddEmployee(newName.trim(), newMobile.trim(), newRole);
