@@ -104,6 +104,11 @@ const TeamManager: React.FC<TeamManagerProps> = ({
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!isSuperAdmin) {
+      toast.error('Only super admin can add staff members.');
+      return;
+    }
     
     // 1. Validate Form
     if (!newName.trim() || !newEmail.trim() || !newPassword.trim() || !newMobile.trim()) {
@@ -239,66 +244,68 @@ const TeamManager: React.FC<TeamManagerProps> = ({
         </p>
       </div>
 
-      <section className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-        <h3 className="text-xs font-bold text-slate-500 mb-3 uppercase tracking-wider">Add Staff Member</h3>
-        <form onSubmit={handleCreateUser} className="space-y-3">
-          <input 
-            type="text" 
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="Full Name..."
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-            required
-          />
-          <input 
-            type="email" 
-            value={newEmail}
-            onChange={(e) => setNewEmail(e.target.value)}
-            placeholder="Email Address..."
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-            required
-          />
-          <input 
-            type="password" 
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            placeholder="Password..."
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-            required
-          />
-          <div className="relative">
+      {isSuperAdmin && (
+        <section className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+          <h3 className="text-xs font-bold text-slate-500 mb-3 uppercase tracking-wider">Add Staff Member</h3>
+          <form onSubmit={handleCreateUser} className="space-y-3">
             <input 
-              type="tel" 
-              value={newMobile}
-              onChange={(e) => {
-                const val = e.target.value.replace(/\D/g, '').slice(0, 10);
-                setNewMobile(val);
-              }}
-              placeholder="Mobile Number (Login ID)"
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+              type="text" 
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Full Name..."
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
               required
             />
-            <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-          </div>
-          <div className="flex gap-2">
-            <select 
-              value={newRole}
-              onChange={(e) => setNewRole(e.target.value as UserRole)}
-              className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 h-10 text-sm text-slate-900 outline-none"
-            >
-              <option value="staff" className="text-slate-900">Staff</option>
-              <option value="manager" className="text-slate-900">Manager</option>
-            </select>
-            <button 
-              type="submit"
-              className="bg-indigo-500 hover:bg-indigo-600 text-white p-3 px-6 h-10 rounded-lg active:scale-95 transition-all duration-200 flex items-center gap-2 font-bold text-sm"
-            >
-              <UserPlus className="w-5 h-5" />
-              Create User
-            </button>
-          </div>
-        </form>
-      </section>
+            <input 
+              type="email" 
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              placeholder="Email Address..."
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+              required
+            />
+            <input 
+              type="password" 
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="Password..."
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+              required
+            />
+            <div className="relative">
+              <input 
+                type="tel" 
+                value={newMobile}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                  setNewMobile(val);
+                }}
+                placeholder="Mobile Number (Login ID)"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                required
+              />
+              <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            </div>
+            <div className="flex gap-2">
+              <select 
+                value={newRole}
+                onChange={(e) => setNewRole(e.target.value as UserRole)}
+                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 h-10 text-sm text-slate-900 outline-none"
+              >
+                <option value="staff" className="text-slate-900">Staff</option>
+                <option value="manager" className="text-slate-900">Manager</option>
+              </select>
+              <button 
+                type="submit"
+                className="bg-indigo-500 hover:bg-indigo-600 text-white p-3 px-6 h-10 rounded-lg active:scale-95 transition-all duration-200 flex items-center gap-2 font-bold text-sm"
+              >
+                <UserPlus className="w-5 h-5" />
+                Create User
+              </button>
+            </div>
+          </form>
+        </section>
+      )}
 
       {/* Reward Settings - Hidden */}
       {SHOW_POINTS_SYSTEM && (
