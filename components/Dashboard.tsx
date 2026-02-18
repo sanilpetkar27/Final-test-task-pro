@@ -29,6 +29,24 @@ interface DashboardProps {
   onDeleteTask: (id: string) => void;
 }
 
+const isMissingTaskRecurrenceColumnError = (error: any): boolean => {
+  const message = String(error?.message || '').toLowerCase();
+  const missingRecurrenceColumn =
+    message.includes('recurrence_frequency') || message.includes('task_type');
+  const missingInSchema =
+    message.includes('schema cache') || (message.includes('column') && message.includes('does not exist'));
+  return missingRecurrenceColumn && missingInSchema;
+};
+
+const stripTaskRecurrenceFields = (payload: Record<string, any>) => {
+  const legacyPayload = { ...payload };
+  delete legacyPayload.task_type;
+  delete legacyPayload.recurrence_frequency;
+  delete legacyPayload.taskType;
+  delete legacyPayload.recurrenceFrequency;
+  return legacyPayload;
+};
+
 const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, onAddTask, onStartTask, onReopenTask, onCompleteTask, onCompleteTaskWithoutPhoto, onReassignTask, onDeleteTask }) => {
   const [view, setView] = useState<'pending' | 'in-progress' | 'completed'>('pending');
   const [deadlineView, setDeadlineView] = useState<'overdue' | 'today' | 'upcoming' | 'all'>('all');
@@ -222,10 +240,22 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
           requirePhoto: requirePhoto
         };
 
-        const result = await supabase
+        let result = await supabase
           .from('tasks')
           .update(updateData)
           .eq('id', editingTaskId);
+
+        if (result.error && isMissingTaskRecurrenceColumnError(result.error)) {
+          const legacyUpdateData = stripTaskRecurrenceFields(updateData as unknown as Record<string, any>);
+          result = await supabase
+            .from('tasks')
+            .update(legacyUpdateData)
+            .eq('id', editingTaskId);
+
+          if (!result.error) {
+            alert('Task updated, but recurrence settings need a DB migration to be fully available.');
+          }
+        }
 
         if (result.error) {
           console.error('Task update failed:', result.error);

@@ -56,6 +56,24 @@ const isMissingColumnError = (error: any): boolean => {
   return message.includes('column') && message.includes('does not exist');
 };
 
+const isMissingTaskRecurrenceColumnError = (error: any): boolean => {
+  const message = String(error?.message || '').toLowerCase();
+  const missingRecurrenceColumn =
+    message.includes('recurrence_frequency') || message.includes('task_type');
+  const missingInSchema =
+    message.includes('schema cache') || (message.includes('column') && message.includes('does not exist'));
+  return missingRecurrenceColumn && missingInSchema;
+};
+
+const stripTaskRecurrenceFields = (payload: Record<string, any>) => {
+  const legacyPayload = { ...payload };
+  delete legacyPayload.task_type;
+  delete legacyPayload.recurrence_frequency;
+  delete legacyPayload.taskType;
+  delete legacyPayload.recurrenceFrequency;
+  return legacyPayload;
+};
+
 const isEmployeesPolicyError = (error: any): boolean => {
   const message = String(error?.message || '').toLowerCase();
   return message.includes('infinite recursion') && message.includes('employees');
@@ -838,13 +856,29 @@ const App: React.FC = () => {
     try {
       // Transform app task to database format before inserting
       const dbTask = transformTaskToDB(newTask);
-      
-      // Insert task into Supabase
-      const { data, error } = await supabase
+
+      // Insert task into Supabase (with backward-compatible retry for old schemas).
+      let { data, error } = await supabase
         .from('tasks')
         .insert([dbTask])
         .select('*')
         .single();
+
+      if (error && isMissingTaskRecurrenceColumnError(error)) {
+        const legacyTaskPayload = stripTaskRecurrenceFields(dbTask as unknown as Record<string, any>);
+        const legacyResult = await supabase
+          .from('tasks')
+          .insert([legacyTaskPayload])
+          .select('*')
+          .single();
+
+        data = legacyResult.data as any;
+        error = legacyResult.error as any;
+
+        if (!error) {
+          toast.warning('Task saved, but recurrence options need DB migration to be fully available.');
+        }
+      }
 
       if (error) {
         console.error('Error adding task:', error);
