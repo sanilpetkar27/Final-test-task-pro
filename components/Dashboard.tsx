@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { DealershipTask, Employee, UserRole, TaskStatus } from '../types';
+import { DealershipTask, Employee, UserRole, TaskStatus, TaskType, RecurrenceFrequency } from '../types';
 import { supabase } from '../src/lib/supabase';
 import { sendTaskAssignmentNotification, sendTaskCompletionNotification } from '../src/utils/pushNotifications';
 import TaskItem from './TaskItem';
@@ -12,7 +12,15 @@ interface DashboardProps {
   tasks: DealershipTask[];
   employees: Employee[];
   currentUser: Employee;
-  onAddTask: (desc: string, assignedTo?: string, parentTaskId?: string, deadline?: number, requirePhoto?: boolean) => void;
+  onAddTask: (
+    desc: string,
+    assignedTo?: string,
+    parentTaskId?: string,
+    deadline?: number,
+    requirePhoto?: boolean,
+    taskType?: TaskType,
+    recurrenceFrequency?: RecurrenceFrequency | null
+  ) => void;
   onStartTask: (id: string) => void;
   onReopenTask: (id: string) => void;
   onCompleteTask: (id: string, proof: { imageUrl: string, timestamp: number }) => void;
@@ -42,6 +50,16 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   const [requirePhoto, setRequirePhoto] = useState(() => {
     return localStorage.getItem('task_form_photo') === 'true';
   });
+  const [taskType, setTaskType] = useState<TaskType>(() => {
+    const cachedTaskType = localStorage.getItem('task_form_task_type');
+    return cachedTaskType === 'recurring' ? 'recurring' : 'one_time';
+  });
+  const [recurrenceFrequency, setRecurrenceFrequency] = useState<RecurrenceFrequency | ''>(() => {
+    const cachedFrequency = localStorage.getItem('task_form_recurrence_frequency');
+    return cachedFrequency === 'daily' || cachedFrequency === 'weekly' || cachedFrequency === 'monthly'
+      ? cachedFrequency
+      : '';
+  });
   
   // Persist form state to localStorage
   useEffect(() => {
@@ -59,16 +77,38 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   useEffect(() => {
     localStorage.setItem('task_form_photo', String(requirePhoto));
   }, [requirePhoto]);
+
+  useEffect(() => {
+    localStorage.setItem('task_form_task_type', taskType);
+  }, [taskType]);
+
+  useEffect(() => {
+    if (taskType === 'recurring' && recurrenceFrequency) {
+      localStorage.setItem('task_form_recurrence_frequency', recurrenceFrequency);
+      return;
+    }
+    localStorage.removeItem('task_form_recurrence_frequency');
+  }, [taskType, recurrenceFrequency]);
+
+  useEffect(() => {
+    if (taskType === 'one_time' && recurrenceFrequency) {
+      setRecurrenceFrequency('');
+    }
+  }, [taskType, recurrenceFrequency]);
   
   const clearForm = () => {
     setNewTaskDesc('');
     setAssigneeId('none');
     setDeadline('');
     setRequirePhoto(false);
+    setTaskType('one_time');
+    setRecurrenceFrequency('');
     localStorage.removeItem('task_form_desc');
     localStorage.removeItem('task_form_assignee');
     localStorage.removeItem('task_form_deadline');
     localStorage.removeItem('task_form_photo');
+    localStorage.removeItem('task_form_task_type');
+    localStorage.removeItem('task_form_recurrence_frequency');
   };
   // Dashboard uses employees from props, no local state needed
   const [selectedPersonFilter, setSelectedPersonFilter] = useState('ALL');
@@ -155,76 +195,65 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
 
   const handleAddTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const deadlineTimestamp = deadline ? new Date(deadline).getTime() : undefined;
-    
+    const normalizedTaskType: TaskType = taskType === 'recurring' ? 'recurring' : 'one_time';
+    const normalizedRecurrenceFrequency: RecurrenceFrequency | null =
+      normalizedTaskType === 'recurring' ? (recurrenceFrequency || null) : null;
+
     if (!newTaskDesc.trim()) {
-      console.log('❌ Empty task description, aborting');
+      console.log('Empty task description, aborting');
       return;
     }
-    
+
+    if (normalizedTaskType === 'recurring' && !normalizedRecurrenceFrequency) {
+      alert('Please select recurrence frequency for recurring tasks.');
+      return;
+    }
+
     try {
       if (editingTaskId) {
-        // Update existing task
-        console.log('🔧 Updating task...', {
-          id: editingTaskId,
-          description: newTaskDesc.trim(),
-          assigneeId: assigneeId === 'none' ? null : assigneeId,
-          requirePhoto: requirePhoto,
-          deadline: deadlineTimestamp
-        });
-        
         const updateData = {
           description: newTaskDesc.trim(),
           assignedTo: assigneeId === 'none' ? null : assigneeId,
+          task_type: normalizedTaskType,
+          recurrence_frequency: normalizedRecurrenceFrequency,
           deadline: deadlineTimestamp,
           requirePhoto: requirePhoto
         };
-        
+
         const result = await supabase
           .from('tasks')
           .update(updateData)
           .eq('id', editingTaskId);
-        
+
         if (result.error) {
-          console.error('❌ Task update failed:', result.error);
-          alert(`Task Update Error: ${result.error.message}`);
+          console.error('Task update failed:', result.error);
+          alert('Task Update Error: ' + result.error.message);
           return;
         }
-        
-        console.log('✅ Task updated successfully');
+
         setEditingTaskId(null);
         clearForm();
-        
-        // Trigger parent to refetch tasks
-        setTimeout(() => {
-          onAddTask('', '', '', '', false);
-        }, 100);
       } else {
-        // Create new task using parent's onAddTask function
-        console.log('Creating task...', {
-          description: newTaskDesc.trim(),
-          assigneeId: assigneeId === 'none' ? null : assigneeId,
-          requirePhoto: requirePhoto,
-          deadline: deadlineTimestamp
-        });
-        
         onAddTask(
           newTaskDesc.trim(),
           assigneeId === 'none' ? undefined : assigneeId,
-          undefined, // parentTaskId
+          undefined,
           deadlineTimestamp,
-          requirePhoto
+          requirePhoto,
+          normalizedTaskType,
+          normalizedRecurrenceFrequency
         );
-        
-        console.log('✅ Task creation request sent');
-        
+
         // IMMEDIATELY reset form states
         setNewTaskDesc('');
         setAssigneeId('none');
         setDeadline('');
         setRequirePhoto(false);
-        
+        setTaskType('one_time');
+        setRecurrenceFrequency('');
+
         // Send push notification to assigned user
         if (assigneeId !== 'none') {
           const assignedEmployee = employees.find(emp => emp.id === assigneeId);
@@ -237,19 +266,18 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
             );
           }
         }
-        
+
         // Auto-reset filter to show new task
         setSelectedPersonFilter('ALL');
-        
+
         // Reset form and clear localStorage
         clearForm();
       }
     } catch (err) {
-      console.error('🚨 Unexpected error creating task:', err);
-      alert(`Unexpected Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      console.error('Unexpected error creating task:', err);
+      alert('Unexpected Error: ' + (err instanceof Error ? err.message : 'Unknown error'));
     }
   };
-
   const handleDelegate = async (parentTaskId: string, desc: string, targetAssigneeId: string, deadlineTimestamp?: number) => {
     try {
       console.log('🔧 Creating delegated task...');
@@ -488,6 +516,8 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
       setAssigneeId(task.assignedTo || 'none');
       setDeadline(task.deadline ? new Date(task.deadline).toISOString().split('T')[0] : '');
       setRequirePhoto(task.requirePhoto || false);
+      setTaskType(task.taskType === 'recurring' ? 'recurring' : 'one_time');
+      setRecurrenceFrequency(task.taskType === 'recurring' ? (task.recurrenceFrequency || '') : '');
       setEditingTaskId(taskId);
     }
   };
@@ -531,12 +561,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
           return;
         }
         
-        console.log('✅ Remark added successfully');
-        
-        // Trigger parent to refetch tasks
-        setTimeout(() => {
-          onAddTask('', '', '', '', false);
-        }, 100);
+        console.log('Remark added successfully');
       }
     } catch (err) {
       console.error('🚨 Unexpected error adding remark:', err);
@@ -618,6 +643,42 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
                 <span>Listening... Speak your task description</span>
               </div>
             )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div className="relative">
+                <select
+                  value={taskType}
+                  onChange={(e) => setTaskType(e.target.value as TaskType)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none transition-all pr-10"
+                >
+                  <option value="one_time" className="text-slate-900">One-time Task</option>
+                  <option value="recurring" className="text-slate-900">Recurring Task</option>
+                </select>
+                <Clock className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+
+              {taskType === 'recurring' && (
+                <div className="relative">
+                  <select
+                    value={recurrenceFrequency}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setRecurrenceFrequency(
+                        value === '' ? '' : (value as RecurrenceFrequency)
+                      );
+                    }}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none transition-all pr-10"
+                    required
+                  >
+                    <option value="" className="text-slate-900">Select Frequency</option>
+                    <option value="daily" className="text-slate-900">Daily</option>
+                    <option value="weekly" className="text-slate-900">Weekly</option>
+                    <option value="monthly" className="text-slate-900">Monthly</option>
+                  </select>
+                  <Calendar className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+              )}
+            </div>
             
             <div className="flex gap-2">
               <div className="flex-1 relative">
@@ -876,3 +937,4 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
 };
 
 export default Dashboard;
+

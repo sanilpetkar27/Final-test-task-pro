@@ -1,10 +1,15 @@
-import { DealershipTask } from '../types';
+import { DealershipTask, TaskType, RecurrenceFrequency } from '../types';
 
 // Database task interface (camelCase from Supabase)
 export interface DatabaseTask {
   id: string;
   description: string;
   status: 'pending' | 'in-progress' | 'completed';
+  task_type?: TaskType;
+  recurrence_frequency?: RecurrenceFrequency | null;
+  // Backward-compatible aliases if some rows were written in camelCase
+  taskType?: TaskType;
+  recurrenceFrequency?: RecurrenceFrequency | null;
   createdAt: number;
   deadline?: number;
   completedAt?: number;
@@ -29,10 +34,20 @@ export interface DatabaseTask {
 
 // Transform database task (camelCase) to app task (camelCase)
 export const transformTaskToApp = (dbTask: DatabaseTask): DealershipTask => {
+  const normalizedTaskType: TaskType = dbTask.task_type || dbTask.taskType || 'one_time';
+  const rawRecurrenceFrequency = dbTask.recurrence_frequency ?? dbTask.recurrenceFrequency ?? null;
+  const normalizedRecurrenceFrequency: RecurrenceFrequency | null =
+    normalizedTaskType === 'recurring' &&
+    (rawRecurrenceFrequency === 'daily' || rawRecurrenceFrequency === 'weekly' || rawRecurrenceFrequency === 'monthly')
+      ? rawRecurrenceFrequency
+      : null;
+
   return {
     id: dbTask.id,
     description: dbTask.description,
     status: dbTask.status,
+    taskType: normalizedTaskType,
+    recurrenceFrequency: normalizedRecurrenceFrequency,
     createdAt: dbTask.createdAt,
     deadline: dbTask.deadline,
     completedAt: dbTask.completedAt,
@@ -57,10 +72,21 @@ export const transformTaskToApp = (dbTask: DatabaseTask): DealershipTask => {
 
 // Transform app task (camelCase) to database task (camelCase)
 export const transformTaskToDB = (appTask: DealershipTask): DatabaseTask => {
+  const taskType: TaskType = appTask.taskType || 'one_time';
+  const recurrenceFrequency: RecurrenceFrequency | null =
+    taskType === 'recurring' &&
+    (appTask.recurrenceFrequency === 'daily' ||
+      appTask.recurrenceFrequency === 'weekly' ||
+      appTask.recurrenceFrequency === 'monthly')
+      ? appTask.recurrenceFrequency
+      : null;
+
   return {
     id: appTask.id,
     description: appTask.description,
     status: appTask.status,
+    task_type: taskType,
+    recurrence_frequency: recurrenceFrequency,
     createdAt: appTask.createdAt,
     deadline: appTask.deadline,
     completedAt: appTask.completedAt,

@@ -1,5 +1,7 @@
 
 export type TaskStatus = 'pending' | 'in-progress' | 'completed';
+export type TaskType = 'one_time' | 'recurring';
+export type RecurrenceFrequency = 'daily' | 'weekly' | 'monthly';
 export type UserRole = 'owner' | 'manager' | 'staff' | 'super_admin';
 
 export interface Company {
@@ -38,6 +40,8 @@ export interface DealershipTask {
   id: string;
   description: string;
   status: TaskStatus;
+  taskType?: TaskType; // One-time vs recurring task type
+  recurrenceFrequency?: RecurrenceFrequency | null; // Required when taskType is recurring
   createdAt: number;
   deadline?: number; // Timestamp for when the task is due
   completedAt?: number;

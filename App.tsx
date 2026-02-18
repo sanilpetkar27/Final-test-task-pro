@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { AppTab, DealershipTask, Employee, UserRole, TaskStatus, RewardConfig } from './types';
+import { AppTab, DealershipTask, Employee, UserRole, TaskStatus, RewardConfig, TaskType, RecurrenceFrequency } from './types';
 import Dashboard from './components/Dashboard';
 import StatsScreen from './components/StatsScreen';
 import TeamManager from './components/TeamManager';
@@ -761,13 +761,37 @@ const App: React.FC = () => {
 
   // --- 4. CORE ACTIONS (Add, Delete, Complete) ---
 
-  const addTask = async (description: string, assignedTo?: string, parentTaskId?: string, deadline?: number, requirePhoto?: boolean) => {
+  const addTask = async (
+    description: string,
+    assignedTo?: string,
+    parentTaskId?: string,
+    deadline?: number,
+    requirePhoto?: boolean,
+    taskType: TaskType = 'one_time',
+    recurrenceFrequency?: RecurrenceFrequency | null
+  ) => {
     if (!currentUser) return;
+    if (!description.trim()) return;
+
+    const normalizedTaskType: TaskType = taskType === 'recurring' ? 'recurring' : 'one_time';
+    const normalizedRecurrenceFrequency: RecurrenceFrequency | null =
+      normalizedTaskType === 'recurring' &&
+      (recurrenceFrequency === 'daily' || recurrenceFrequency === 'weekly' || recurrenceFrequency === 'monthly')
+        ? recurrenceFrequency
+        : null;
+
+    // Enforce recurrence requirements in app layer before DB constraints are evaluated.
+    if (normalizedTaskType === 'recurring' && !normalizedRecurrenceFrequency) {
+      toast.error('Select a recurrence frequency for recurring tasks.');
+      return;
+    }
 
     const newTask: DealershipTask = {
       id: `task-${Date.now()}`,
       description,
       status: 'pending',
+      taskType: normalizedTaskType,
+      recurrenceFrequency: normalizedRecurrenceFrequency,
       createdAt: Date.now(),
       deadline: deadline,
       requirePhoto: requirePhoto || false,
