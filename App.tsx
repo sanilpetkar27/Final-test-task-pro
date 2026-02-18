@@ -20,6 +20,9 @@ import {
 } from 'lucide-react';
 
 const DEFAULT_COMPANY_ID = '00000000-0000-0000-0000-000000000001';
+const USER_CACHE_KEY = 'universal_app_user';
+const EMPLOYEES_CACHE_KEY = 'universalAppEmployees';
+const TASKS_CACHE_KEY = 'universalAppTasks';
 
 const normalizeRole = (role: unknown): Employee['role'] => {
   return role === 'owner' || role === 'manager' || role === 'staff' || role === 'super_admin'
@@ -56,6 +59,22 @@ const isMissingColumnError = (error: any): boolean => {
 const isEmployeesPolicyError = (error: any): boolean => {
   const message = String(error?.message || '').toLowerCase();
   return message.includes('infinite recursion') && message.includes('employees');
+};
+
+const isPolicyRecursionError = (error: any): boolean => {
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes('infinite recursion');
+};
+
+const parseCachedArray = <T,>(key: string): T[] => {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw || raw === 'undefined') return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed as T[] : [];
+  } catch {
+    return [];
+  }
 };
 
 const resolveEmployeeProfileFromAuthUser = async (authUser: any): Promise<Employee | null> => {
@@ -137,7 +156,7 @@ const App: React.FC = () => {
   // --- 1. USER & STATE MANAGEMENT ---
   const [currentUser, setCurrentUser] = useState<Employee | null>(() => {
     try {
-      const saved = localStorage.getItem('universal_app_user');
+      const saved = localStorage.getItem(USER_CACHE_KEY);
       if (!saved || saved === 'undefined') return null;
 
       const parsed = JSON.parse(saved);
@@ -149,7 +168,7 @@ const App: React.FC = () => {
       } as Employee;
     } catch (error) {
       console.warn('Failed to parse cached user profile, clearing local cache.', error);
-      localStorage.removeItem('universal_app_user');
+      localStorage.removeItem(USER_CACHE_KEY);
       return null;
     }
   });
@@ -161,6 +180,7 @@ const App: React.FC = () => {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [notification, setNotification] = useState<{ title: string, message: string } | null>(null);
   const [lastSyncTime, setLastSyncTime] = useState<number>(Date.now());
+  const hasShownPolicyErrorRef = useRef(false);
 
   // --- OneSignal Notification Setup ---
   useNotificationSetup({
@@ -187,13 +207,13 @@ const App: React.FC = () => {
       id: 'task-demo-1',
       description: 'Welcome to your new TaskPro',
       status: 'pending' as TaskStatus,
-      created_at: Date.now(),
-      assigned_by: 'emp-admin',
+      createdAt: Date.now(),
+      assignedBy: 'emp-admin',
       assignedTo: 'emp-staff-1'
     }
   ];
 
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>(() => parseCachedArray<Employee>(EMPLOYEES_CACHE_KEY));
   const [rewardConfig, setRewardConfig] = useState<RewardConfig>({
     targetPoints: 100,
     rewardName: 'Bonus Day Off'
@@ -233,19 +253,35 @@ const App: React.FC = () => {
 
       // Check if we have valid data or if there were errors
       // If errors or empty data, use defaults
+      const cachedEmployees = parseCachedArray<Employee>(EMPLOYEES_CACHE_KEY);
+      const cachedTasks = parseCachedArray<DealershipTask>(TASKS_CACHE_KEY);
+
       const finalEmployees = (employeesData && employeesData.length > 0)
         ? employeesData
-        : DEFAULT_EMPLOYEES;
+        : (cachedEmployees.length > 0 ? cachedEmployees : (employees.length > 0 ? employees : DEFAULT_EMPLOYEES));
 
       // Transform database tasks to app tasks
       const finalTasks = (tasksData && tasksData.length > 0)
         ? transformTasksToApp(tasksData as DatabaseTask[])
-        : transformTasksToApp(DEFAULT_TASKS as DatabaseTask[]);
+        : (cachedTasks.length > 0 ? cachedTasks : (tasks.length > 0 ? tasks : transformTasksToApp(DEFAULT_TASKS as DatabaseTask[])));
 
       if (employeesError || tasksError) {
-        console.warn('⚠️ using fallback data due to Supabase error');
+        console.warn('using fallback data due to Supabase error');
         if (employeesError) console.warn('Employees error:', employeesError);
         if (tasksError) console.warn('Tasks error:', tasksError);
+
+        const hasPolicyError = isPolicyRecursionError(employeesError) || isPolicyRecursionError(tasksError);
+        if (hasPolicyError && !hasShownPolicyErrorRef.current) {
+          hasShownPolicyErrorRef.current = true;
+          toast.error('Database policy error (RLS recursion). Please run the policy fix SQL in Supabase.');
+        }
+      }
+
+      if (employeesData && employeesData.length > 0) {
+        localStorage.setItem(EMPLOYEES_CACHE_KEY, JSON.stringify(employeesData));
+      }
+      if (tasksData && tasksData.length > 0) {
+        localStorage.setItem(TASKS_CACHE_KEY, JSON.stringify(transformTasksToApp(tasksData as DatabaseTask[])));
       }
 
       return {
@@ -253,18 +289,20 @@ const App: React.FC = () => {
         tasks: finalTasks
       };
     } catch (error) {
-      console.error('🚨 Supabase Connection Failed - Using Fallback Data');
-      // FALLBACK TO DEFAULT DATA instead of showing error screen
+      console.error('Supabase connection failed - using cached fallback data');
+      // FALLBACK TO CACHED DATA first instead of hard reset to defaults
+      const cachedEmployees = parseCachedArray<Employee>(EMPLOYEES_CACHE_KEY);
+      const cachedTasks = parseCachedArray<DealershipTask>(TASKS_CACHE_KEY);
       return {
-        employees: DEFAULT_EMPLOYEES,
-        tasks: DEFAULT_TASKS
+        employees: cachedEmployees.length > 0 ? cachedEmployees : DEFAULT_EMPLOYEES,
+        tasks: cachedTasks.length > 0 ? cachedTasks : transformTasksToApp(DEFAULT_TASKS as DatabaseTask[])
       };
     } finally {
       setLoading(false);
     }
   };
 
-  const [tasks, setTasks] = useState<DealershipTask[]>([]);
+  const [tasks, setTasks] = useState<DealershipTask[]>(() => parseCachedArray<DealershipTask>(TASKS_CACHE_KEY));
 
   // Ref for fetchTasks to prevent infinite loop
   const fetchTasksRef = useRef(null);
@@ -337,7 +375,7 @@ const App: React.FC = () => {
 
         if (resolvedProfile) {
           setCurrentUser(resolvedProfile);
-          localStorage.setItem('universal_app_user', JSON.stringify(resolvedProfile));
+          localStorage.setItem(USER_CACHE_KEY, JSON.stringify(resolvedProfile));
           return;
         }
 
@@ -352,7 +390,7 @@ const App: React.FC = () => {
         }
 
         setCurrentUser(fallbackUser);
-        localStorage.setItem('universal_app_user', JSON.stringify(fallbackUser));
+        localStorage.setItem(USER_CACHE_KEY, JSON.stringify(fallbackUser));
       } catch (err) {
         console.error('Auth session check error:', err);
       } finally {
@@ -553,9 +591,15 @@ const App: React.FC = () => {
   // Auto-Save Tasks
   useEffect(() => {
     if (appReady) {
-      localStorage.setItem('universalAppTasks', JSON.stringify(tasks));
+      localStorage.setItem(TASKS_CACHE_KEY, JSON.stringify(tasks));
     }
   }, [tasks, appReady]);
+
+  useEffect(() => {
+    if (appReady) {
+      localStorage.setItem(EMPLOYEES_CACHE_KEY, JSON.stringify(employees));
+    }
+  }, [employees, appReady]);
 
   // Notifications Logic
   useEffect(() => {
@@ -945,7 +989,7 @@ const App: React.FC = () => {
 
   const handleLogin = async (user: Employee) => {
     setCurrentUser(user);
-    localStorage.setItem('universal_app_user', JSON.stringify(user));
+    localStorage.setItem(USER_CACHE_KEY, JSON.stringify(user));
     setActiveTab(AppTab.TASKS);
 
     try {
@@ -962,7 +1006,7 @@ const App: React.FC = () => {
 
       if (employeeData) {
         setCurrentUser(employeeData);
-        localStorage.setItem('universal_app_user', JSON.stringify(employeeData));
+        localStorage.setItem(USER_CACHE_KEY, JSON.stringify(employeeData));
         return;
       }
 
@@ -976,7 +1020,7 @@ const App: React.FC = () => {
 
   const handleLogout = () => {
     setCurrentUser(null);
-    localStorage.removeItem('universal_app_user');
+    localStorage.removeItem(USER_CACHE_KEY);
   };
 
   // --- 5. RENDER UI ---
@@ -1166,3 +1210,4 @@ const NavBtn = ({ active, onClick, icon, label }: { active: boolean, onClick: ()
 );
 
 export default App;
+

@@ -323,6 +323,26 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
           }
         }
 
+        if (usedFallback) {
+          try {
+            const rawCached = localStorage.getItem('universal_app_user');
+            if (rawCached) {
+              const cached = JSON.parse(rawCached) as Employee;
+              const sameEmail =
+                String(cached?.email || '').trim().toLowerCase() === String(email).trim().toLowerCase();
+              const hasPrivilegedRole =
+                cached?.role === 'manager' || cached?.role === 'super_admin' || cached?.role === 'owner';
+
+              if (sameEmail && hasPrivilegedRole) {
+                loginEmployee = cached;
+                usedFallback = false;
+              }
+            }
+          } catch (cacheError) {
+            console.warn('Could not read cached profile during fallback login:', cacheError);
+          }
+        }
+
         onLogin(loginEmployee);
         if (usedFallback) {
           toast.warning('Logged in, but profile sync is pending. Please contact admin if this persists.');
