@@ -6,7 +6,7 @@
   body {
     font-family: 'Plus Jakarta Sans', sans-serif;
     -webkit-tap-highlight-color: transparent;
-    background-color: #0f172a;
+    background-color: #f6f1ff;
   }
 }
 
@@ -45,7 +45,7 @@ input[type='time'] {
   color: #1e293b !important;
   font-size: 16px !important;
   font-weight: 600 !important;
-  border: 2px solid #cbd5e1 !important;
+  border: 2px solid #ddd6fe !important;
   min-height: 48px !important;
   padding: 12px !important;
 }
@@ -53,7 +53,7 @@ input[type='time'] {
 input[type='date']:focus,
 input[type='datetime-local']:focus,
 input[type='time']:focus {
-  border-color: #3b82f6 !important;
+  border-color: #8b5cf6 !important;
   outline: none !important;
 }
 
@@ -64,7 +64,7 @@ input[type='datetime-local']::-webkit-calendar-picker-indicator {
   cursor: pointer;
   filter: invert(0);
   background: transparent;
-  color: #64748b;
+  color: #7c3aed;
   font-size: 18px;
 }
 
