@@ -77,6 +77,92 @@ const parseCachedArray = <T,>(key: string): T[] => {
   }
 };
 
+const normalizeEmployeeProfile = (employee: Partial<Employee> & { id: string }): Employee => {
+  const safeId = String(employee.id || `temp-${Date.now()}`);
+  const safeEmail = String(employee.email || `${safeId}@taskpro.local`).trim();
+  const safeName = String(employee.name || safeEmail.split('@')[0] || 'User').trim();
+  const safeMobile = String(employee.mobile || '').trim();
+
+  return {
+    id: safeId,
+    name: safeName || 'User',
+    email: safeEmail,
+    mobile: safeMobile || safeId.slice(0, 10),
+    role: normalizeRole(employee.role),
+    points: Number(employee.points || 0),
+    company_id: String(employee.company_id || DEFAULT_COMPANY_ID),
+    auth_user_id: employee.auth_user_id ? String(employee.auth_user_id) : undefined,
+  };
+};
+
+const mergeCurrentUserIntoEmployees = (employeeRows: Employee[], currentUser: Employee | null): Employee[] => {
+  const normalizedRows = (employeeRows || []).map((employee) => normalizeEmployeeProfile(employee));
+  if (!currentUser) {
+    return normalizedRows;
+  }
+
+  const normalizedCurrentUser = normalizeEmployeeProfile(currentUser);
+  const existingIndex = normalizedRows.findIndex((employee) => employee.id === normalizedCurrentUser.id);
+
+  if (existingIndex >= 0) {
+    const mergedRows = [...normalizedRows];
+    mergedRows[existingIndex] = { ...mergedRows[existingIndex], ...normalizedCurrentUser };
+    return mergedRows;
+  }
+
+  return [normalizedCurrentUser, ...normalizedRows];
+};
+
+const syncEmployeeProfileToDatabase = async (employee: Employee, authUserId?: string): Promise<Employee | null> => {
+  const normalizedProfile = normalizeEmployeeProfile(employee);
+  const payloadWithAuthLink = {
+    id: normalizedProfile.id,
+    name: normalizedProfile.name,
+    email: normalizedProfile.email,
+    mobile: normalizedProfile.mobile,
+    role: normalizedProfile.role,
+    points: normalizedProfile.points,
+    company_id: normalizedProfile.company_id,
+    auth_user_id: authUserId || normalizedProfile.auth_user_id || null,
+    updated_at: new Date().toISOString(),
+  };
+
+  let { data, error } = await supabase
+    .from('employees')
+    .upsert(payloadWithAuthLink, { onConflict: 'id' })
+    .select('*')
+    .maybeSingle();
+
+  if (error && isMissingColumnError(error)) {
+    const { data: retryData, error: retryError } = await supabase
+      .from('employees')
+      .upsert({
+        id: normalizedProfile.id,
+        name: normalizedProfile.name,
+        email: normalizedProfile.email,
+        mobile: normalizedProfile.mobile,
+        role: normalizedProfile.role,
+        points: normalizedProfile.points,
+        company_id: normalizedProfile.company_id,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' })
+      .select('*')
+      .maybeSingle();
+
+    data = retryData;
+    error = retryError;
+  }
+
+  if (error) {
+    if (!isEmployeesPolicyError(error)) {
+      console.warn('Employee profile auto-sync failed:', error);
+    }
+    return null;
+  }
+
+  return data ? normalizeEmployeeProfile(data as Employee) : null;
+};
+
 const resolveEmployeeProfileFromAuthUser = async (authUser: any): Promise<Employee | null> => {
   const authUserId = String(authUser?.id || '').trim();
   const authEmail = String(authUser?.email || '').trim().toLowerCase();
@@ -287,9 +373,10 @@ const App: React.FC = () => {
       const cachedEmployees = parseCachedArray<Employee>(EMPLOYEES_CACHE_KEY);
       const cachedTasks = parseCachedArray<DealershipTask>(TASKS_CACHE_KEY);
 
-      const finalEmployees = (employeesData && employeesData.length > 0)
+      const finalEmployeesBase = (employeesData && employeesData.length > 0)
         ? employeesData
         : (cachedEmployees.length > 0 ? cachedEmployees : (employees.length > 0 ? employees : DEFAULT_EMPLOYEES));
+      const finalEmployees = mergeCurrentUserIntoEmployees(finalEmployeesBase as Employee[], currentUser);
 
       // Transform database tasks to app tasks
       const finalTasks = (tasksData && tasksData.length > 0)
@@ -308,9 +395,7 @@ const App: React.FC = () => {
         }
       }
 
-      if (employeesData && employeesData.length > 0) {
-        localStorage.setItem(EMPLOYEES_CACHE_KEY, JSON.stringify(employeesData));
-      }
+      localStorage.setItem(EMPLOYEES_CACHE_KEY, JSON.stringify(finalEmployees));
       if (tasksData && tasksData.length > 0) {
         localStorage.setItem(TASKS_CACHE_KEY, JSON.stringify(transformTasksToApp(tasksData as DatabaseTask[])));
       }
@@ -325,7 +410,7 @@ const App: React.FC = () => {
       const cachedEmployees = parseCachedArray<Employee>(EMPLOYEES_CACHE_KEY);
       const cachedTasks = parseCachedArray<DealershipTask>(TASKS_CACHE_KEY);
       return {
-        employees: cachedEmployees.length > 0 ? cachedEmployees : DEFAULT_EMPLOYEES,
+        employees: mergeCurrentUserIntoEmployees(cachedEmployees.length > 0 ? cachedEmployees : DEFAULT_EMPLOYEES, currentUser),
         tasks: cachedTasks.length > 0 ? cachedTasks : transformTasksToApp(DEFAULT_TASKS as DatabaseTask[])
       };
     } finally {
@@ -423,17 +508,19 @@ const App: React.FC = () => {
         }
 
         const fallbackUser = toFallbackEmployeeFromAuthUser(session.user);
+        const syncedFallbackUser = await syncEmployeeProfileToDatabase(fallbackUser, session.user.id);
+        const nextUser = syncedFallbackUser || fallbackUser;
 
         if (
           currentUser &&
-          String(currentUser.email || '').toLowerCase() === String(fallbackUser.email || '').toLowerCase() &&
+          String(currentUser.email || '').toLowerCase() === String(nextUser.email || '').toLowerCase() &&
           currentUser.role !== 'staff'
         ) {
           return;
         }
 
-        setCurrentUser(fallbackUser);
-        localStorage.setItem(USER_CACHE_KEY, JSON.stringify(fallbackUser));
+        setCurrentUser(nextUser);
+        localStorage.setItem(USER_CACHE_KEY, JSON.stringify(nextUser));
       } catch (err) {
         console.error('Auth session check error:', err);
       } finally {
@@ -1051,11 +1138,13 @@ const App: React.FC = () => {
   };
 
   const handleLogin = async (user: Employee) => {
+    const normalizedInputUser = normalizeEmployeeProfile(user);
+
     try {
       const rawCachedUser = localStorage.getItem(USER_CACHE_KEY);
       if (rawCachedUser) {
         const previousUser = JSON.parse(rawCachedUser) as Partial<Employee>;
-        if (previousUser?.company_id && user.company_id && previousUser.company_id !== user.company_id) {
+        if (previousUser?.company_id && normalizedInputUser.company_id && previousUser.company_id !== normalizedInputUser.company_id) {
           localStorage.removeItem(EMPLOYEES_CACHE_KEY);
           localStorage.removeItem(TASKS_CACHE_KEY);
         }
@@ -1064,8 +1153,8 @@ const App: React.FC = () => {
       // Ignore cache parse issues and continue login flow.
     }
 
-    setCurrentUser(user);
-    localStorage.setItem(USER_CACHE_KEY, JSON.stringify(user));
+    setCurrentUser(normalizedInputUser);
+    localStorage.setItem(USER_CACHE_KEY, JSON.stringify(normalizedInputUser));
     setActiveTab(AppTab.TASKS);
 
     try {
@@ -1078,12 +1167,24 @@ const App: React.FC = () => {
         .from('employees')
         .select('*')
         .eq('id', session.user.id)
-        .eq('company_id', user.company_id || DEFAULT_COMPANY_ID)
+        .eq('company_id', normalizedInputUser.company_id || DEFAULT_COMPANY_ID)
         .maybeSingle();
 
       if (employeeData) {
-        setCurrentUser(employeeData);
-        localStorage.setItem(USER_CACHE_KEY, JSON.stringify(employeeData));
+        const normalizedEmployeeData = normalizeEmployeeProfile(employeeData as Employee);
+        setCurrentUser(normalizedEmployeeData);
+        localStorage.setItem(USER_CACHE_KEY, JSON.stringify(normalizedEmployeeData));
+        return;
+      }
+
+      const syncedUser = await syncEmployeeProfileToDatabase({
+        ...normalizedInputUser,
+        id: session.user.id,
+      }, session.user.id);
+
+      if (syncedUser) {
+        setCurrentUser(syncedUser);
+        localStorage.setItem(USER_CACHE_KEY, JSON.stringify(syncedUser));
         return;
       }
 

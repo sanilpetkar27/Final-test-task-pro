@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Employee, UserRole, RewardConfig } from '../types';
 import { UserPlus, Trash2, User, ShieldCheck, Phone, Trophy, Target, Star, Medal, RefreshCw, Wifi } from 'lucide-react';
 import { supabase } from '../src/lib/supabase';
@@ -44,6 +44,35 @@ const TeamManager: React.FC<TeamManagerProps> = ({
   const [targetPoints, setTargetPoints] = useState(rewardConfig.targetPoints.toString());
   const [rewardName, setRewardName] = useState(rewardConfig.rewardName);
   const [isAdding, setIsAdding] = useState(false);
+
+  // Always show the logged-in admin/super-admin in team list, even if DB sync lags.
+  const teamMembers = useMemo(() => {
+    const normalizedEmployees = (employees || []).filter(Boolean);
+    const currentUserId = String(currentUser?.id || '').trim();
+
+    if (!currentUserId) {
+      return normalizedEmployees;
+    }
+
+    const alreadyIncluded = normalizedEmployees.some(
+      (emp) => String(emp?.id || '').trim() === currentUserId
+    );
+
+    if (alreadyIncluded) {
+      return normalizedEmployees;
+    }
+
+    const fallbackCurrentUser: Employee = {
+      ...currentUser,
+      id: currentUserId,
+      email: String(currentUser.email || `${currentUserId}@taskpro.local`),
+      mobile: String(currentUser.mobile || currentUserId.slice(0, 10)),
+      points: Number(currentUser.points || 0),
+      company_id: String(currentUser.company_id || '00000000-0000-0000-0000-000000000001'),
+    };
+
+    return [fallbackCurrentUser, ...normalizedEmployees];
+  }, [employees, currentUser]);
 
   // Use employees prop from parent (App.tsx)
   useEffect(() => {
@@ -122,6 +151,8 @@ const TeamManager: React.FC<TeamManagerProps> = ({
         console.error('Error creating user:', error);
         if (error.message.includes('unique constraint') || error.code === '23505') {
           toast.error('This mobile number or email is already registered!');
+        } else if (String(error.message || '').toLowerCase().includes('company_id')) {
+          toast.error('Database setup needed: company_id mapping for employees is missing. Please run latest SQL migration.');
         } else {
           toast.error('Failed to create user: ' + error.message);
         }
@@ -194,7 +225,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
   };
 
   // Sort employees by points for leaderboard
-  const sortedEmployees = [...employees].sort((a, b) => b.points - a.points);
+  const sortedEmployees = [...teamMembers].sort((a, b) => b.points - a.points);
 
   return (
     <div className="space-y-6">
@@ -377,9 +408,9 @@ const TeamManager: React.FC<TeamManagerProps> = ({
 
       <div className="space-y-2">
         
-        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider px-1">Registered Team ({employees.length})</h3>
-        {employees.length > 0 ? (
-          employees.map((emp) => {
+        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider px-1">Registered Team ({teamMembers.length})</h3>
+        {teamMembers.length > 0 ? (
+          teamMembers.map((emp) => {
             // Strict safety filter: prevent all invalid data from rendering
             if (!emp || !emp.id || !emp.name || emp.name.trim() === '') return null;
             
