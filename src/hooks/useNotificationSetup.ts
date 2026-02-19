@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import {
   initializeOneSignal,
@@ -19,6 +19,9 @@ interface UseNotificationSetupProps {
  * We scope writes by employee id + company id to avoid cross-tenant updates.
  */
 export const useNotificationSetup = ({ userId, userMobile, companyId, isLoggedIn }: UseNotificationSetupProps) => {
+  const setupInFlightRef = useRef(false);
+  const lastCompletedSetupKeyRef = useRef<string | null>(null);
+
   const saveOneSignalIdToDatabase = useCallback(async (oneSignalId: string, employeeId: string, tenantCompanyId: string) => {
     try {
       console.log('Saving OneSignal ID to database...', { oneSignalId, employeeId, companyId: tenantCompanyId });
@@ -90,16 +93,45 @@ export const useNotificationSetup = ({ userId, userMobile, companyId, isLoggedIn
   }, [isLoggedIn, userId, companyId, saveOneSignalIdToDatabase]);
 
   useEffect(() => {
-    initializeOneSignal()
-      .then(() => {
-        if (isLoggedIn && userId && companyId) {
-          setupNotifications();
+    if (!isLoggedIn || !userId || !companyId) {
+      lastCompletedSetupKeyRef.current = null;
+      return;
+    }
+
+    const setupKey = `${userId}:${companyId}`;
+    if (lastCompletedSetupKeyRef.current === setupKey) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const runSetup = async () => {
+      if (setupInFlightRef.current) {
+        return;
+      }
+
+      setupInFlightRef.current = true;
+      try {
+        await initializeOneSignal();
+        if (cancelled) return;
+
+        await setupNotifications();
+        if (!cancelled) {
+          lastCompletedSetupKeyRef.current = setupKey;
         }
-      })
-      .catch((err) => {
+      } catch (err) {
         console.error('OneSignal init failed:', err);
-      });
-  }, [isLoggedIn, userId, userMobile, companyId, setupNotifications]);
+      } finally {
+        setupInFlightRef.current = false;
+      }
+    };
+
+    runSetup();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn, userId, companyId, setupNotifications]);
 };
 
 export default useNotificationSetup;

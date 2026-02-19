@@ -6,6 +6,7 @@ console.log('🔔 Notification logic updated. Fail-safe mode active.');
 type PushRecord = {
   description: string;
   assigned_to: string;
+  company_id: string;
 };
 
 const invokeSendPush = async (record: PushRecord) => {
@@ -53,7 +54,7 @@ export const sendTaskAssignmentNotification = async (
 
     const { data: employee, error: employeeError } = await supabase
       .from('employees')
-      .select('onesignal_id')
+      .select('onesignal_id, company_id')
       .eq('id', assignedToId)
       .maybeSingle();
 
@@ -67,9 +68,16 @@ export const sendTaskAssignmentNotification = async (
       return;
     }
 
+    const companyId = String(employee.company_id || '').trim();
+    if (!companyId) {
+      console.warn('Missing company_id for assignee. Skipping push send:', assignedToId);
+      return;
+    }
+
     const record: PushRecord = {
       description: taskDescription,
       assigned_to: assignedToId,
+      company_id: companyId,
     };
 
     console.log('Frontend payload:', JSON.stringify({ record }));
@@ -110,7 +118,7 @@ export const sendTaskCompletionNotification = async (
 
     const { data: employee, error: employeeError } = await supabase
       .from('employees')
-      .select('onesignal_id')
+      .select('onesignal_id, company_id')
       .eq('id', assignedById)
       .maybeSingle();
 
@@ -124,9 +132,16 @@ export const sendTaskCompletionNotification = async (
       return;
     }
 
+    const companyId = String(employee.company_id || '').trim();
+    if (!companyId) {
+      console.warn('Missing company_id for assigner. Skipping push send:', assignedById);
+      return;
+    }
+
     const record: PushRecord = {
       description: `Task completed by ${completedByName}: ${taskDescription}`,
       assigned_to: assignedById,
+      company_id: companyId,
     };
 
     console.log('Frontend payload:', JSON.stringify({ record }));
