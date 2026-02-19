@@ -652,37 +652,37 @@ const TaskItem: React.FC<TaskItemProps> = ({
           </div>
         )}
 
-        {/* In-Tile Progress Updates Ticker */}
+        {/* In-Tile Comments Toggle (Arrow Only) */}
         {task.remarks && task.remarks.length > 0 && (
           <div className="w-full pl-14">
-            <div className="rounded-xl border border-slate-200 bg-white p-3">
-              <div 
-                className="flex items-center gap-2 cursor-pointer hover:bg-slate-100 p-2 rounded-lg transition-colors"
+            <div className="flex justify-end">
+              <button
+                type="button"
                 onClick={() => setShowRemarksExpanded(!showRemarksExpanded)}
+                className="p-2 rounded-lg hover:bg-slate-100 transition-colors"
+                title={showRemarksExpanded ? 'Hide comments' : 'Show comments'}
               >
-                <MessageSquarePlus className="w-4 h-4 text-indigo-700" />
-                <span className="text-sm font-semibold text-slate-900">Progress Updates ({task.remarks.length})</span>
-                <ChevronDown 
-                  className={`w-4 h-4 text-slate-500 transition-transform ${showRemarksExpanded ? 'rotate-180' : ''}`} 
+                <ChevronDown
+                  className={`w-4 h-4 text-slate-500 transition-transform ${showRemarksExpanded ? 'rotate-180' : ''}`}
                 />
-              </div>
-              
-              {showRemarksExpanded && (
-                <div className="space-y-2 mt-2">
-                  {task.remarks.map((remark, index) => (
-                    <div key={remark.id} className="bg-white rounded-xl p-3 border border-slate-200">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-semibold text-slate-900">{remark.employeeName}</span>
-                        <span className="text-xs text-slate-500">
-                          {new Date(remark.timestamp).toLocaleString()}
-                        </span>
-                      </div>
-                      <p className="text-sm text-slate-600">{remark.remark}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
+              </button>
             </div>
+
+            {showRemarksExpanded && (
+              <div className="space-y-2 mt-2">
+                {task.remarks.map((remark, index) => (
+                  <div key={remark.id} className="bg-white rounded-xl p-3 border border-slate-200">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-semibold text-slate-900">{remark.employeeName}</span>
+                      <span className="text-xs text-slate-500">
+                        {new Date(remark.timestamp).toLocaleString()}
+                      </span>
+                    </div>
+                    <p className="text-sm text-slate-600">{remark.remark}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
