@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { DealershipTask, Employee, UserRole, TaskStatus, TaskType, RecurrenceFrequency, TaskRemark } from '../types';
 import { supabase } from '../src/lib/supabase';
 import { sendTaskAssignmentNotification, sendTaskCompletionNotification } from '../src/utils/pushNotifications';
@@ -163,6 +163,8 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
   const [delegatingTaskId, setDelegatingTaskId] = useState<string | null>(null);
   const [reassigningTaskId, setReassigningTaskId] = useState<string | null>(null);
+  const [inProgressBumpTimestamps, setInProgressBumpTimestamps] = useState<Record<string, number>>({});
+  const previousTaskStatusRef = useRef<Record<string, TaskStatus>>({});
 
   // Dashboard uses employees from props, no independent fetching needed
 
@@ -238,6 +240,43 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   const isManager = currentUser.role === 'manager' || currentUser.role === 'owner';
   const isSuperAdmin = currentUser.role === 'super_admin';
   const canAssignTasks = currentUser.role === 'manager' || currentUser.role === 'super_admin' || currentUser.role === 'owner'; // For UI permissions
+
+  useEffect(() => {
+    const previousStatuses = previousTaskStatusRef.current;
+    const nextStatuses: Record<string, TaskStatus> = {};
+    const bumpedTaskIds: Record<string, number> = {};
+    const now = Date.now();
+
+    for (const task of tasks) {
+      const previousStatus = previousStatuses[task.id];
+      if (previousStatus && previousStatus !== task.status && task.status === 'in-progress') {
+        bumpedTaskIds[task.id] = now;
+      }
+      nextStatuses[task.id] = task.status;
+    }
+
+    previousTaskStatusRef.current = nextStatuses;
+
+    setInProgressBumpTimestamps((prev) => {
+      const activeTaskIds = new Set(tasks.map((task) => task.id));
+      const cleaned: Record<string, number> = {};
+
+      for (const [taskId, timestamp] of Object.entries(prev)) {
+        if (activeTaskIds.has(taskId)) {
+          cleaned[taskId] = timestamp;
+        }
+      }
+
+      const merged = { ...cleaned, ...bumpedTaskIds };
+      const prevKeys = Object.keys(prev);
+      const mergedKeys = Object.keys(merged);
+      const sameShape =
+        prevKeys.length === mergedKeys.length &&
+        prevKeys.every((key) => merged[key] === prev[key]);
+
+      return sameShape ? prev : merged;
+    });
+  }, [tasks]);
 
   const handleAddTask = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -681,9 +720,29 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
     }
   };
 
-  const filteredPendingTasks = getDeadlineFilteredTasks(getFilteredTasks(pendingTasks));
-  const filteredInProgressTasks = getDeadlineFilteredTasks(getFilteredTasks(inProgressTasks));
-  const filteredCompletedTasks = getDeadlineFilteredTasks(getFilteredTasks(completedTasks));
+  const getTaskActivityTimestamp = (task: DealershipTask): number => {
+    const rawUpdatedAt = (task as any).updatedAt;
+    const rawUpdatedAtSnake = (task as any).updated_at;
+
+    const updatedAtFromCamel = typeof rawUpdatedAt === 'number' ? rawUpdatedAt : 0;
+    const updatedAtFromSnake =
+      typeof rawUpdatedAtSnake === 'number'
+        ? rawUpdatedAtSnake
+        : typeof rawUpdatedAtSnake === 'string'
+        ? (Number.isNaN(Date.parse(rawUpdatedAtSnake)) ? 0 : Date.parse(rawUpdatedAtSnake))
+        : 0;
+    const inProgressBump = inProgressBumpTimestamps[task.id] || 0;
+    const createdAt = Number(task.createdAt || 0);
+
+    return Math.max(createdAt, updatedAtFromCamel, updatedAtFromSnake, inProgressBump);
+  };
+
+  const sortTasksByRecentActivity = (taskRows: DealershipTask[]): DealershipTask[] =>
+    [...taskRows].sort((left, right) => getTaskActivityTimestamp(right) - getTaskActivityTimestamp(left));
+
+  const filteredPendingTasks = sortTasksByRecentActivity(getDeadlineFilteredTasks(getFilteredTasks(pendingTasks)));
+  const filteredInProgressTasks = sortTasksByRecentActivity(getDeadlineFilteredTasks(getFilteredTasks(inProgressTasks)));
+  const filteredCompletedTasks = sortTasksByRecentActivity(getDeadlineFilteredTasks(getFilteredTasks(completedTasks)));
 
   const tasksToShow = view === 'pending' ? filteredPendingTasks : view === 'in-progress' ? filteredInProgressTasks : filteredCompletedTasks;
 
