@@ -6,7 +6,7 @@ import TaskItem from './TaskItem';
 import CompletionModal from './CompletionModal';
 import DelegationModal from './DelegationModal';
 import ReassignModal from './ReassignModal';
-import { Plus, Clock, CheckCircle2, UserPlus, ClipboardList as ClipboardIcon, CalendarClock, Timer, Camera, Bug, User, Edit, AlertTriangle, Calendar, Mic, MicOff } from 'lucide-react';
+import { Plus, Clock, CheckCircle2, UserPlus, ClipboardList as ClipboardIcon, CalendarClock, Timer, Camera, Bug, User, AlertTriangle, Calendar, Mic, MicOff } from 'lucide-react';
 
 interface DashboardProps {
   tasks: DealershipTask[];
@@ -163,7 +163,6 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
   const [delegatingTaskId, setDelegatingTaskId] = useState<string | null>(null);
   const [reassigningTaskId, setReassigningTaskId] = useState<string | null>(null);
-  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
 
   // Dashboard uses employees from props, no independent fetching needed
 
@@ -259,101 +258,124 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
     }
 
     try {
-      if (editingTaskId) {
-        const nextRecurrenceNotificationAt =
-          normalizedTaskType === 'recurring'
-            ? Date.now() + getRecurrenceIntervalMs(normalizedRecurrenceFrequency)
-            : null;
+      onAddTask(
+        newTaskDesc.trim(),
+        assigneeId === 'none' ? undefined : assigneeId,
+        undefined,
+        deadlineTimestamp,
+        requirePhoto,
+        normalizedTaskType,
+        normalizedRecurrenceFrequency
+      );
 
-        const updateData = {
-          description: newTaskDesc.trim(),
-          assignedTo: assigneeId === 'none' ? null : assigneeId,
-          task_type: normalizedTaskType,
-          recurrence_frequency: normalizedRecurrenceFrequency,
-          next_recurrence_notification_at: nextRecurrenceNotificationAt,
-          deadline: deadlineTimestamp,
-          requirePhoto: requirePhoto
-        };
+      // IMMEDIATELY reset form states
+      setNewTaskDesc('');
+      setAssigneeId('none');
+      setDeadline('');
+      setRequirePhoto(false);
+      setTaskType('one_time');
+      setRecurrenceFrequency('');
 
-        let result = await supabase
-          .from('tasks')
-          .update(updateData)
-          .eq('id', editingTaskId);
-
-        if (result.error && isMissingNextRecurrenceNotificationColumnError(result.error)) {
-          const retryUpdateData = stripTaskNextRecurrenceField(updateData as unknown as Record<string, any>);
-          result = await supabase
-            .from('tasks')
-            .update(retryUpdateData)
-            .eq('id', editingTaskId);
-
-          if (!result.error) {
-            alert('Task updated, but recurring reminder scheduling needs a DB migration to be fully available.');
-          }
+      // Send push notification to assigned user
+      if (assigneeId !== 'none') {
+        const assignedEmployee = employees.find(emp => emp.id === assigneeId);
+        if (assignedEmployee) {
+          await sendTaskAssignmentNotification(
+            newTaskDesc.trim(),
+            assignedEmployee.name,
+            currentUser.name,
+            assignedEmployee.id
+          );
         }
-
-        if (result.error && isMissingTaskRecurrenceColumnError(result.error)) {
-          const legacyUpdateData = stripTaskRecurrenceFields(updateData as unknown as Record<string, any>);
-          result = await supabase
-            .from('tasks')
-            .update(legacyUpdateData)
-            .eq('id', editingTaskId);
-
-          if (!result.error) {
-            alert('Task updated, but recurrence settings need a DB migration to be fully available.');
-          }
-        }
-
-        if (result.error) {
-          console.error('Task update failed:', result.error);
-          alert('Task Update Error: ' + result.error.message);
-          return;
-        }
-
-        setEditingTaskId(null);
-        clearForm();
-      } else {
-        onAddTask(
-          newTaskDesc.trim(),
-          assigneeId === 'none' ? undefined : assigneeId,
-          undefined,
-          deadlineTimestamp,
-          requirePhoto,
-          normalizedTaskType,
-          normalizedRecurrenceFrequency
-        );
-
-        // IMMEDIATELY reset form states
-        setNewTaskDesc('');
-        setAssigneeId('none');
-        setDeadline('');
-        setRequirePhoto(false);
-        setTaskType('one_time');
-        setRecurrenceFrequency('');
-
-        // Send push notification to assigned user
-        if (assigneeId !== 'none') {
-          const assignedEmployee = employees.find(emp => emp.id === assigneeId);
-          if (assignedEmployee) {
-            await sendTaskAssignmentNotification(
-              newTaskDesc.trim(),
-              assignedEmployee.name,
-              currentUser.name,
-              assignedEmployee.id
-            );
-          }
-        }
-
-        // Auto-reset filter to show new task
-        setSelectedPersonFilter('ALL');
-
-        // Reset form and clear localStorage
-        clearForm();
       }
+
+      // Auto-reset filter to show new task
+      setSelectedPersonFilter('ALL');
+
+      // Reset form and clear localStorage
+      clearForm();
     } catch (err) {
       console.error('Unexpected error creating task:', err);
       alert('Unexpected Error: ' + (err instanceof Error ? err.message : 'Unknown error'));
     }
+  };
+
+  const handleInlineTaskUpdate = async (
+    taskId: string,
+    updatePayload: {
+      description: string;
+      assignedTo: string | null;
+      deadline?: number;
+      requirePhoto: boolean;
+      taskType: TaskType;
+      recurrenceFrequency: RecurrenceFrequency | null;
+    }
+  ): Promise<boolean> => {
+    const normalizedTaskType: TaskType = updatePayload.taskType === 'recurring' ? 'recurring' : 'one_time';
+    const normalizedRecurrenceFrequency: RecurrenceFrequency | null =
+      normalizedTaskType === 'recurring' ? updatePayload.recurrenceFrequency : null;
+
+    if (!updatePayload.description.trim()) {
+      alert('Task description is required.');
+      return false;
+    }
+
+    if (normalizedTaskType === 'recurring' && !normalizedRecurrenceFrequency) {
+      alert('Please select recurrence frequency for recurring tasks.');
+      return false;
+    }
+
+    const nextRecurrenceNotificationAt =
+      normalizedTaskType === 'recurring'
+        ? Date.now() + getRecurrenceIntervalMs(normalizedRecurrenceFrequency)
+        : null;
+
+    const updateData = {
+      description: updatePayload.description.trim(),
+      assignedTo: updatePayload.assignedTo,
+      task_type: normalizedTaskType,
+      recurrence_frequency: normalizedRecurrenceFrequency,
+      next_recurrence_notification_at: nextRecurrenceNotificationAt,
+      deadline: updatePayload.deadline,
+      requirePhoto: updatePayload.requirePhoto
+    };
+
+    let result = await supabase
+      .from('tasks')
+      .update(updateData)
+      .eq('id', taskId);
+
+    if (result.error && isMissingNextRecurrenceNotificationColumnError(result.error)) {
+      const retryUpdateData = stripTaskNextRecurrenceField(updateData as unknown as Record<string, any>);
+      result = await supabase
+        .from('tasks')
+        .update(retryUpdateData)
+        .eq('id', taskId);
+
+      if (!result.error) {
+        alert('Task updated, but recurring reminder scheduling needs a DB migration to be fully available.');
+      }
+    }
+
+    if (result.error && isMissingTaskRecurrenceColumnError(result.error)) {
+      const legacyUpdateData = stripTaskRecurrenceFields(updateData as unknown as Record<string, any>);
+      result = await supabase
+        .from('tasks')
+        .update(legacyUpdateData)
+        .eq('id', taskId);
+
+      if (!result.error) {
+        alert('Task updated, but recurrence settings need a DB migration to be fully available.');
+      }
+    }
+
+    if (result.error) {
+      console.error('Task update failed:', result.error);
+      alert('Task Update Error: ' + result.error.message);
+      return false;
+    }
+
+    return true;
   };
   const handleDelegate = async (parentTaskId: string, desc: string, targetAssigneeId: string, deadlineTimestamp?: number) => {
     try {
@@ -585,20 +607,6 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
     }
   };
 
-  // Edit task handler
-  const handleEditTask = (taskId: string) => {
-    const task = tasks.find(t => t.id === taskId);
-    if (task) {
-      setNewTaskDesc(task.description);
-      setAssigneeId(task.assignedTo || 'none');
-      setDeadline(task.deadline ? new Date(task.deadline).toISOString().split('T')[0] : '');
-      setRequirePhoto(task.requirePhoto || false);
-      setTaskType(task.taskType === 'recurring' ? 'recurring' : 'one_time');
-      setRecurrenceFrequency(task.taskType === 'recurring' ? (task.recurrenceFrequency || '') : '');
-      setEditingTaskId(taskId);
-    }
-  };
-
   // Add remark handler
   const handleAddRemark = async (taskId: string, remark: string) => {
     try {
@@ -687,8 +695,8 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
       {canAssignTasks && (
         <section className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 animate-in fade-in slide-in-from-top-4">
           <h2 className="text-xs font-black text-slate-500 mb-3 uppercase tracking-widest flex items-center gap-2">
-            {editingTaskId ? <Edit className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
-            {editingTaskId ? 'Edit Operation' : 'Assign New Operation'}
+            <Plus className="w-3 h-3" />
+            Assign New Operation
           </h2>
           <form onSubmit={handleAddTask} className="space-y-3">
             <div className="relative">
@@ -804,22 +812,9 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
               type="submit"
               className="flex-1 bg-indigo-900 hover:bg-indigo-800 text-white py-3 rounded-xl font-bold active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 shadow-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)]"
             >
-              {editingTaskId ? <Edit className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
-              {editingTaskId ? 'Update Task' : 'Assign Task'}
+              <Plus className="w-5 h-5" />
+              Assign Task
             </button>
-            
-            {editingTaskId && (
-              <button 
-                type="button"
-                onClick={() => {
-                  setEditingTaskId(null);
-                  clearForm();
-                }}
-                className="px-6 bg-slate-100 text-slate-700 py-3 rounded-xl font-bold hover:bg-slate-200 active:scale-95 transition-all flex items-center justify-center gap-2"
-              >
-                Cancel
-              </button>
-            )}
           </div>
           </form>
         </section>
@@ -965,7 +960,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
             onReassign={() => setReassigningTaskId(task.id)}
             onDelete={() => onDeleteTask(task.id)}
             onDelegate={() => setDelegatingTaskId(task.id)}
-            onEdit={() => handleEditTask(task.id)}
+            onInlineEditSave={handleInlineTaskUpdate}
             onSubTaskComplete={(subTaskId) => updateTaskStatus(subTaskId, 'completed')}
             onAddRemark={(taskId: string, remark: string) => handleAddRemark(taskId, remark)}
           />
