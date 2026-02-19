@@ -254,7 +254,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
 
   return (
     <div className="space-y-2">
-      <div className={`bg-white rounded-xl p-4 shadow-sm border ${isOverdue ? 'border-red-300 bg-red-50' : (task.status === 'completed' ? 'border-emerald-200' : (task.status === 'in-progress' ? 'border-indigo-200' : 'border-slate-200'))} flex items-start justify-between gap-3 transition-all relative overflow-hidden hover:bg-slate-50 hover:shadow-sm`}>
+      <div className={`bg-white rounded-xl p-4 shadow-sm border ${isOverdue ? 'border-red-300 bg-red-50' : (task.status === 'completed' ? 'border-emerald-200' : (task.status === 'in-progress' ? 'border-indigo-200' : 'border-slate-200'))} flex flex-wrap items-start justify-between gap-3 transition-all relative overflow-hidden hover:bg-slate-50 hover:shadow-sm`}>
         
         {/* Overdue Warning Stripe */}
         {isOverdue && <div className="absolute top-0 left-0 w-1 h-full bg-red-500" />}
@@ -611,77 +611,81 @@ const TaskItem: React.FC<TaskItemProps> = ({
             </>
           )}
         </div>
-      </div>
 
-      {/* Remark Input Section */}
-      {task.status === 'in-progress' && showRemarkInput && (
-        <div className="bg-white rounded-2xl p-4 border border-slate-200">
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <MessageSquarePlus className="w-4 h-4 text-indigo-700" />
-              <span className="text-sm font-semibold text-slate-900">Add Progress Update</span>
-            </div>
-            <textarea
-              value={newRemark}
-              onChange={(e) => setNewRemark(e.target.value)}
-              placeholder="Update on task progress, stages completed, or any relevant information..."
-              className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 resize-none h-20"
-              rows={3}
-            />
-            <div className="flex gap-2">
-              <button
-                onClick={handleAddRemark}
-                disabled={!newRemark.trim()}
-                className="flex-1 bg-indigo-900 text-white px-3 py-2 rounded-xl font-bold text-sm active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                <Send className="w-4 h-4" />
-                Add Update
-              </button>
-              <button
-                onClick={() => {
-                  setShowRemarkInput(false);
-                  setNewRemark('');
-                }}
-                className="px-4 bg-slate-100 text-slate-700 py-2 rounded-xl font-bold text-sm active:scale-95 transition-all hover:bg-slate-200"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Remarks Display Section */}
-      {task.remarks && task.remarks.length > 0 && (
-        <div className="bg-white rounded-2xl p-4 border border-slate-200">
-          <div 
-            className="flex items-center gap-2 mb-3 cursor-pointer hover:bg-slate-100 p-2 rounded-lg transition-colors"
-            onClick={() => setShowRemarksExpanded(!showRemarksExpanded)}
-          >
-            <MessageSquarePlus className="w-4 h-4 text-indigo-700" />
-            <span className="text-sm font-semibold text-slate-900">Progress Updates ({task.remarks.length})</span>
-            <ChevronDown 
-              className={`w-4 h-4 text-slate-500 transition-transform ${showRemarksExpanded ? 'rotate-180' : ''}`} 
-            />
-          </div>
-          
-          {showRemarksExpanded && (
-            <div className="space-y-2 mt-2">
-              {task.remarks.map((remark, index) => (
-                <div key={remark.id} className="bg-white rounded-xl p-3 border border-slate-200">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-semibold text-slate-900">{remark.employeeName}</span>
-                    <span className="text-xs text-slate-500">
-                      {new Date(remark.timestamp).toLocaleString()}
-                    </span>
-                  </div>
-                  <p className="text-sm text-slate-600">{remark.remark}</p>
+        {/* In-Tile Progress Update Section */}
+        {(task.status === 'in-progress' && showRemarkInput) && (
+          <div className="w-full pl-14">
+            <div className="rounded-xl border border-slate-200 bg-white p-3">
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <MessageSquarePlus className="w-4 h-4 text-indigo-700" />
+                  <span className="text-sm font-semibold text-slate-900">Add Progress Update</span>
                 </div>
-              ))}
+                <textarea
+                  value={newRemark}
+                  onChange={(e) => setNewRemark(e.target.value)}
+                  placeholder="Update on task progress, stages completed, or any relevant information..."
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 resize-none h-20"
+                  rows={3}
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleAddRemark}
+                    disabled={!newRemark.trim()}
+                    className="flex-1 bg-indigo-900 text-white px-3 py-2 rounded-xl font-bold text-sm active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    <Send className="w-4 h-4" />
+                    Add Update
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowRemarkInput(false);
+                      setNewRemark('');
+                    }}
+                    className="px-4 bg-slate-100 text-slate-700 py-2 rounded-xl font-bold text-sm active:scale-95 transition-all hover:bg-slate-200"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        )}
+
+        {/* In-Tile Progress Updates Ticker */}
+        {task.remarks && task.remarks.length > 0 && (
+          <div className="w-full pl-14">
+            <div className="rounded-xl border border-slate-200 bg-white p-3">
+              <div 
+                className="flex items-center gap-2 cursor-pointer hover:bg-slate-100 p-2 rounded-lg transition-colors"
+                onClick={() => setShowRemarksExpanded(!showRemarksExpanded)}
+              >
+                <MessageSquarePlus className="w-4 h-4 text-indigo-700" />
+                <span className="text-sm font-semibold text-slate-900">Progress Updates ({task.remarks.length})</span>
+                <ChevronDown 
+                  className={`w-4 h-4 text-slate-500 transition-transform ${showRemarksExpanded ? 'rotate-180' : ''}`} 
+                />
+              </div>
+              
+              {showRemarksExpanded && (
+                <div className="space-y-2 mt-2">
+                  {task.remarks.map((remark, index) => (
+                    <div key={remark.id} className="bg-white rounded-xl p-3 border border-slate-200">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-semibold text-slate-900">{remark.employeeName}</span>
+                        <span className="text-xs text-slate-500">
+                          {new Date(remark.timestamp).toLocaleString()}
+                        </span>
+                      </div>
+                      <p className="text-sm text-slate-600">{remark.remark}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Proof Image Modal */}
       {showFullImage && task.proof && (
