@@ -327,6 +327,22 @@ const resolveEmployeeProfileFromAuthUser = async (authUser: any): Promise<Employ
   return null;
 };
 
+const upsertTaskAtTop = <T extends { id: string }>(items: T[], nextItem: T): T[] => {
+  const filtered = items.filter((item) => item.id !== nextItem.id);
+  return [nextItem, ...filtered];
+};
+
+const upsertTaskInPlace = <T extends { id: string }>(items: T[], nextItem: T): T[] => {
+  const index = items.findIndex((item) => item.id === nextItem.id);
+  if (index === -1) {
+    return [nextItem, ...items];
+  }
+
+  const updated = [...items];
+  updated[index] = { ...updated[index], ...nextItem };
+  return updated;
+};
+
 const App: React.FC = () => {
   // --- 1. USER & STATE MANAGEMENT ---
   const [currentUser, setCurrentUser] = useState<Employee | null>(() => {
@@ -691,7 +707,7 @@ const App: React.FC = () => {
           };
 
           console.log('✅ Created rich task:', richTask);
-          setTasks(prev => [richTask, ...prev]);
+          setTasks(prev => upsertTaskAtTop(prev, richTask as DealershipTask));
 
         } catch (err) {
           console.error('🚨 Error in realtime INSERT handler:', err);
@@ -749,7 +765,7 @@ const App: React.FC = () => {
           };
 
           console.log('✅ Updated rich task:', richTask);
-          setTasks(prev => prev.map(task => task.id === richTask.id ? richTask : task));
+          setTasks(prev => upsertTaskInPlace(prev, richTask as DealershipTask));
 
         } catch (err) {
           console.error('🚨 Error in realtime UPDATE handler:', err);
@@ -945,7 +961,7 @@ const App: React.FC = () => {
 
       // Transform returned database task back to app format
       const appTask = transformTaskToApp(data as DatabaseTask);
-      setTasks(prev => [appTask, ...prev]);
+      setTasks(prev => upsertTaskAtTop(prev, appTask));
     } catch (error) {
       console.error('Error adding task:', error);
       toast.error(`Failed to save task: ${error instanceof Error ? error.message : 'Unknown error'}`);

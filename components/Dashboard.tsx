@@ -20,7 +20,7 @@ interface DashboardProps {
     requirePhoto?: boolean,
     taskType?: TaskType,
     recurrenceFrequency?: RecurrenceFrequency | null
-  ) => void;
+  ) => Promise<void> | void;
   onStartTask: (id: string) => void;
   onReopenTask: (id: string) => void;
   onCompleteTask: (id: string, proof: { imageUrl: string, timestamp: number }) => void;
@@ -163,6 +163,8 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
   const [delegatingTaskId, setDelegatingTaskId] = useState<string | null>(null);
   const [reassigningTaskId, setReassigningTaskId] = useState<string | null>(null);
+  const [isCreatingTask, setIsCreatingTask] = useState(false);
+  const lastTaskSubmitRef = useRef<{ signature: string; timestamp: number } | null>(null);
   const [statusBumpTimestamps, setStatusBumpTimestamps] = useState<Record<string, number>>({});
   const previousTaskStatusRef = useRef<Record<string, TaskStatus>>({});
 
@@ -284,6 +286,9 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
 
   const handleAddTask = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isCreatingTask) {
+      return;
+    }
 
     const deadlineTimestamp = deadline ? new Date(deadline).getTime() : undefined;
     const normalizedTaskType: TaskType = taskType === 'recurring' ? 'recurring' : 'one_time';
@@ -300,8 +305,29 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
       return;
     }
 
+    const submitSignature = [
+      newTaskDesc.trim().toLowerCase(),
+      assigneeId,
+      deadline || '',
+      requirePhoto ? '1' : '0',
+      normalizedTaskType,
+      normalizedRecurrenceFrequency || ''
+    ].join('|');
+    const now = Date.now();
+    const lastSubmit = lastTaskSubmitRef.current;
+    if (
+      lastSubmit &&
+      lastSubmit.signature === submitSignature &&
+      now - lastSubmit.timestamp < 1500
+    ) {
+      console.log('Skipping duplicate task submit on rapid tap');
+      return;
+    }
+    lastTaskSubmitRef.current = { signature: submitSignature, timestamp: now };
+
+    setIsCreatingTask(true);
     try {
-      onAddTask(
+      await Promise.resolve(onAddTask(
         newTaskDesc.trim(),
         assigneeId === 'none' ? undefined : assigneeId,
         undefined,
@@ -309,7 +335,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
         requirePhoto,
         normalizedTaskType,
         normalizedRecurrenceFrequency
-      );
+      ));
 
       // IMMEDIATELY reset form states
       setNewTaskDesc('');
@@ -340,6 +366,8 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
     } catch (err) {
       console.error('Unexpected error creating task:', err);
       alert('Unexpected Error: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    } finally {
+      setIsCreatingTask(false);
     }
   };
 
@@ -874,10 +902,11 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
             <div className="flex gap-2">
             <button 
               type="submit"
-              className="flex-1 bg-indigo-900 hover:bg-indigo-800 text-white py-3 rounded-xl font-bold active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 shadow-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)]"
+              disabled={isCreatingTask}
+              className="flex-1 bg-indigo-900 hover:bg-indigo-800 text-white py-3 rounded-xl font-bold active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 shadow-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)] disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <Plus className="w-5 h-5" />
-              Assign Task
+              {isCreatingTask ? 'Assigning...' : 'Assign Task'}
             </button>
           </div>
           </form>
