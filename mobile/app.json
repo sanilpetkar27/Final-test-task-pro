@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "TaskPro",
+    "slug": "taskpro-mobile",
+    "scheme": "taskpro",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.taskpro.mobile"
+    },
+    "android": {
+      "package": "com.taskpro.mobile"
+    },
+    "plugins": [
+      [
+        "onesignal-expo-plugin",
+        {
+          "mode": "development"
+        }
+      ]
+    ],
+    "extra": {
+      "onesignalAppId": "531b5106-873b-443a-bcc6-b7074246401f"
+    }
+  }
+}
