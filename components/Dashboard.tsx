@@ -39,13 +39,41 @@ const isMissingTaskRecurrenceColumnError = (error: any): boolean => {
   return missingRecurrenceColumn && missingInSchema;
 };
 
+const isMissingNextRecurrenceNotificationColumnError = (error: any): boolean => {
+  const message = String(error?.message || '').toLowerCase();
+  return (
+    message.includes('next_recurrence_notification_at') &&
+    (message.includes('schema cache') || (message.includes('column') && message.includes('does not exist')))
+  );
+};
+
 const stripTaskRecurrenceFields = (payload: Record<string, any>) => {
   const legacyPayload = { ...payload };
   delete legacyPayload.task_type;
   delete legacyPayload.recurrence_frequency;
   delete legacyPayload.taskType;
   delete legacyPayload.recurrenceFrequency;
+  delete legacyPayload.next_recurrence_notification_at;
+  delete legacyPayload.nextRecurrenceNotificationAt;
   return legacyPayload;
+};
+
+const stripTaskNextRecurrenceField = (payload: Record<string, any>) => {
+  const legacyPayload = { ...payload };
+  delete legacyPayload.next_recurrence_notification_at;
+  delete legacyPayload.nextRecurrenceNotificationAt;
+  return legacyPayload;
+};
+
+const DAILY_MS = 24 * 60 * 60 * 1000;
+const WEEKLY_MS = 7 * DAILY_MS;
+const MONTHLY_MS = 30 * DAILY_MS;
+
+const getRecurrenceIntervalMs = (frequency: RecurrenceFrequency | null | undefined): number => {
+  if (frequency === 'daily') return DAILY_MS;
+  if (frequency === 'weekly') return WEEKLY_MS;
+  if (frequency === 'monthly') return MONTHLY_MS;
+  return 0;
 };
 
 const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, onAddTask, onStartTask, onReopenTask, onCompleteTask, onCompleteTaskWithoutPhoto, onReassignTask, onDeleteTask, onUpdateTaskRemarks }) => {
@@ -232,11 +260,17 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
 
     try {
       if (editingTaskId) {
+        const nextRecurrenceNotificationAt =
+          normalizedTaskType === 'recurring'
+            ? Date.now() + getRecurrenceIntervalMs(normalizedRecurrenceFrequency)
+            : null;
+
         const updateData = {
           description: newTaskDesc.trim(),
           assignedTo: assigneeId === 'none' ? null : assigneeId,
           task_type: normalizedTaskType,
           recurrence_frequency: normalizedRecurrenceFrequency,
+          next_recurrence_notification_at: nextRecurrenceNotificationAt,
           deadline: deadlineTimestamp,
           requirePhoto: requirePhoto
         };
@@ -245,6 +279,18 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
           .from('tasks')
           .update(updateData)
           .eq('id', editingTaskId);
+
+        if (result.error && isMissingNextRecurrenceNotificationColumnError(result.error)) {
+          const retryUpdateData = stripTaskNextRecurrenceField(updateData as unknown as Record<string, any>);
+          result = await supabase
+            .from('tasks')
+            .update(retryUpdateData)
+            .eq('id', editingTaskId);
+
+          if (!result.error) {
+            alert('Task updated, but recurring reminder scheduling needs a DB migration to be fully available.');
+          }
+        }
 
         if (result.error && isMissingTaskRecurrenceColumnError(result.error)) {
           const legacyUpdateData = stripTaskRecurrenceFields(updateData as unknown as Record<string, any>);

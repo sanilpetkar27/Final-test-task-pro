@@ -23,6 +23,25 @@ const DEFAULT_COMPANY_ID = '00000000-0000-0000-0000-000000000001';
 const USER_CACHE_KEY = 'universal_app_user';
 const EMPLOYEES_CACHE_KEY = 'universalAppEmployees';
 const TASKS_CACHE_KEY = 'universalAppTasks';
+const DAILY_MS = 24 * 60 * 60 * 1000;
+const WEEKLY_MS = 7 * DAILY_MS;
+const MONTHLY_MS = 30 * DAILY_MS;
+
+const getRecurrenceIntervalMs = (frequency: RecurrenceFrequency | null | undefined): number => {
+  if (frequency === 'daily') return DAILY_MS;
+  if (frequency === 'weekly') return WEEKLY_MS;
+  if (frequency === 'monthly') return MONTHLY_MS;
+  return 0;
+};
+
+const computeNextRecurrenceNotificationAt = (
+  baseTimestamp: number,
+  frequency: RecurrenceFrequency | null | undefined
+): number | null => {
+  const intervalMs = getRecurrenceIntervalMs(frequency);
+  if (!intervalMs) return null;
+  return Number(baseTimestamp || Date.now()) + intervalMs;
+};
 
 const normalizeRole = (role: unknown): Employee['role'] => {
   return role === 'owner' || role === 'manager' || role === 'staff' || role === 'super_admin'
@@ -65,12 +84,29 @@ const isMissingTaskRecurrenceColumnError = (error: any): boolean => {
   return missingRecurrenceColumn && missingInSchema;
 };
 
+const isMissingNextRecurrenceNotificationColumnError = (error: any): boolean => {
+  const message = String(error?.message || '').toLowerCase();
+  return (
+    message.includes('next_recurrence_notification_at') &&
+    (message.includes('schema cache') || (message.includes('column') && message.includes('does not exist')))
+  );
+};
+
 const stripTaskRecurrenceFields = (payload: Record<string, any>) => {
   const legacyPayload = { ...payload };
   delete legacyPayload.task_type;
   delete legacyPayload.recurrence_frequency;
   delete legacyPayload.taskType;
   delete legacyPayload.recurrenceFrequency;
+  delete legacyPayload.next_recurrence_notification_at;
+  delete legacyPayload.nextRecurrenceNotificationAt;
+  return legacyPayload;
+};
+
+const stripTaskNextRecurrenceField = (payload: Record<string, any>) => {
+  const legacyPayload = { ...payload };
+  delete legacyPayload.next_recurrence_notification_at;
+  delete legacyPayload.nextRecurrenceNotificationAt;
   return legacyPayload;
 };
 
@@ -838,13 +874,18 @@ const App: React.FC = () => {
       return;
     }
 
+    const now = Date.now();
     const newTask: DealershipTask = {
-      id: `task-${Date.now()}`,
+      id: `task-${now}`,
       description,
       status: 'pending',
       taskType: normalizedTaskType,
       recurrenceFrequency: normalizedRecurrenceFrequency,
-      createdAt: Date.now(),
+      nextRecurrenceNotificationAt:
+        normalizedTaskType === 'recurring'
+          ? computeNextRecurrenceNotificationAt(now, normalizedRecurrenceFrequency)
+          : null,
+      createdAt: now,
       deadline: deadline,
       requirePhoto: requirePhoto || false,
       assignedTo: assignedTo === 'none' ? undefined : assignedTo,
@@ -863,6 +904,22 @@ const App: React.FC = () => {
         .insert([dbTask])
         .select('*')
         .single();
+
+      if (error && isMissingNextRecurrenceNotificationColumnError(error)) {
+        const retryPayload = stripTaskNextRecurrenceField(dbTask as unknown as Record<string, any>);
+        const retryResult = await supabase
+          .from('tasks')
+          .insert([retryPayload])
+          .select('*')
+          .single();
+
+        data = retryResult.data as any;
+        error = retryResult.error as any;
+
+        if (!error) {
+          toast.warning('Task saved, but recurring reminder scheduling needs DB migration to be fully available.');
+        }
+      }
 
       if (error && isMissingTaskRecurrenceColumnError(error)) {
         const legacyTaskPayload = stripTaskRecurrenceFields(dbTask as unknown as Record<string, any>);

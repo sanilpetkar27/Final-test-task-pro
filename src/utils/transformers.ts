@@ -14,6 +14,8 @@ export interface DatabaseTask {
   // Timestamp fields may be camelCase or snake_case depending on schema history.
   createdAt?: number;
   created_at?: number;
+  next_recurrence_notification_at?: number | null;
+  nextRecurrenceNotificationAt?: number | null;
   deadline?: number;
   completedAt?: number;
   completed_at?: number;
@@ -56,6 +58,8 @@ export const transformTaskToApp = (dbTask: DatabaseTask): DealershipTask => {
     status: dbTask.status,
     taskType: normalizedTaskType,
     recurrenceFrequency: normalizedRecurrenceFrequency,
+    nextRecurrenceNotificationAt:
+      dbTask.next_recurrence_notification_at ?? dbTask.nextRecurrenceNotificationAt ?? null,
     createdAt: Number(dbTask.createdAt ?? dbTask.created_at ?? Date.now()),
     deadline: dbTask.deadline,
     completedAt: dbTask.completedAt ?? dbTask.completed_at,
@@ -96,6 +100,8 @@ export const transformTaskToDB = (appTask: DealershipTask): DatabaseTask => {
     status: appTask.status,
     task_type: taskType,
     recurrence_frequency: recurrenceFrequency,
+    next_recurrence_notification_at:
+      taskType === 'recurring' ? (appTask.nextRecurrenceNotificationAt ?? null) : null,
     createdAt: appTask.createdAt,
     deadline: appTask.deadline,
     completedAt: appTask.completedAt,
