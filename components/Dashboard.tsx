@@ -685,8 +685,8 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   return (
     <div className="space-y-6">
       {canAssignTasks && (
-        <section className="bg-[#f0f2f5] p-4 rounded-2xl shadow-sm border border-[#d1d7db] animate-in fade-in slide-in-from-top-4">
-          <h2 className="text-xs font-black text-[#54656f] mb-3 uppercase tracking-widest flex items-center gap-2">
+        <section className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 animate-in fade-in slide-in-from-top-4">
+          <h2 className="text-xs font-black text-slate-500 mb-3 uppercase tracking-widest flex items-center gap-2">
             {editingTaskId ? <Edit className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
             {editingTaskId ? 'Edit Operation' : 'Assign New Operation'}
           </h2>
@@ -697,7 +697,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
                 value={newTaskDesc}
                 onChange={(e) => setNewTaskDesc(e.target.value)}
                 placeholder="What needs to be done?"
-                className={`w-full bg-white border border-[#d1d7db] rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#00a884] transition-all placeholder:text-slate-400 pr-12 ${
+                className={`w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 transition-all placeholder:text-slate-400 pr-12 ${
                   isListening ? 'ring-2 ring-red-500 border-red-300' : ''
                 }`}
               />
@@ -707,7 +707,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
                 className={`absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-all ${
                   isListening 
                     ? 'bg-red-500 text-white hover:bg-red-600 animate-pulse' 
-                    : 'bg-[#f0f2f5] text-[#54656f] hover:bg-[#d1d7db] hover:text-[#202c33]'
+                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-900'
                 }`}
                 title={isListening ? 'Stop recording' : 'Start voice input'}
               >
@@ -727,7 +727,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
                 <select
                   value={taskType}
                   onChange={(e) => setTaskType(e.target.value as TaskType)}
-                  className="w-full bg-white border border-[#d1d7db] rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#00a884] appearance-none transition-all pr-10"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 appearance-none transition-all pr-10"
                 >
                   <option value="one_time" className="text-slate-900">One-time Task</option>
                   <option value="recurring" className="text-slate-900">Recurring Task</option>
@@ -745,7 +745,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
                         value === '' ? '' : (value as RecurrenceFrequency)
                       );
                     }}
-                    className="w-full bg-white border border-[#d1d7db] rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#00a884] appearance-none transition-all pr-10"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 appearance-none transition-all pr-10"
                     required
                   >
                     <option value="" className="text-slate-900">Select Frequency</option>
@@ -763,7 +763,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
                 <select 
                   value={assigneeId}
                   onChange={(e) => setAssigneeId(e.target.value)}
-                  className="w-full bg-white border border-[#d1d7db] rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#00a884] appearance-none transition-all pr-10"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 appearance-none transition-all pr-10"
                 >
                   <option value="none" className="text-slate-900">Anyone / Unassigned</option>
                   {employees.map(emp => (
@@ -780,7 +780,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
                   type="datetime-local" 
                   value={deadline}
                   onChange={(e) => setDeadline(e.target.value)}
-                  className="w-full border rounded-xl px-3 py-3 bg-white border-[#d1d7db] focus:outline-none focus:ring-2 focus:ring-[#00a884] transition-all"
+                  className="w-full border rounded-xl px-3 py-3 bg-white border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-800 transition-all"
                 />
                 <CalendarClock className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
@@ -792,7 +792,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
                 id="requirePhoto"
                 checked={requirePhoto}
                 onChange={(e) => setRequirePhoto(e.target.checked)}
-                className="w-4 h-4 text-[#00a884] rounded focus:ring-[#00a884] border-slate-300"
+                className="w-4 h-4 text-indigo-900 rounded focus:ring-slate-800 border-slate-300"
               />
               <label htmlFor="requirePhoto" className="text-sm text-slate-700">
                 Require photo proof
@@ -802,7 +802,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
             <div className="flex gap-2">
             <button 
               type="submit"
-              className="flex-1 bg-[#00a884] hover:bg-[#008069] text-white py-3 rounded-xl font-bold active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-[#00a884]/20"
+              className="flex-1 bg-indigo-900 hover:bg-indigo-800 text-white py-3 rounded-xl font-bold active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 shadow-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)]"
             >
               {editingTaskId ? <Edit className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
               {editingTaskId ? 'Update Task' : 'Assign Task'}
@@ -815,7 +815,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
                   setEditingTaskId(null);
                   clearForm();
                 }}
-                className="px-6 bg-[#8696a0] text-white py-3 rounded-xl font-bold hover:bg-[#6f7f88] active:scale-95 transition-all flex items-center justify-center gap-2"
+                className="px-6 bg-slate-100 text-slate-700 py-3 rounded-xl font-bold hover:bg-slate-200 active:scale-95 transition-all flex items-center justify-center gap-2"
               >
                 Cancel
               </button>
@@ -826,8 +826,8 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
       )}
 
       {/* Person Filter */}
-      <section className="bg-[#f0f2f5] p-4 rounded-2xl shadow-sm border border-[#d1d7db]">
-        <h2 className="text-xs font-black text-[#54656f] mb-3 uppercase tracking-widest flex items-center gap-2">
+      <section className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+        <h2 className="text-xs font-black text-slate-500 mb-3 uppercase tracking-widest flex items-center gap-2">
           <User className="w-3 h-3" />
           Person Filter
         </h2>
@@ -835,7 +835,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
           <select 
             value={selectedPersonFilter}
             onChange={(e) => setSelectedPersonFilter(e.target.value)}
-            className="w-full bg-white border border-[#d1d7db] rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#00a884] appearance-none transition-all pr-10"
+            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 appearance-none transition-all pr-10"
           >
             <option value="ALL" className="text-slate-900">All Users</option>
             {filterOptions.map(person => (
@@ -857,8 +857,8 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
           onClick={() => setDeadlineView('overdue')}
           className={`flex-1 relative overflow-hidden rounded-xl transition-all duration-300 transform hover:scale-105 ${
             deadlineView === 'overdue' 
-              ? 'bg-[#00a884] text-white shadow-lg shadow-[#00a884]/25 ring-2 ring-[#00a884]/20' 
-              : 'bg-white text-slate-600 hover:bg-[#f0f2f5] border border-[#d1d7db] shadow-sm hover:shadow-md'
+              ? 'bg-indigo-900 text-white shadow-sm ring-2 ring-slate-300' 
+              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 shadow-sm hover:shadow-sm'
           }`}
         >
           <div className="flex items-center justify-center gap-2 py-3 px-2">
@@ -874,8 +874,8 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
           onClick={() => setDeadlineView('today')}
           className={`flex-1 relative overflow-hidden rounded-xl transition-all duration-300 transform hover:scale-105 ${
             deadlineView === 'today' 
-              ? 'bg-[#00a884] text-white shadow-lg shadow-[#00a884]/25 ring-2 ring-[#00a884]/20' 
-              : 'bg-white text-slate-600 hover:bg-[#f0f2f5] border border-[#d1d7db] shadow-sm hover:shadow-md'
+              ? 'bg-indigo-900 text-white shadow-sm ring-2 ring-slate-300' 
+              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 shadow-sm hover:shadow-sm'
           }`}
         >
           <div className="flex items-center justify-center gap-2 py-3 px-2">
@@ -891,12 +891,12 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
           onClick={() => setDeadlineView('upcoming')}
           className={`flex-1 relative overflow-hidden rounded-xl transition-all duration-300 transform hover:scale-105 ${
             deadlineView === 'upcoming' 
-              ? 'bg-[#00a884] text-white shadow-lg shadow-[#00a884]/25 ring-2 ring-[#00a884]/20' 
-              : 'bg-white text-slate-600 hover:bg-[#f0f2f5] border border-[#d1d7db] shadow-sm hover:shadow-md'
+              ? 'bg-indigo-900 text-white shadow-sm ring-2 ring-slate-300' 
+              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 shadow-sm hover:shadow-sm'
           }`}
         >
           <div className="flex items-center justify-center gap-2 py-3 px-2">
-            <Calendar className={`w-4 h-4 ${deadlineView === 'upcoming' ? 'text-white' : 'text-[#008069]'}`} />
+            <Calendar className={`w-4 h-4 ${deadlineView === 'upcoming' ? 'text-white' : 'text-indigo-700'}`} />
             <span className="text-xs font-bold uppercase tracking-wide">Upcoming</span>
           </div>
           {deadlineView === 'upcoming' && (
@@ -908,12 +908,12 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
           onClick={() => setDeadlineView('all')}
           className={`flex-1 relative overflow-hidden rounded-xl transition-all duration-300 transform hover:scale-105 ${
             deadlineView === 'all' 
-              ? 'bg-[#00a884] text-white shadow-lg shadow-[#00a884]/25 ring-2 ring-[#00a884]/20' 
-              : 'bg-white text-slate-600 hover:bg-[#f0f2f5] border border-[#d1d7db] shadow-sm hover:shadow-md'
+              ? 'bg-indigo-900 text-white shadow-sm ring-2 ring-slate-300' 
+              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 shadow-sm hover:shadow-sm'
           }`}
         >
           <div className="flex items-center justify-center gap-2 py-3 px-2">
-            <CheckCircle2 className={`w-4 h-4 ${deadlineView === 'all' ? 'text-white' : 'text-green-500'}`} />
+            <CheckCircle2 className={`w-4 h-4 ${deadlineView === 'all' ? 'text-white' : 'text-emerald-700'}`} />
             <span className="text-xs font-bold uppercase tracking-wide">All</span>
           </div>
           {deadlineView === 'all' && (
@@ -926,21 +926,21 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
       <div className="flex gap-2 pb-4">
         <button 
           onClick={() => setView('pending')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${view === 'pending' ? 'bg-white text-[#008069] shadow-sm ring-1 ring-[#00a884]/20' : 'text-slate-500'}`}
+          className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${view === 'pending' ? 'bg-white text-indigo-700 shadow-sm ring-1 ring-slate-300' : 'text-slate-500'}`}
         >
           <ClipboardIcon className="w-4 h-4" />
           To Do ({filteredPendingTasks.length})
         </button>
         <button 
           onClick={() => setView('in-progress')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${view === 'in-progress' ? 'bg-white text-[#008069] shadow-sm ring-1 ring-[#00a884]/20' : 'text-slate-500'}`}
+          className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${view === 'in-progress' ? 'bg-white text-indigo-700 shadow-sm ring-1 ring-slate-300' : 'text-slate-500'}`}
         >
           <Timer className="w-4 h-4" />
           In Progress ({filteredInProgressTasks.length})
         </button>
         <button 
           onClick={() => setView('completed')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${view === 'completed' ? 'bg-white text-[#008069] shadow-sm ring-1 ring-[#00a884]/20' : 'text-slate-500'}`}
+          className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${view === 'completed' ? 'bg-white text-indigo-700 shadow-sm ring-1 ring-slate-300' : 'text-slate-500'}`}
         >
           <CheckCircle2 className="w-4 h-4" />
           Done ({filteredCompletedTasks.length})
@@ -971,7 +971,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
           />
         ))}
         {tasksToShow.length === 0 && (
-          <div className="text-center py-20 bg-[#f0f2f5] rounded-3xl border border-dashed border-[#d1d7db]">
+          <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-200">
             {view === 'pending' ? <Clock className="w-12 h-12 mx-auto mb-3 text-slate-200" /> : 
                view === 'in-progress' ? <Timer className="w-12 h-12 mx-auto mb-3 text-slate-200" /> :
                <CheckCircle2 className="w-12 h-12 mx-auto mb-3 text-slate-200" />}

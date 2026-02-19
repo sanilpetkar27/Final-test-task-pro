@@ -38,11 +38,11 @@ const ChatInterface: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-14rem)] bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-14rem)] bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[85%] rounded-2xl p-4 flex gap-3 ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-800'}`}>
+            <div className={`max-w-[85%] rounded-2xl p-4 flex gap-3 ${msg.role === 'user' ? 'bg-indigo-900 text-white' : 'bg-slate-100 text-slate-800'}`}>
               <div className="mt-1 shrink-0">
                 {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
               </div>
@@ -53,7 +53,7 @@ const ChatInterface: React.FC = () => {
         {isLoading && (
           <div className="flex justify-start">
             <div className="bg-slate-100 rounded-2xl p-4 flex gap-3 items-center">
-              <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+              <Loader2 className="w-4 h-4 animate-spin text-indigo-700" />
               <span className="text-xs font-medium text-slate-500">Gemini is thinking...</span>
             </div>
           </div>
@@ -68,12 +68,12 @@ const ChatInterface: React.FC = () => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Ask about VINs, maintenance, etc..."
-            className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 focus:border-transparent"
           />
           <button 
             type="submit"
             disabled={isLoading}
-            className="bg-blue-600 text-white p-3 rounded-xl active:scale-95 disabled:opacity-50 transition-all"
+            className="bg-indigo-900 hover:bg-indigo-800 text-white p-3 rounded-xl active:scale-95 disabled:opacity-50 transition-all"
           >
             <Send className="w-5 h-5" />
           </button>

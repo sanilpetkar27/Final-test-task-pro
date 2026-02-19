@@ -49,10 +49,10 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ documents, onAddDocum
   return (
     <div className="space-y-6 pb-20">
       {/* Vault Header */}
-      <div className="bg-gradient-to-br from-blue-700 to-indigo-900 p-6 rounded-3xl text-white shadow-xl relative overflow-hidden">
+      <div className="bg-gradient-to-br from-slate-800 to-indigo-900 p-6 rounded-2xl text-white shadow-[0_2px_8px_rgba(0,0,0,0.04)] relative overflow-hidden">
         <ShieldCheck className="absolute -right-4 -bottom-4 w-32 h-32 text-white/5 rotate-12" />
         <h2 className="text-2xl font-black italic mb-1">Company Vault</h2>
-        <p className="text-blue-100 text-xs">Essential dealership ID & Compliance documents.</p>
+        <p className="text-slate-300 text-xs">Essential dealership ID & Compliance documents.</p>
       </div>
 
       {/* Search & Add */}
@@ -63,13 +63,13 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ documents, onAddDocum
             placeholder="Search documents..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            className="w-full bg-white border border-slate-200 rounded-2xl pl-10 pr-4 py-3.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm"
+            className="w-full bg-white border border-slate-200 rounded-2xl pl-10 pr-4 py-3.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-slate-800 transition-all shadow-sm"
           />
           <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
         </div>
         <button 
           onClick={() => setIsAdding(true)}
-          className="bg-blue-600 text-white p-3.5 rounded-2xl shadow-lg active:scale-95 transition-transform"
+          className="bg-indigo-900 hover:bg-indigo-800 text-white p-3.5 rounded-2xl shadow-sm active:scale-95 transition-transform"
         >
           <Upload className="w-6 h-6" />
         </button>
@@ -78,7 +78,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ documents, onAddDocum
       {/* Upload Form Modal */}
       {isAdding && (
         <div className="fixed inset-0 z-[100] bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-3xl p-6 space-y-4">
+          <div className="bg-white w-full max-w-md rounded-2xl p-6 space-y-4 border border-slate-200 shadow-sm">
             <h3 className="text-lg font-black text-slate-800">Add New Document</h3>
             <div className="space-y-3">
               <input 
@@ -98,7 +98,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ documents, onAddDocum
               <button 
                 onClick={() => fileInputRef.current?.click()}
                 disabled={!formData.name}
-                className={`w-full py-4 rounded-xl border-2 border-dashed font-bold transition-all ${formData.name ? 'border-blue-200 bg-blue-50 text-blue-600' : 'border-slate-200 bg-slate-50 text-slate-400 opacity-50'}`}
+                className={`w-full py-4 rounded-xl border-2 border-dashed font-bold transition-all ${formData.name ? 'border-indigo-200 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-slate-50 text-slate-400 opacity-50'}`}
               >
                 Select File & Upload
               </button>
@@ -131,7 +131,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ documents, onAddDocum
               <div className="flex items-center gap-1">
                 <button 
                   onClick={() => setPreviewDoc(doc)}
-                  className="p-3 text-blue-600 bg-blue-50 rounded-xl active:scale-90 transition-transform"
+                  className="p-3 text-indigo-700 bg-indigo-50 rounded-xl active:scale-90 transition-transform"
                 >
                   <Eye className="w-5 h-5" />
                 </button>
@@ -160,12 +160,12 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ documents, onAddDocum
             <button onClick={() => setPreviewDoc(null)} className="p-2 bg-white/10 rounded-full text-white"><X className="w-6 h-6" /></button>
           </div>
           {previewDoc.mimeType.startsWith('image/') ? (
-            <img src={previewDoc.fileData} alt="Preview" className="max-w-full max-h-[80vh] rounded-lg shadow-2xl" />
+            <img src={previewDoc.fileData} alt="Preview" className="max-w-full max-h-[80vh] rounded-lg shadow-[0_2px_8px_rgba(0,0,0,0.04)]" />
           ) : (
-            <div className="bg-white p-10 rounded-3xl text-center space-y-4">
-              <FileText className="w-16 h-16 mx-auto text-blue-500" />
+            <div className="bg-white p-10 rounded-2xl text-center space-y-4 border border-slate-200 shadow-sm">
+              <FileText className="w-16 h-16 mx-auto text-indigo-700" />
               <p className="font-bold text-slate-800">PDF Document View</p>
-              <a href={previewDoc.fileData} download={previewDoc.name} className="inline-block bg-blue-600 text-white px-6 py-3 rounded-xl font-bold">Download to View</a>
+              <a href={previewDoc.fileData} download={previewDoc.name} className="inline-block bg-indigo-900 hover:bg-indigo-800 text-white px-6 py-3 rounded-xl font-bold transition-colors">Download to View</a>
             </div>
           )}
         </div>

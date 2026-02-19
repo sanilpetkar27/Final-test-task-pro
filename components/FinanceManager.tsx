@@ -52,10 +52,10 @@ const FinanceManager: React.FC<FinanceManagerProps> = ({ records, onAddRecord, o
   return (
     <div className="space-y-6 pb-20">
       {/* Financial Summary */}
-      <div className="bg-gradient-to-br from-emerald-600 to-teal-700 p-6 rounded-3xl text-white shadow-xl">
+      <div className="bg-gradient-to-br from-slate-800 to-indigo-900 p-6 rounded-3xl text-white shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
         <div className="flex justify-between items-start mb-4">
           <div>
-            <p className="text-emerald-100 text-xs font-bold uppercase tracking-widest mb-1">Total Outstanding</p>
+            <p className="text-slate-200 text-xs font-bold uppercase tracking-widest mb-1">Total Outstanding</p>
             <h2 className="text-3xl font-black italic">₹{totalOutstanding.toLocaleString()}</h2>
           </div>
           <div className="bg-white/20 p-2 rounded-xl">
@@ -79,7 +79,7 @@ const FinanceManager: React.FC<FinanceManagerProps> = ({ records, onAddRecord, o
           <span className="font-bold">Register New Funding/Loan</span>
         </button>
       ) : (
-        <form onSubmit={handleSubmit} className="bg-white p-5 rounded-2xl shadow-md border border-slate-200 space-y-4 animate-in zoom-in-95 duration-200">
+        <form onSubmit={handleSubmit} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4 animate-in zoom-in-95 duration-200">
           <div className="flex justify-between items-center">
             <h3 className="font-bold text-slate-800">New Finance Entry</h3>
             <button type="button" onClick={() => setIsAdding(false)} className="text-slate-400 hover:text-slate-600 text-xs font-bold uppercase">Cancel</button>
@@ -94,7 +94,7 @@ const FinanceManager: React.FC<FinanceManagerProps> = ({ records, onAddRecord, o
                 value={formData.lenderName}
                 onChange={e => setFormData({...formData, lenderName: e.target.value})}
                 placeholder="e.g. HDFC Bank, Cholamandalam..."
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-none"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:ring-2 focus:ring-slate-800 outline-none"
               />
             </div>
             
@@ -139,7 +139,7 @@ const FinanceManager: React.FC<FinanceManagerProps> = ({ records, onAddRecord, o
 
           <button 
             type="submit"
-            className="w-full bg-emerald-600 text-white font-bold py-4 rounded-xl shadow-lg active:scale-95 transition-transform"
+            className="w-full bg-indigo-900 hover:bg-indigo-800 text-white font-bold py-4 rounded-xl shadow-sm active:scale-95 transition-transform"
           >
             Add Finance Record
           </button>

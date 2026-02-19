@@ -81,10 +81,10 @@ const TaskItem: React.FC<TaskItemProps> = ({
     task.status === 'completed'
       ? 'text-emerald-600'
       : task.status === 'in-progress'
-      ? 'text-[#008069]'
+      ? 'text-indigo-700'
       : isOverdue
       ? 'text-red-600'
-      : 'text-[#54656f]';
+      : 'text-slate-500';
   const rawTaskType = String((task as any).taskType ?? (task as any).task_type ?? '').toLowerCase();
   const rawRecurrenceFrequency = String(
     (task as any).recurrenceFrequency ?? (task as any).recurrence_frequency ?? ''
@@ -163,12 +163,12 @@ const TaskItem: React.FC<TaskItemProps> = ({
 
   return (
     <div className="space-y-2">
-      <div className={`bg-white rounded-xl p-4 shadow-sm border ${isOverdue ? 'border-red-300 bg-red-50' : (task.status === 'completed' ? 'border-emerald-200' : (task.status === 'in-progress' ? 'border-[#a7d8ce]' : 'border-[#d1d7db]'))} flex items-start justify-between gap-3 transition-all relative overflow-hidden hover:bg-[#f5f6f6] hover:shadow-md`}>
+      <div className={`bg-white rounded-xl p-4 shadow-sm border ${isOverdue ? 'border-red-300 bg-red-50' : (task.status === 'completed' ? 'border-emerald-200' : (task.status === 'in-progress' ? 'border-indigo-200' : 'border-slate-200'))} flex items-start justify-between gap-3 transition-all relative overflow-hidden hover:bg-slate-50 hover:shadow-sm`}>
         
         {/* Overdue Warning Stripe */}
         {isOverdue && <div className="absolute top-0 left-0 w-1 h-full bg-red-500" />}
 
-        <div className="w-11 h-11 rounded-full bg-[#d9fdd3] text-[#008069] flex items-center justify-center text-sm font-black shrink-0 mt-0.5">
+        <div className="w-11 h-11 rounded-full bg-indigo-50 text-indigo-700 flex items-center justify-center text-sm font-black shrink-0 mt-0.5">
           {taskAvatarLabel || 'T'}
         </div>
 
@@ -182,13 +182,13 @@ const TaskItem: React.FC<TaskItemProps> = ({
               </span>
             )}
             {task.status === 'in-progress' && (
-              <span className="inline-flex items-center gap-1 bg-[#d9fdd3] text-[#008069] px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider">
+              <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider">
                 <Play className="w-3 h-3" />
                 In Progress
               </span>
             )}
             {task.requirePhoto && (
-              <span className="inline-flex items-center gap-1 bg-[#202c33] text-white px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider">
+              <span className="inline-flex items-center gap-1 bg-slate-800 text-white px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider">
                 <Camera className="w-3 h-3" />
                 Photo Required
               </span>
@@ -200,17 +200,17 @@ const TaskItem: React.FC<TaskItemProps> = ({
               </span>
             )}
             {hasSubTasks && (
-              <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${allSubTasksDone ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>
+              <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${allSubTasksDone ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
                 {completedSubTasks.length}/{subTasks.length} DONE
               </span>
             )}
             {recurrenceBadgeLabel && (
-              <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-[#e9edef] text-[#008069] border border-[#d1d7db]">
+              <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-slate-100 text-indigo-700 border border-slate-200">
                 {recurrenceBadgeLabel}
               </span>
             )}
             {/* Minimal Assignment Info */}
-            <span className="text-[8px] text-[#667781] font-medium">
+            <span className="text-[8px] text-slate-500 font-medium">
               {assignerNameDisplay && assigneeNameDisplay ? 
                 `${assignerNameDisplay} -> ${assigneeNameDisplay}` : 
                 assignerNameDisplay ? `by ${assignerNameDisplay}` : 
@@ -220,15 +220,15 @@ const TaskItem: React.FC<TaskItemProps> = ({
           </div>
           
           <div className="flex items-start gap-2">
-            <div className={`flex-1 rounded-2xl px-3 py-2 shadow-sm border ${task.status === 'completed' ? 'bg-[#f5f6f6] border-[#d1d7db]' : 'bg-[#dcf8c6] border-[#c8e6b8]'}`}>
-              <p className={`text-base font-semibold break-words leading-tight ${task.status === 'completed' ? 'text-slate-400 line-through decoration-slate-300' : (isOverdue ? 'text-red-700' : 'text-[#202c33]')}`}>
+            <div className={`flex-1 rounded-2xl px-3 py-2 shadow-sm border ${task.status === 'completed' ? 'bg-slate-50 border-slate-200' : 'bg-slate-50 border-slate-200'}`}>
+              <p className={`text-base font-semibold break-words leading-tight ${task.status === 'completed' ? 'text-slate-400 line-through decoration-slate-300' : (isOverdue ? 'text-red-700' : 'text-slate-900')}`}>
                 {task.description}
               </p>
             </div>
             {hasSubTasks && (
               <button 
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="p-1 hover:bg-[#f0f2f5] rounded-lg text-slate-400"
+                className="p-1 hover:bg-slate-100 rounded-lg text-slate-400"
               >
                 {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
               </button>
@@ -236,7 +236,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
           </div>
 
           <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-            <span className="text-[9px] text-[#667781] font-bold uppercase tracking-widest">
+            <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">
               Created: {new Date(task.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
             
@@ -261,7 +261,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
         <div className="flex flex-col gap-2 shrink-0 min-w-[86px]">
           <div className="text-right">
             <p className={`text-[10px] font-black uppercase tracking-wide ${taskStatusColorClass}`}>{taskStatusLabel}</p>
-            <p className="text-[10px] text-[#667781]">
+            <p className="text-[10px] text-slate-500">
               {new Date(task.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </p>
           </div>
@@ -269,7 +269,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
             <>
               <button 
                 onClick={onStartTask}
-                className="bg-[#00a884] text-white px-4 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all flex flex-col items-center justify-center min-w-[80px]"
+                className="bg-indigo-900 text-white px-4 py-3 rounded-xl font-bold text-sm shadow-sm active:scale-95 transition-all flex flex-col items-center justify-center min-w-[80px]"
                 title="Accept this task"
               >
                 <span className="text-[10px] font-black uppercase">Accept</span>
@@ -279,7 +279,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
                 <>
                   <button 
                     onClick={onDelegate}
-                    className="bg-[#008069] text-white px-4 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all flex flex-col items-center justify-center min-w-[80px]"
+                    className="bg-indigo-800 text-white px-4 py-3 rounded-xl font-bold text-sm shadow-sm active:scale-95 transition-all flex flex-col items-center justify-center min-w-[80px]"
                     title="Delegate this task"
                   >
                     <UserPlus className="w-5 h-5 mb-0.5" />
@@ -309,7 +309,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
                         console.log('✏️ onEdit function exists:', typeof onEdit === 'function');
                         onEdit?.(); 
                       }}
-                      className="bg-[#d9fdd3] text-[#008069] p-2 rounded-xl active:scale-95 transition-all flex items-center justify-center hover:bg-[#c8f4c0]"
+                      className="bg-indigo-50 text-indigo-700 p-2 rounded-xl active:scale-95 transition-all flex items-center justify-center hover:bg-indigo-100"
                       title="Edit Task"
                      >
                        <Edit className="w-4 h-4" />
@@ -326,7 +326,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
                 <button 
                   onClick={triggerPhotoUpload}
                   disabled={isUploading}
-                  className="bg-green-600 text-white px-4 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all flex flex-col items-center justify-center min-w-[80px] disabled:opacity-50"
+                  className="bg-indigo-900 text-white px-4 py-3 rounded-xl font-bold text-sm shadow-sm active:scale-95 transition-all flex flex-col items-center justify-center min-w-[80px] disabled:opacity-50"
                   title="Complete with photo proof"
                 >
                   {isUploading ? (
@@ -344,7 +344,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
               ) : (
                 <button 
                   onClick={() => onCompleteTaskWithoutPhoto?.()}
-                  className="bg-green-600 text-white px-4 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all flex flex-col items-center justify-center min-w-[80px]"
+                  className="bg-indigo-900 text-white px-4 py-3 rounded-xl font-bold text-sm shadow-sm active:scale-95 transition-all flex flex-col items-center justify-center min-w-[80px]"
                   title="Mark as completed"
                 >
                   <Check className="w-5 h-5 mb-0.5" />
@@ -354,7 +354,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
               
               <button 
                 onClick={() => setShowRemarkInput(!showRemarkInput)}
-                className="bg-[#d9fdd3] text-[#008069] px-4 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all flex flex-col items-center justify-center min-w-[80px]"
+                className="bg-indigo-50 text-indigo-700 px-4 py-3 rounded-xl font-bold text-sm shadow-sm active:scale-95 transition-all flex flex-col items-center justify-center min-w-[80px]"
                 title="Add progress update"
               >
                 <MessageSquarePlus className="w-5 h-5 mb-0.5" />
@@ -368,7 +368,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
               {task.proof && (
                 <button 
                   onClick={() => setShowFullImage(true)}
-                  className="bg-[#d9fdd3] text-[#008069] px-4 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all flex flex-col items-center justify-center min-w-[80px]"
+                  className="bg-indigo-50 text-indigo-700 px-4 py-3 rounded-xl font-bold text-sm shadow-sm active:scale-95 transition-all flex flex-col items-center justify-center min-w-[80px]"
                   title="View proof"
                 >
                   <Camera className="w-5 h-5 mb-0.5" />
@@ -380,7 +380,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
                 <>
                   <button 
                     onClick={onReopenTask}
-                    className="bg-[#008069] text-white px-4 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all flex flex-col items-center justify-center min-w-[80px]"
+                    className="bg-indigo-800 text-white px-4 py-3 rounded-xl font-bold text-sm shadow-sm active:scale-95 transition-all flex flex-col items-center justify-center min-w-[80px]"
                     title="Reopen this task"
                   >
                     <RotateCcw className="w-5 h-5 mb-0.5" />
@@ -410,24 +410,24 @@ const TaskItem: React.FC<TaskItemProps> = ({
 
       {/* Remark Input Section */}
       {task.status === 'in-progress' && showRemarkInput && (
-        <div className="bg-[#f0f2f5] rounded-2xl p-4 border border-[#d1d7db]">
+        <div className="bg-white rounded-2xl p-4 border border-slate-200">
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <MessageSquarePlus className="w-4 h-4 text-[#008069]" />
-              <span className="text-sm font-semibold text-[#202c33]">Add Progress Update</span>
+              <MessageSquarePlus className="w-4 h-4 text-indigo-700" />
+              <span className="text-sm font-semibold text-slate-900">Add Progress Update</span>
             </div>
             <textarea
               value={newRemark}
               onChange={(e) => setNewRemark(e.target.value)}
               placeholder="Update on task progress, stages completed, or any relevant information..."
-              className="w-full bg-white border border-[#d1d7db] rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#00a884] resize-none h-20"
+              className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 resize-none h-20"
               rows={3}
             />
             <div className="flex gap-2">
               <button
                 onClick={handleAddRemark}
                 disabled={!newRemark.trim()}
-                className="flex-1 bg-[#00a884] text-white px-3 py-2 rounded-xl font-bold text-sm active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                className="flex-1 bg-indigo-900 text-white px-3 py-2 rounded-xl font-bold text-sm active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 <Send className="w-4 h-4" />
                 Add Update
@@ -437,7 +437,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
                   setShowRemarkInput(false);
                   setNewRemark('');
                 }}
-                className="px-4 bg-[#8696a0] text-white py-2 rounded-xl font-bold text-sm active:scale-95 transition-all"
+                className="px-4 bg-slate-100 text-slate-700 py-2 rounded-xl font-bold text-sm active:scale-95 transition-all hover:bg-slate-200"
               >
                 Cancel
               </button>
@@ -448,13 +448,13 @@ const TaskItem: React.FC<TaskItemProps> = ({
 
       {/* Remarks Display Section */}
       {task.remarks && task.remarks.length > 0 && (
-        <div className="bg-[#f0f2f5] rounded-2xl p-4 border border-[#d1d7db]">
+        <div className="bg-white rounded-2xl p-4 border border-slate-200">
           <div 
-            className="flex items-center gap-2 mb-3 cursor-pointer hover:bg-[#e9edef] p-2 rounded-lg transition-colors"
+            className="flex items-center gap-2 mb-3 cursor-pointer hover:bg-slate-100 p-2 rounded-lg transition-colors"
             onClick={() => setShowRemarksExpanded(!showRemarksExpanded)}
           >
-            <MessageSquarePlus className="w-4 h-4 text-[#008069]" />
-            <span className="text-sm font-semibold text-[#202c33]">Progress Updates ({task.remarks.length})</span>
+            <MessageSquarePlus className="w-4 h-4 text-indigo-700" />
+            <span className="text-sm font-semibold text-slate-900">Progress Updates ({task.remarks.length})</span>
             <ChevronDown 
               className={`w-4 h-4 text-slate-500 transition-transform ${showRemarksExpanded ? 'rotate-180' : ''}`} 
             />
@@ -463,10 +463,10 @@ const TaskItem: React.FC<TaskItemProps> = ({
           {showRemarksExpanded && (
             <div className="space-y-2 mt-2">
               {task.remarks.map((remark, index) => (
-                <div key={remark.id} className="bg-white rounded-xl p-3 border border-[#d1d7db]">
+                <div key={remark.id} className="bg-white rounded-xl p-3 border border-slate-200">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-semibold text-[#202c33]">{remark.employeeName}</span>
-                    <span className="text-xs text-[#667781]">
+                    <span className="text-xs font-semibold text-slate-900">{remark.employeeName}</span>
+                    <span className="text-xs text-slate-500">
                       {new Date(remark.timestamp).toLocaleString()}
                     </span>
                   </div>

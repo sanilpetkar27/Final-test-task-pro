@@ -51,18 +51,18 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ records, onAddR
   return (
     <div className="space-y-6 pb-20">
       {/* Summary Card */}
-      <div className="bg-gradient-to-br from-indigo-600 to-violet-700 p-6 rounded-3xl text-white shadow-xl">
+      <div className="bg-gradient-to-br from-slate-800 to-indigo-900 p-6 rounded-2xl text-white shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
         <div className="flex justify-between items-start mb-4">
           <div>
-            <p className="text-indigo-100 text-xs font-bold uppercase tracking-widest mb-1">Total Receivable</p>
+            <p className="text-slate-300 text-xs font-bold uppercase tracking-widest mb-1">Total Receivable</p>
             <h2 className="text-3xl font-black italic">₹{totalReceivable.toLocaleString()}</h2>
           </div>
-          <div className="bg-white/20 p-2 rounded-xl">
+          <div className="bg-white/15 p-2 rounded-xl">
             <TrendingUp className="w-6 h-6" />
           </div>
         </div>
         <div className="flex gap-2 text-[10px] font-bold">
-          <span className="bg-white/20 px-2 py-1 rounded-full">{records.length} Expected Payouts</span>
+          <span className="bg-white/15 px-2 py-1 rounded-full">{records.length} Expected Payouts</span>
         </div>
       </div>
 
@@ -72,13 +72,13 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ records, onAddR
           onClick={() => setIsAdding(true)}
           className="w-full bg-white border-2 border-dashed border-slate-300 p-6 rounded-2xl flex flex-col items-center justify-center gap-2 text-slate-500 hover:bg-slate-100 transition-colors"
         >
-          <div className="bg-indigo-50 p-3 rounded-full text-indigo-500">
+          <div className="bg-indigo-50 p-3 rounded-full text-indigo-700">
             <Plus className="w-6 h-6" />
           </div>
           <span className="font-bold">Register New Receivable</span>
         </button>
       ) : (
-        <form onSubmit={handleSubmit} className="bg-white p-5 rounded-2xl shadow-md border border-slate-200 space-y-4 animate-in zoom-in-95 duration-200">
+        <form onSubmit={handleSubmit} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4 animate-in zoom-in-95 duration-200">
           <div className="flex justify-between items-center">
             <h3 className="font-bold text-slate-800">New Income Track</h3>
             <button type="button" onClick={() => setIsAdding(false)} className="text-slate-400 hover:text-slate-600 text-xs font-bold uppercase">Cancel</button>
@@ -93,7 +93,7 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ records, onAddR
                 value={formData.sourceName}
                 onChange={e => setFormData({...formData, sourceName: e.target.value})}
                 placeholder="e.g. Maruti Suzuki, Tata Motors, ICICI Insurance..."
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:ring-2 focus:ring-slate-800 outline-none"
               />
             </div>
             
@@ -139,7 +139,7 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ records, onAddR
 
           <button 
             type="submit"
-            className="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl shadow-lg active:scale-95 transition-transform"
+            className="w-full bg-indigo-900 hover:bg-indigo-800 text-white font-bold py-4 rounded-xl shadow-sm active:scale-95 transition-transform"
           >
             Track Receivable
           </button>
@@ -164,7 +164,7 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ records, onAddR
                 key={record.id}
                 className={`bg-white rounded-2xl p-4 border shadow-sm flex items-center gap-4 ${isSoon ? 'border-indigo-200 bg-indigo-50/30' : 'border-slate-200'}`}
               >
-                <div className={`p-3 rounded-xl shrink-0 ${isSoon ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500'}`}>
+                <div className={`p-3 rounded-xl shrink-0 ${isSoon ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-500'}`}>
                   {record.category === 'OEM Incentive' ? <Sparkles className="w-6 h-6" /> : <ArrowDownToLine className="w-6 h-6" />}
                 </div>
                 
@@ -183,7 +183,7 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ records, onAddR
                         Delayed by {Math.abs(daysLeft)} days
                       </span>
                     ) : (
-                      <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase ${isSoon ? 'text-indigo-600' : 'text-slate-400'}`}>
+                      <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase ${isSoon ? 'text-indigo-700' : 'text-slate-400'}`}>
                         <Calendar className="w-3 h-3" />
                         Expected in {daysLeft} days
                       </span>
@@ -201,7 +201,7 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ records, onAddR
             );
           })
         ) : (
-          <div className="text-center py-16 bg-white rounded-3xl border border-dashed border-slate-200">
+          <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-slate-200">
             <ArrowDownToLine className="w-12 h-12 mx-auto mb-3 text-slate-200" />
             <p className="text-slate-400 font-medium">No pending receivables recorded.</p>
           </div>

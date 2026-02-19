@@ -1323,8 +1323,8 @@ const App: React.FC = () => {
 
   if (!appReady) {
     return (
-      <div className="h-screen bg-[#efeae2] flex flex-col items-center justify-center text-slate-900 p-8">
-        <Loader2 className="w-12 h-12 text-[#00a884] animate-spin mb-4" />
+      <div className="h-screen bg-slate-50 flex flex-col items-center justify-center text-slate-900 p-8">
+        <Loader2 className="w-12 h-12 text-slate-800 animate-spin mb-4" />
         <p className="text-xs font-black uppercase tracking-[0.3em] text-slate-500">Starting App...</p>
       </div>
     );
@@ -1332,9 +1332,9 @@ const App: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex flex-col h-screen max-w-md mx-auto bg-[#efeae2] items-center justify-center p-8 relative overflow-hidden font-sans">
+      <div className="flex flex-col h-screen max-w-md mx-auto bg-slate-50 items-center justify-center p-8 relative overflow-hidden font-sans">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 text-[#00a884] animate-spin mx-auto mb-4" />
+          <Loader2 className="w-12 h-12 text-slate-800 animate-spin mx-auto mb-4" />
           <p className="text-slate-900 text-lg font-semibold">Loading data...</p>
           <p className="text-slate-500 text-sm mt-2">Please wait while we connect to the database</p>
         </div>
@@ -1371,37 +1371,37 @@ const App: React.FC = () => {
   const isSuperAdmin = currentUser.role === 'super_admin';
 
   return (
-    <div className="flex flex-col h-screen max-w-md mx-auto bg-[#efeae2] relative overflow-hidden font-sans">
+    <div className="flex flex-col h-screen max-w-md mx-auto bg-slate-50 relative overflow-hidden font-sans">
 
       {/* Notification Banner */}
       {notification && (
         <div className="fixed top-2 left-2 right-2 max-w-md mx-auto z-[100] animate-in slide-in-from-top-4 duration-500">
-          <div className="bg-[#202c33] text-white p-4 rounded-2xl shadow-2xl border border-[#111b21] flex items-center gap-4">
-            <div className="bg-[#00a884] p-2 rounded-xl">
+          <div className="bg-white text-slate-900 p-4 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-slate-200 flex items-center gap-4">
+            <div className="bg-indigo-900 p-2 rounded-xl">
               <Bell className="w-5 h-5 animate-bounce text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-widest text-[#86ead8]">{notification.title}</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{notification.title}</p>
               <p className="text-sm font-bold truncate">{notification.message}</p>
             </div>
-            <button onClick={() => setNotification(null)} className="p-1 hover:bg-white/10 rounded-lg">
-              <X className="w-4 h-4" />
+            <button onClick={() => setNotification(null)} className="p-1 hover:bg-slate-100 rounded-lg text-slate-500">
+              <X className="w-4 h-4 text-slate-500" />
             </button>
           </div>
         </div>
       )}
 
       {/* Header */}
-      <header className="bg-[#202c33] text-white p-5 pt-safe-top sticky top-0 z-30 flex items-center justify-between shadow-md border-b border-[#111b21]" style={{ paddingTop: 'max(3rem, 1.25rem)' }}>
+      <header className="bg-white text-slate-900 p-5 pt-safe-top sticky top-0 z-30 flex items-center justify-between shadow-sm border-b border-slate-200" style={{ paddingTop: 'max(3rem, 1.25rem)' }}>
         <div className="flex items-center gap-2">
-          <div className="bg-[#00a884] p-1.5 rounded-lg shadow-lg shadow-[#00a884]/30">
+          <div className="bg-indigo-900 p-1.5 rounded-lg shadow-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
             <LayoutDashboard className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-lg font-black tracking-tighter italic leading-none text-white">TaskPro</h1>
+            <h1 className="text-lg font-black tracking-tighter italic leading-none text-slate-900">TaskPro</h1>
             <div className="flex items-center gap-1.5 mt-1">
-              <div className={`w-1.5 h-1.5 rounded-full ${isSyncing ? 'bg-[#25d366] animate-pulse' : 'bg-[#25d366]'}`} />
-              <span className="text-[7px] font-black uppercase tracking-widest text-slate-300">
+              <div className={`w-1.5 h-1.5 rounded-full ${isSyncing ? 'bg-emerald-400 animate-pulse' : 'bg-emerald-400'}`} />
+              <span className="text-[7px] font-black uppercase tracking-widest text-slate-500">
                 {isSyncing ? 'Syncing...' : 'Online'}
               </span>
             </div>
@@ -1410,12 +1410,12 @@ const App: React.FC = () => {
 
         <div className="flex items-center gap-4">
           <div className="text-right">
-            <p className="text-[10px] font-black leading-none text-white">{currentUser.name}</p>
-            <p className="text-[8px] text-[#25d366] uppercase font-black tracking-widest mt-0.5">{currentUser.role}</p>
+            <p className="text-[10px] font-black leading-none text-slate-900">{currentUser.name}</p>
+            <p className="text-[8px] text-indigo-700 uppercase font-black tracking-widest mt-0.5">{currentUser.role}</p>
           </div>
           <button
             onClick={handleLogout}
-            className="p-2.5 bg-[#2a3942] hover:bg-[#374248] rounded-xl text-slate-100 transition-all border border-[#41525d]"
+            className="p-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600 transition-all border border-slate-200"
           >
             <LogOut className="w-4 h-4" />
           </button>
@@ -1465,7 +1465,7 @@ const App: React.FC = () => {
       </main>
 
       {/* Simplified Bottom Nav (Dashboard, Tasks, Team) */}
-      <nav className="bg-[#f0f2f5] border-t border-[#d1d7db] fixed bottom-0 left-0 right-0 max-w-md mx-auto z-40 safe-bottom shadow-[0_-10px_40px_rgba(17,27,33,0.08)] rounded-t-[2.5rem]">
+      <nav className="bg-white border-t border-slate-200 fixed bottom-0 left-0 right-0 max-w-md mx-auto z-40 safe-bottom shadow-[0_-2px_8px_rgba(0,0,0,0.04)] rounded-t-[2.5rem]">
         <div className="flex justify-around items-center h-20 px-2">
 
           {/* Hidden: Business Overview Tab */}
@@ -1500,8 +1500,8 @@ const App: React.FC = () => {
 };
 
 const NavBtn = ({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: any, label: string }) => (
-  <button onClick={onClick} className={`flex-1 flex flex-col items-center gap-1.5 transition-all duration-200 min-w-[70px] ${active ? 'text-[#008069]' : 'text-slate-500'}`}>
-    <div className={`p-2.5 rounded-[1.2rem] transition-all duration-500 rounded-lg ${active ? 'bg-[#d9fdd3] scale-110 shadow-inner ring-4 ring-[#00a884]/10' : ''}`}>{icon}</div>
+  <button onClick={onClick} className={`flex-1 flex flex-col items-center gap-1.5 transition-all duration-200 min-w-[70px] ${active ? 'text-indigo-700' : 'text-slate-500'}`}>
+    <div className={`p-2.5 rounded-[1.2rem] transition-all duration-500 rounded-lg ${active ? 'bg-indigo-50 scale-110 shadow-inner ring-4 ring-slate-200' : ''}`}>{icon}</div>
     <span className={`text-[8px] font-black uppercase tracking-[0.15em] ${active ? 'opacity-100' : 'opacity-40'}`}>{label}</span>
   </button>
 );

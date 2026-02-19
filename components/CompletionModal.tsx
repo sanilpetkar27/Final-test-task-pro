@@ -29,44 +29,44 @@ const CompletionModal: React.FC<CompletionModalProps> = ({ onClose, onConfirm })
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-[#111b21]/80 backdrop-blur-sm">
-      <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl animate-in slide-in-from-bottom duration-300">
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/40 backdrop-blur-sm">
+      <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)] animate-in slide-in-from-bottom duration-300">
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center gap-2">
-            <div className="bg-[#d9fdd3] p-2 rounded-xl">
-              <Camera className="w-6 h-6 text-[#008069]" />
+            <div className="bg-indigo-50 p-2 rounded-xl">
+              <Camera className="w-6 h-6 text-indigo-700" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-[#202c33]">Photo Proof Required</h2>
-              <p className="text-xs text-[#008069] font-bold">Cannot complete without image</p>
+              <h2 className="text-xl font-bold text-slate-900">Photo Proof Required</h2>
+              <p className="text-xs text-indigo-700 font-bold">Cannot complete without image</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 bg-[#f0f2f5] rounded-full text-[#54656f]">
+          <button onClick={onClose} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <div className="space-y-6">
-          <div className="bg-[#f0f2f5] border border-[#d1d7db] p-3 rounded-xl">
-            <p className="text-[#202c33] text-xs font-bold">
+          <div className="bg-white border border-slate-200 p-3 rounded-xl">
+            <p className="text-slate-900 text-xs font-bold">
                Note: Upload a photo as proof of completion before marking this task as done.
             </p>
           </div>
 
           <div 
             onClick={() => fileInputRef.current?.click()}
-            className={`w-full aspect-video rounded-2xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all overflow-hidden ${photo ? 'border-[#00a884] bg-[#d9fdd3]' : 'border-[#d1d7db] bg-[#f0f2f5] hover:bg-[#e9edef]'}`}
+            className={`w-full aspect-video rounded-2xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all overflow-hidden ${photo ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 bg-white hover:bg-slate-100'}`}
           >
             {photo ? (
               <div className="relative w-full h-full">
                 <img src={photo} alt="Preview" className="w-full h-full object-cover" />
-                <div className="absolute top-2 right-2 bg-[#00a884] text-white text-xs font-bold px-2 py-1 rounded-full">
+                <div className="absolute top-2 right-2 bg-indigo-900 text-white text-xs font-bold px-2 py-1 rounded-full">
                    Ready
                 </div>
               </div>
             ) : (
               <div className="flex flex-col items-center gap-3">
-                <div className="p-4 bg-[#d9fdd3] rounded-full text-[#008069] animate-pulse">
+                <div className="p-4 bg-indigo-50 rounded-full text-indigo-700 animate-pulse">
                   <Camera className="w-8 h-8" />
                 </div>
                 <div className="text-center">
@@ -88,14 +88,14 @@ const CompletionModal: React.FC<CompletionModalProps> = ({ onClose, onConfirm })
           <div className="flex gap-3">
             <button 
               onClick={onClose}
-              className="flex-1 py-4 px-6 rounded-xl font-bold text-[#54656f] bg-[#f0f2f5] active:scale-95 transition-all"
+              className="flex-1 py-4 px-6 rounded-xl font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 active:scale-95 transition-all"
             >
               Cancel
             </button>
             <button 
               onClick={handleSubmit}
               disabled={!photo}
-              className={`flex-[2] py-4 px-6 rounded-xl font-bold text-white flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg ${photo ? 'bg-[#00a884] shadow-[#00a884]/20' : 'bg-slate-300 cursor-not-allowed'}`}
+              className={`flex-[2] py-4 px-6 rounded-xl font-bold text-white flex items-center justify-center gap-2 active:scale-95 transition-all shadow-sm ${photo ? 'bg-indigo-900 shadow-[0_2px_8px_rgba(0,0,0,0.04)]' : 'bg-slate-300 cursor-not-allowed'}`}
             >
               <CheckCircle2 className="w-5 h-5" />
               {photo ? 'Complete Task' : 'Photo Required'}

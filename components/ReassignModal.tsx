@@ -20,35 +20,35 @@ const ReassignModal: React.FC<ReassignModalProps> = ({ employees, currentAssigne
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-[#111b21]/80 backdrop-blur-sm">
-      <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl animate-in slide-in-from-bottom duration-300">
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/40 backdrop-blur-sm">
+      <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)] animate-in slide-in-from-bottom duration-300">
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center gap-2">
-            <div className="bg-[#d9fdd3] p-2 rounded-xl text-[#008069]">
+            <div className="bg-indigo-50 p-2 rounded-xl text-indigo-700">
               <ArrowRight className="w-5 h-5" />
             </div>
-            <h2 className="text-xl font-bold text-[#202c33]">Delegate Task</h2>
+            <h2 className="text-xl font-bold text-slate-900">Delegate Task</h2>
           </div>
-          <button onClick={onClose} className="p-2 bg-[#f0f2f5] rounded-full text-[#54656f]">
+          <button onClick={onClose} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="bg-[#f0f2f5] p-4 rounded-2xl border border-[#d1d7db] flex gap-3">
-             <AlertCircle className="w-5 h-5 text-[#008069] shrink-0 mt-0.5" />
-             <p className="text-xs text-[#202c33] font-medium">
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex gap-3">
+             <AlertCircle className="w-5 h-5 text-indigo-700 shrink-0 mt-0.5" />
+             <p className="text-xs text-slate-900 font-medium">
                You are reassigning this entire task. The selected person will become the new owner responsible for completion.
              </p>
           </div>
 
           <div>
-            <label className="text-[10px] font-black text-[#54656f] uppercase tracking-widest ml-1 mb-2 block">Delegate to Person</label>
+            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Delegate to Person</label>
             <div className="relative">
               <select 
                 value={targetId}
                 onChange={(e) => setTargetId(e.target.value)}
-                className="w-full bg-white border border-[#d1d7db] rounded-xl px-4 py-4 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#00a884] appearance-none transition-all pr-12"
+                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-4 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 appearance-none transition-all pr-12"
                 autoFocus
               >
                 <option value="none">Select Team Member...</option>
@@ -68,14 +68,14 @@ const ReassignModal: React.FC<ReassignModalProps> = ({ employees, currentAssigne
             <button 
               type="button"
               onClick={onClose}
-              className="flex-1 py-4 rounded-xl font-bold text-[#54656f] bg-[#f0f2f5] active:scale-95 transition-all"
+              className="flex-1 py-4 rounded-xl font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 active:scale-95 transition-all"
             >
               Cancel
             </button>
             <button 
               type="submit"
               disabled={targetId === 'none'}
-              className="flex-[2] py-4 rounded-xl font-bold text-white bg-[#00a884] active:scale-95 transition-all shadow-lg shadow-[#00a884]/20 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex-[2] py-4 rounded-xl font-bold text-white bg-indigo-900 active:scale-95 transition-all shadow-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)] disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Delegate Now
             </button>
