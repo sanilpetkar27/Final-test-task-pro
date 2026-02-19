@@ -85,6 +85,19 @@ const TaskItem: React.FC<TaskItemProps> = ({
       : isOverdue
       ? 'text-red-600'
       : 'text-[#54656f]';
+  const rawTaskType = String((task as any).taskType ?? (task as any).task_type ?? '').toLowerCase();
+  const rawRecurrenceFrequency = String(
+    (task as any).recurrenceFrequency ?? (task as any).recurrence_frequency ?? ''
+  ).toLowerCase();
+  const normalizedRecurrenceFrequency =
+    rawRecurrenceFrequency === 'daily' || rawRecurrenceFrequency === 'weekly' || rawRecurrenceFrequency === 'monthly'
+      ? rawRecurrenceFrequency
+      : null;
+  const recurrenceBadgeLabel = normalizedRecurrenceFrequency
+    ? `Recurring: ${normalizedRecurrenceFrequency.charAt(0).toUpperCase()}${normalizedRecurrenceFrequency.slice(1)}`
+    : rawTaskType === 'recurring'
+    ? 'Recurring'
+    : null;
 
   const handlePhotoUpload = async (file: File) => {
     setIsUploading(true);
@@ -189,6 +202,11 @@ const TaskItem: React.FC<TaskItemProps> = ({
             {hasSubTasks && (
               <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${allSubTasksDone ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>
                 {completedSubTasks.length}/{subTasks.length} DONE
+              </span>
+            )}
+            {recurrenceBadgeLabel && (
+              <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-[#e9edef] text-[#008069] border border-[#d1d7db]">
+                {recurrenceBadgeLabel}
               </span>
             )}
             {/* Minimal Assignment Info */}
