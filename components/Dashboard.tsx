@@ -163,7 +163,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
   const [delegatingTaskId, setDelegatingTaskId] = useState<string | null>(null);
   const [reassigningTaskId, setReassigningTaskId] = useState<string | null>(null);
-  const [inProgressBumpTimestamps, setInProgressBumpTimestamps] = useState<Record<string, number>>({});
+  const [statusBumpTimestamps, setStatusBumpTimestamps] = useState<Record<string, number>>({});
   const previousTaskStatusRef = useRef<Record<string, TaskStatus>>({});
 
   // Dashboard uses employees from props, no independent fetching needed
@@ -249,7 +249,11 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
 
     for (const task of tasks) {
       const previousStatus = previousStatuses[task.id];
-      if (previousStatus && previousStatus !== task.status && task.status === 'in-progress') {
+      if (
+        previousStatus &&
+        previousStatus !== task.status &&
+        (task.status === 'in-progress' || task.status === 'completed')
+      ) {
         bumpedTaskIds[task.id] = now;
       }
       nextStatuses[task.id] = task.status;
@@ -257,7 +261,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
 
     previousTaskStatusRef.current = nextStatuses;
 
-    setInProgressBumpTimestamps((prev) => {
+    setStatusBumpTimestamps((prev) => {
       const activeTaskIds = new Set(tasks.map((task) => task.id));
       const cleaned: Record<string, number> = {};
 
@@ -731,10 +735,11 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
         : typeof rawUpdatedAtSnake === 'string'
         ? (Number.isNaN(Date.parse(rawUpdatedAtSnake)) ? 0 : Date.parse(rawUpdatedAtSnake))
         : 0;
-    const inProgressBump = inProgressBumpTimestamps[task.id] || 0;
+    const completedAt = Number(task.completedAt || 0);
+    const statusBump = statusBumpTimestamps[task.id] || 0;
     const createdAt = Number(task.createdAt || 0);
 
-    return Math.max(createdAt, updatedAtFromCamel, updatedAtFromSnake, inProgressBump);
+    return Math.max(createdAt, completedAt, updatedAtFromCamel, updatedAtFromSnake, statusBump);
   };
 
   const sortTasksByRecentActivity = (taskRows: DealershipTask[]): DealershipTask[] =>
