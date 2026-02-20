@@ -343,6 +343,77 @@ const upsertTaskInPlace = <T extends { id: string }>(items: T[], nextItem: T): T
   return updated;
 };
 
+const toTimestampNumber = (value: unknown): number => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const numericCandidate = Number(value);
+    if (Number.isFinite(numericCandidate)) {
+      return numericCandidate;
+    }
+
+    const parsedDate = Date.parse(value);
+    if (Number.isFinite(parsedDate)) {
+      return parsedDate;
+    }
+  }
+
+  return Date.now();
+};
+
+const normalizeRealtimeRemarks = (rawRemarks: unknown, taskId: string): TaskRemark[] | null => {
+  if (!Array.isArray(rawRemarks)) {
+    return null;
+  }
+
+  const parsedRemarks = rawRemarks
+    .map((rawRemark, index): TaskRemark | null => {
+      if (!rawRemark || typeof rawRemark !== 'object') {
+        return null;
+      }
+
+      const remarkRecord = rawRemark as Record<string, unknown>;
+      const remarkText =
+        typeof remarkRecord.remark === 'string' ? remarkRecord.remark.trim() : '';
+
+      if (!remarkText) {
+        return null;
+      }
+
+      const remarkId =
+        typeof remarkRecord.id === 'string' && remarkRecord.id.trim()
+          ? remarkRecord.id
+          : `remark_${taskId}_${index}`;
+      const employeeId =
+        typeof remarkRecord.employeeId === 'string' && remarkRecord.employeeId.trim()
+          ? remarkRecord.employeeId
+          : 'unknown';
+      const employeeName =
+        typeof remarkRecord.employeeName === 'string' && remarkRecord.employeeName.trim()
+          ? remarkRecord.employeeName.trim()
+          : 'Unknown User';
+      const remarkTaskId =
+        typeof remarkRecord.taskId === 'string' && remarkRecord.taskId.trim()
+          ? remarkRecord.taskId
+          : taskId;
+
+      return {
+        id: remarkId,
+        taskId: remarkTaskId,
+        employeeId,
+        employeeName,
+        remark: remarkText,
+        timestamp: toTimestampNumber(remarkRecord.timestamp)
+      };
+    })
+    .filter((remark): remark is TaskRemark => Boolean(remark))
+    .sort((left, right) => left.timestamp - right.timestamp);
+
+  return parsedRemarks;
+};
+
 const App: React.FC = () => {
   // --- 1. USER & STATE MANAGEMENT ---
   const [currentUser, setCurrentUser] = useState<Employee | null>(() => {
@@ -716,15 +787,34 @@ const App: React.FC = () => {
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tasks' }, async (payload) => {
         console.log('🔔 Realtime UPDATE:', payload);
         try {
+          const payloadTaskId = String((payload.new as any)?.id || '');
+          if (!payloadTaskId) {
+            console.warn('Realtime UPDATE payload missing task id:', payload);
+            return;
+          }
+
+          if (payloadTaskId) {
+            const payloadRemarks = normalizeRealtimeRemarks((payload.new as any)?.remarks, payloadTaskId);
+            if (payloadRemarks) {
+              setTasks((prev) =>
+                prev.map((task) =>
+                  task.id === payloadTaskId
+                    ? { ...task, remarks: payloadRemarks }
+                    : task
+                )
+              );
+            }
+          }
+
           // Step 1: Fetch the raw task
           const { data: task, error: taskError } = await supabase
             .from('tasks')
             .select('*')
-            .eq('id', payload.new.id)
+            .eq('id', payloadTaskId)
             .single();
           
           if (taskError || !task) {
-            console.error('❌ Failed to fetch task:', taskError);
+            console.warn('Realtime UPDATE fallback applied; failed to refetch full task row.', taskError);
             return;
           }
 
