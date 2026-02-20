@@ -34,12 +34,6 @@ const TeamManager: React.FC<TeamManagerProps> = ({
   // Feature flag - set to true to show points system
   const SHOW_POINTS_SYSTEM = false;
   
-  // Log every render with employee details
-  console.log('🔄 TeamManager RENDERING, employees count:', employees.length);
-  console.log(' TeamManager: employees prop updated, count:', employees.length);
-  console.log('👥 TeamManager: employees data:', employees.map(e => ({ id: e.id, name: e.name, mobile: e.mobile })));
-  console.log('👑 isSuperAdmin value:', isSuperAdmin);
-  console.log('👤 currentUser role:', currentUser?.role);
   
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
@@ -92,11 +86,6 @@ const TeamManager: React.FC<TeamManagerProps> = ({
     return [fallbackCurrentUser, ...normalizedEmployees];
   }, [employees, currentUser]);
 
-  // Use employees prop from parent (App.tsx)
-  useEffect(() => {
-    console.log('👥 TeamManager: employees prop updated, count:', employees.length);
-    console.log('👥 TeamManager: employees data:', employees.map(e => ({ id: e.id, name: e.name })));
-  }, [employees]);
 
   useEffect(() => {
     if (assignableRoles.length === 0) return;

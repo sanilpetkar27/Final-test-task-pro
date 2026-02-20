@@ -443,6 +443,7 @@ const App: React.FC = () => {
   const [notification, setNotification] = useState<{ title: string, message: string } | null>(null);
   const [lastSyncTime, setLastSyncTime] = useState<number>(Date.now());
   const hasShownPolicyErrorRef = useRef(false);
+  const lastForegroundRefreshAtRef = useRef(0);
 
   // --- OneSignal Notification Setup ---
   useNotificationSetup({
@@ -880,20 +881,15 @@ const App: React.FC = () => {
       return;
     }
 
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        console.log('📱 App became visible, refreshing tasks...');
-        loadInitialData(false).then(data => {
-          if (data) {
-            setEmployees(data.employees);
-            setTasks(data.tasks);
-          }
-        });
+    const triggerForegroundRefresh = (reason: 'focus' | 'visibility') => {
+      const now = Date.now();
+      // Browsers often fire both visibility + focus together; collapse to one refresh.
+      if (now - lastForegroundRefreshAtRef.current < 1200) {
+        return;
       }
-    };
 
-    const handleFocus = () => {
-      console.log('🎯 App gained focus, refreshing tasks...');
+      lastForegroundRefreshAtRef.current = now;
+      console.log(reason === 'focus' ? '🎯 App gained focus, refreshing tasks...' : '📱 App became visible, refreshing tasks...');
       loadInitialData(false).then(data => {
         if (data) {
           setEmployees(data.employees);
@@ -901,6 +897,17 @@ const App: React.FC = () => {
         }
       });
     };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        triggerForegroundRefresh('visibility');
+      }
+    };
+
+    const handleFocus = () => {
+      triggerForegroundRefresh('focus');
+    };
+
 
     // Add event listeners
     document.addEventListener('visibilitychange', handleVisibilityChange);

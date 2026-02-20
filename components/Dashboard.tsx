@@ -782,9 +782,6 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
 
   const tasksToShow = view === 'pending' ? filteredPendingTasks : view === 'in-progress' ? filteredInProgressTasks : filteredCompletedTasks;
 
-  // Debug: Log employees received in dropdown
-  console.log("Dropdown received employees:", employees.map(e => ({ id: e.id, name: e.name, role: e.role })));
-  
   return (
     <div className="space-y-6">
       {canAssignTasks && (
