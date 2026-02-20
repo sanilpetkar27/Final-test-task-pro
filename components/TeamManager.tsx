@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 interface TeamManagerProps {
   employees: Employee[];
   currentUser: Employee;
-  onAddEmployee: (name: string, mobile: string, role: UserRole) => void;
+  onAddEmployee: (name: string, mobile: string, role: UserRole, managerId?: string | null) => void;
   onRemoveEmployee: (id: string) => void;
   rewardConfig: RewardConfig;
   onUpdateRewardConfig: (config: RewardConfig) => void;
@@ -45,10 +45,13 @@ const TeamManager: React.FC<TeamManagerProps> = ({
   const [newPassword, setNewPassword] = useState('');
   const [newMobile, setNewMobile] = useState('');
   const [newRole, setNewRole] = useState<UserRole>('staff');
+  const [selectedManagerId, setSelectedManagerId] = useState('');
   const [targetPoints, setTargetPoints] = useState(rewardConfig.targetPoints.toString());
   const [rewardName, setRewardName] = useState(rewardConfig.rewardName);
   const [isAdding, setIsAdding] = useState(false);
   const canAddMembers = ['super_admin', 'manager', 'owner'].includes(currentUser.role);
+  const requiresManagerSelection =
+    (currentUser.role === 'super_admin' || currentUser.role === 'owner') && newRole === 'staff';
 
   const assignableRoles = useMemo<UserRole[]>(() => {
     if (currentUser.role === 'super_admin' || currentUser.role === 'owner') {
@@ -61,6 +64,24 @@ const TeamManager: React.FC<TeamManagerProps> = ({
 
     return [];
   }, [currentUser.role]);
+
+  const managerOptions = useMemo<Employee[]>(() => {
+    const uniqueManagers = new Map<string, Employee>();
+
+    (employees || []).forEach((member) => {
+      if (!member || !member.id) return;
+      if (member.role === 'manager') {
+        uniqueManagers.set(member.id, member);
+      }
+    });
+
+    if (currentUser.role === 'manager') {
+      uniqueManagers.set(currentUser.id, currentUser);
+    }
+
+    return Array.from(uniqueManagers.values());
+  }, [employees, currentUser]);
+  const canSubmitCreateUser = !requiresManagerSelection || managerOptions.length > 0;
 
   // Always show the logged-in admin/super-admin in team list, even if DB sync lags.
   const teamMembers = useMemo(() => {
@@ -149,6 +170,30 @@ const TeamManager: React.FC<TeamManagerProps> = ({
     }
   }, [assignableRoles, newRole]);
 
+  useEffect(() => {
+    if (newRole !== 'staff') {
+      setSelectedManagerId('');
+      return;
+    }
+
+    if (currentUser.role === 'manager') {
+      setSelectedManagerId(currentUser.id);
+      return;
+    }
+
+    if (currentUser.role === 'super_admin' || currentUser.role === 'owner') {
+      setSelectedManagerId((prev) => {
+        if (prev && managerOptions.some((manager) => manager.id === prev)) {
+          return prev;
+        }
+        return managerOptions[0]?.id || '';
+      });
+      return;
+    }
+
+    setSelectedManagerId('');
+  }, [newRole, currentUser.role, currentUser.id, managerOptions]);
+
   const handleRefresh = () => {
     window.location.reload();
   };
@@ -183,8 +228,10 @@ const TeamManager: React.FC<TeamManagerProps> = ({
       ? newRole
       : (assignableRoles[0] || 'staff');
     const managerOwnerId =
-      currentUser.role === 'manager' && roleToCreate === 'staff'
+      roleToCreate === 'staff' && currentUser.role === 'manager'
         ? currentUser.id
+        : roleToCreate === 'staff' && (currentUser.role === 'super_admin' || currentUser.role === 'owner')
+        ? (selectedManagerId || null)
         : null;
     
     // 1. Validate Form
@@ -196,6 +243,11 @@ const TeamManager: React.FC<TeamManagerProps> = ({
     // 2. Basic mobile validation
     if (newMobile.length < 10) {
       toast.error('Please enter a valid 10-digit mobile number');
+      return;
+    }
+
+    if (requiresManagerSelection && !managerOwnerId) {
+      toast.error('Please select a manager for this staff member.');
       return;
     }
 
@@ -328,7 +380,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
             : [localCreatedEmployee, ...(teamMembers as Employee[])]);
         }
       } else {
-        onAddEmployee(newName.trim(), newMobile.trim(), roleToCreate);
+        onAddEmployee(newName.trim(), newMobile.trim(), roleToCreate, managerOwnerId);
       }
 
       // 5. Cleanup
@@ -338,6 +390,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
       setNewPassword('');
       setNewMobile('');
       setNewRole('staff');
+      setSelectedManagerId(currentUser.role === 'manager' ? currentUser.id : '');
       setIsAdding(false);
     } catch (err: any) {
       console.error('Unexpected crash:', err);
@@ -431,12 +484,38 @@ const TeamManager: React.FC<TeamManagerProps> = ({
               </select>
               <button 
                 type="submit"
-                className="bg-indigo-900 hover:bg-indigo-800 text-white p-3 px-6 h-10 rounded-xl active:scale-95 transition-all duration-200 flex items-center gap-2 font-bold text-sm"
+                disabled={isAdding || !canSubmitCreateUser}
+                className="bg-indigo-900 hover:bg-indigo-800 text-white p-3 px-6 h-10 rounded-xl active:scale-95 transition-all duration-200 flex items-center gap-2 font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <UserPlus className="w-5 h-5" />
-                Create User
+                {isAdding ? 'Creating...' : 'Create User'}
               </button>
             </div>
+            {requiresManagerSelection && (
+              <div className="relative">
+                <select
+                  value={selectedManagerId}
+                  onChange={(e) => setSelectedManagerId(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 transition-all"
+                  required
+                >
+                  <option value="">Select Manager</option>
+                  {managerOptions.map((manager) => (
+                    <option key={manager.id} value={manager.id}>
+                      {manager.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  This staff member will be assigned to the selected manager's team.
+                </p>
+                {managerOptions.length === 0 && (
+                  <p className="mt-1 text-[11px] text-rose-600">
+                    Create at least one manager first.
+                  </p>
+                )}
+              </div>
+            )}
           </form>
         </section>
       )}

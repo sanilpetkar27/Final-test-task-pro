@@ -1362,7 +1362,12 @@ const App: React.FC = () => {
     );
   };
 
-  const addEmployee = async (name: string, mobile: string, role: UserRole = 'staff') => {
+  const addEmployee = async (
+    name: string,
+    mobile: string,
+    role: UserRole = 'staff',
+    managerId?: string | null
+  ) => {
     if (!currentUser) return;
 
     const newEmployee: Employee = {
@@ -1373,7 +1378,10 @@ const App: React.FC = () => {
       points: 0,
       email: `${mobile}@taskpro.local`,
       company_id: currentUser.company_id || DEFAULT_COMPANY_ID,
-      manager_id: currentUser.role === 'manager' && role === 'staff' ? currentUser.id : null
+      manager_id:
+        role === 'staff'
+          ? (managerId || (currentUser.role === 'manager' ? currentUser.id : null))
+          : null
     };
 
     console.log('Adding employee:', newEmployee);
