@@ -91,6 +91,26 @@ const TeamManager: React.FC<TeamManagerProps> = ({
     return [fallbackCurrentUser, ...normalizedEmployees];
   }, [employees, currentUser]);
 
+  const canDeleteMember = (member: Employee): boolean => {
+    if (!member || member.id === currentUser.id) {
+      return false;
+    }
+
+    if (currentUser.role === 'super_admin' || currentUser.role === 'owner') {
+      return true;
+    }
+
+    if (currentUser.role === 'manager') {
+      const memberManagerId =
+        typeof member.manager_id === 'string' && member.manager_id.trim()
+          ? member.manager_id
+          : null;
+      return member.role === 'staff' && memberManagerId === currentUser.id;
+    }
+
+    return false;
+  };
+
 
   useEffect(() => {
     if (assignableRoles.length === 0) return;
@@ -531,7 +551,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
               </div>
               <div className="flex flex-col items-end gap-2 shrink-0">
                 <span className="text-[10px] font-semibold text-indigo-700">ACTIVE</span>
-              {(currentUser.role === 'super_admin' || currentUser.role === 'owner') && (
+              {canDeleteMember(emp) && (
                 <button 
                   type="button"
                   onClick={(e) => {

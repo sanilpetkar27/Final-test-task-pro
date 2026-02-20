@@ -1402,6 +1402,29 @@ const App: React.FC = () => {
   };
 
   const removeEmployee = async (id: string) => {
+    const employeeToDelete = employees.find((employee) => employee.id === id);
+    if (!employeeToDelete) {
+      toast.error('Employee not found.');
+      return;
+    }
+
+    if (employeeToDelete.id === currentUser?.id) {
+      toast.error('You cannot delete your own account.');
+      return;
+    }
+
+    const isSuperAdminOrOwner =
+      currentUser?.role === 'super_admin' || currentUser?.role === 'owner';
+    const isManagerDeletingOwnStaff =
+      currentUser?.role === 'manager' &&
+      employeeToDelete.role === 'staff' &&
+      employeeToDelete.manager_id === currentUser.id;
+
+    if (!isSuperAdminOrOwner && !isManagerDeletingOwnStaff) {
+      toast.error('You can only delete staff members from your own team.');
+      return;
+    }
+
     console.log('🗑️ Removing employee:', id);
     
     // Remove from local state IMMEDIATELY for instant UI feedback
