@@ -188,18 +188,11 @@ const scopeEmployeesForCurrentUser = (
   }
 
   if (currentUser.role === 'manager') {
-    const managedByTasks = new Set<string>();
-    taskRows.forEach((task) => {
-      if (task.assignedBy === currentUser.id && task.assignedTo) {
-        managedByTasks.add(task.assignedTo);
-      }
-    });
-
     return mergedEmployees.filter((employee) => {
       if (employee.id === currentUser.id) return true;
       if (employee.role !== 'staff') return false;
       const managerId = typeof employee.manager_id === 'string' ? employee.manager_id : null;
-      return managerId === currentUser.id || (!managerId && managedByTasks.has(employee.id));
+      return managerId === currentUser.id;
     });
   }
 
@@ -593,12 +586,13 @@ const App: React.FC = () => {
       const finalEmployeesBase = (employeesData && employeesData.length > 0)
         ? employeesData
         : (cachedEmployees.length > 0 ? cachedEmployees : []);
-      const finalEmployees = mergeCurrentUserIntoEmployees(finalEmployeesBase as Employee[], currentUser);
 
       // Transform database tasks to app tasks
       const finalTasks = (tasksData && tasksData.length > 0)
         ? transformTasksToApp(tasksData as DatabaseTask[])
         : (cachedTasks.length > 0 ? cachedTasks : []);
+      const mergedEmployees = mergeCurrentUserIntoEmployees(finalEmployeesBase as Employee[], currentUser);
+      const finalEmployees = scopeEmployeesForCurrentUser(mergedEmployees, finalTasks, currentUser);
 
       if (employeesError || tasksError) {
         console.warn('using fallback data due to Supabase error');
@@ -612,7 +606,7 @@ const App: React.FC = () => {
         }
       }
 
-      localStorage.setItem(EMPLOYEES_CACHE_KEY, JSON.stringify(finalEmployees));
+      localStorage.setItem(EMPLOYEES_CACHE_KEY, JSON.stringify(mergedEmployees));
       if (tasksData && tasksData.length > 0) {
         localStorage.setItem(TASKS_CACHE_KEY, JSON.stringify(transformTasksToApp(tasksData as DatabaseTask[])));
       }
@@ -632,8 +626,9 @@ const App: React.FC = () => {
         parseCachedArray<DealershipTask>(TASKS_CACHE_KEY),
         activeCompanyId
       );
+      const mergedEmployees = mergeCurrentUserIntoEmployees(cachedEmployees, currentUser);
       return {
-        employees: mergeCurrentUserIntoEmployees(cachedEmployees, currentUser),
+        employees: scopeEmployeesForCurrentUser(mergedEmployees, cachedTasks, currentUser),
         tasks: cachedTasks
       };
     } finally {
@@ -1377,7 +1372,8 @@ const App: React.FC = () => {
       role,
       points: 0,
       email: `${mobile}@taskpro.local`,
-      company_id: currentUser.company_id || DEFAULT_COMPANY_ID
+      company_id: currentUser.company_id || DEFAULT_COMPANY_ID,
+      manager_id: currentUser.role === 'manager' && role === 'staff' ? currentUser.id : null
     };
 
     console.log('Adding employee:', newEmployee);
