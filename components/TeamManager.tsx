@@ -16,14 +16,72 @@ interface TeamManagerProps {
   setEmployees?: (employees: Employee[]) => void;
 }
 
+const extractMissingColumnName = (error: any): string | null => {
+  const message = String(error?.message || '').toLowerCase();
+  if (!message) return null;
+
+  const schemaCacheMatch = message.match(/could not find the ['"]?([a-z0-9_]+)['"]?\s+column/);
+  if (schemaCacheMatch?.[1]) {
+    return schemaCacheMatch[1];
+  }
+
+  const relationMatch = message.match(/column ['"]?([a-z0-9_]+)['"]?\s+of relation/);
+  if (relationMatch?.[1]) {
+    return relationMatch[1];
+  }
+
+  const genericMatch = message.match(/column ['"]?([a-z0-9_]+)['"]?\s+does not exist/);
+  if (genericMatch?.[1]) {
+    return genericMatch[1];
+  }
+
+  return null;
+};
+
 const isMissingColumnError = (error: any): boolean => {
   const message = String(error?.message || '').toLowerCase();
-  return message.includes('column') && message.includes('does not exist');
+  if (!message) return false;
+
+  return Boolean(
+    extractMissingColumnName(error) ||
+    message.includes('schema cache') ||
+    (message.includes('column') && message.includes('does not exist'))
+  );
 };
 
 const isMissingSpecificColumnError = (error: any, columnName: string): boolean => {
+  const missingColumn = extractMissingColumnName(error);
+  if (missingColumn) {
+    return missingColumn === columnName.toLowerCase();
+  }
+
   const message = String(error?.message || '').toLowerCase();
   return message.includes(columnName.toLowerCase()) && isMissingColumnError(error);
+};
+
+const removeMissingColumnFromPayload = (
+  payload: Record<string, any>,
+  error: any
+): Record<string, any> | null => {
+  const missingColumn = extractMissingColumnName(error);
+  if (missingColumn && Object.prototype.hasOwnProperty.call(payload, missingColumn)) {
+    const nextPayload = { ...payload };
+    delete nextPayload[missingColumn];
+    return nextPayload;
+  }
+
+  // Fallback in case backend returns non-standard missing-column wording.
+  const fallbackColumns = ['email', 'manager_id', 'points', 'updated_at', 'auth_user_id'];
+  const lowerMessage = String(error?.message || '').toLowerCase();
+  for (const column of fallbackColumns) {
+    if (lowerMessage.includes(column) && Object.prototype.hasOwnProperty.call(payload, column)) {
+      const nextPayload = { ...payload };
+      delete nextPayload[column];
+      return nextPayload;
+    }
+  }
+
+  return null;
 };
 
 const TeamManager: React.FC<TeamManagerProps> = ({ 
@@ -316,36 +374,51 @@ const TeamManager: React.FC<TeamManagerProps> = ({
         updated_at: new Date().toISOString()
       });
 
+      let canLookupByEmail = true;
       const upsertEmployeeProfile = async (employeeId: string) => {
         const basePayload = buildPayload(employeeId);
-        const payloadWithEmailAndManager = {
+        let payload: Record<string, any> = {
           ...basePayload,
           email: newEmail.trim(),
-          manager_id: managerOwnerId
+          ...(managerOwnerId ? { manager_id: managerOwnerId } : {})
         };
 
-        let { error: companyPatchError } = await supabase
-          .from('employees')
-          .upsert(payloadWithEmailAndManager, { onConflict: 'id' });
+        let lastError: any = null;
+        const attemptedShapes = new Set<string>();
 
-        if (companyPatchError && isMissingSpecificColumnError(companyPatchError, 'manager_id')) {
-          const retryWithoutManagerId = await supabase
+        while (true) {
+          const payloadShapeKey = Object.keys(payload).sort().join(',');
+          if (attemptedShapes.has(payloadShapeKey)) {
+            break;
+          }
+          attemptedShapes.add(payloadShapeKey);
+
+          const { error } = await supabase
             .from('employees')
-            .upsert({
-              ...basePayload,
-              email: newEmail.trim()
-            }, { onConflict: 'id' });
-          companyPatchError = retryWithoutManagerId.error;
+            .upsert(payload, { onConflict: 'id' });
+
+          if (!error) {
+            return null;
+          }
+
+          lastError = error;
+          if (isMissingSpecificColumnError(error, 'email')) {
+            canLookupByEmail = false;
+          }
+
+          if (!isMissingColumnError(error)) {
+            return error;
+          }
+
+          const nextPayload = removeMissingColumnFromPayload(payload, error);
+          if (!nextPayload) {
+            return error;
+          }
+
+          payload = nextPayload;
         }
 
-        if (companyPatchError && isMissingColumnError(companyPatchError)) {
-          const retryWithoutEmail = await supabase
-            .from('employees')
-            .upsert(basePayload, { onConflict: 'id' });
-          companyPatchError = retryWithoutEmail.error;
-        }
-
-        return companyPatchError;
+        return lastError;
       };
 
       let resolvedEmployeeId = safeId || '';
@@ -357,15 +430,21 @@ const TeamManager: React.FC<TeamManagerProps> = ({
 
       // Fallback path: if RPC response id is empty/legacy, resolve row by email/mobile and patch again.
       if (!resolvedEmployeeId || companyPatchError) {
-        const { data: byEmailRows, error: byEmailError } = await supabase
-          .from('employees')
-          .select('id')
-          .eq('company_id', currentUser.company_id)
-          .eq('email', newEmail.trim())
-          .limit(1);
+        if (canLookupByEmail) {
+          const { data: byEmailRows, error: byEmailError } = await supabase
+            .from('employees')
+            .select('id')
+            .eq('company_id', currentUser.company_id)
+            .eq('email', newEmail.trim())
+            .limit(1);
 
-        if (!byEmailError && byEmailRows && byEmailRows.length > 0) {
-          resolvedEmployeeId = String((byEmailRows[0] as any).id || '').trim();
+          if (isMissingSpecificColumnError(byEmailError, 'email')) {
+            canLookupByEmail = false;
+          }
+
+          if (!byEmailError && byEmailRows && byEmailRows.length > 0) {
+            resolvedEmployeeId = String((byEmailRows[0] as any).id || '').trim();
+          }
         }
 
         if (!resolvedEmployeeId) {
