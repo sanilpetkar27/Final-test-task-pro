@@ -59,7 +59,6 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [newRemark, setNewRemark] = useState('');
   const [showRemarkInput, setShowRemarkInput] = useState(false);
-  const [showRemarksExpanded, setShowRemarksExpanded] = useState(false);
   const [isInlineEditing, setIsInlineEditing] = useState(false);
   const [isSavingInlineEdit, setIsSavingInlineEdit] = useState(false);
   const [editDescription, setEditDescription] = useState(task.description);
@@ -248,7 +247,6 @@ const TaskItem: React.FC<TaskItemProps> = ({
     if (newRemark.trim() && onAddRemark) {
       onAddRemark(task.id, newRemark.trim());
       setNewRemark('');
-      setShowRemarkInput(false);
     }
   };
 
@@ -612,77 +610,63 @@ const TaskItem: React.FC<TaskItemProps> = ({
           )}
         </div>
 
-        {/* In-Tile Progress Update Section */}
+        {/* In-Tile Progress Update Chat */}
         {(task.status === 'in-progress' && showRemarkInput) && (
           <div className="w-full pl-14">
             <div className="rounded-xl border border-slate-200 bg-white p-3">
               <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <MessageSquarePlus className="w-4 h-4 text-indigo-700" />
-                  <span className="text-sm font-semibold text-slate-900">Add Progress Update</span>
+                <div className="max-h-52 overflow-y-auto space-y-2 pr-1">
+                  {task.remarks && task.remarks.length > 0 ? (
+                    task.remarks.map((remark) => {
+                      const isOwnRemark = remark.employeeId === currentUser.id;
+                      return (
+                        <div key={remark.id} className={`flex ${isOwnRemark ? 'justify-end' : 'justify-start'}`}>
+                          <div
+                            className={`max-w-[85%] rounded-xl px-3 py-2 border ${
+                              isOwnRemark
+                                ? 'bg-indigo-50 border-indigo-100 text-slate-900'
+                                : 'bg-white border-slate-200 text-slate-800'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-3 mb-1">
+                              <span className="text-[10px] font-semibold text-slate-700">{remark.employeeName}</span>
+                              <span className="text-[10px] text-slate-500">
+                                {new Date(remark.timestamp).toLocaleTimeString([], {
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </span>
+                            </div>
+                            <p className="text-sm leading-snug break-words">{remark.remark}</p>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <p className="text-xs text-slate-400 text-center py-2">No updates yet. Start the conversation.</p>
+                  )}
                 </div>
-                <textarea
-                  value={newRemark}
-                  onChange={(e) => setNewRemark(e.target.value)}
-                  placeholder="Update on task progress, stages completed, or any relevant information..."
-                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 resize-none h-20"
-                  rows={3}
-                />
-                <div className="flex gap-2">
+
+                <div className="flex items-end gap-2">
+                  <textarea
+                    value={newRemark}
+                    onChange={(e) => setNewRemark(e.target.value)}
+                    placeholder="Type an update..."
+                    className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 resize-none min-h-[42px] max-h-24"
+                    rows={2}
+                  />
                   <button
+                    type="button"
                     onClick={handleAddRemark}
                     disabled={!newRemark.trim()}
-                    className="flex-1 bg-indigo-900 text-white px-3 py-2 rounded-xl font-bold text-sm active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                    className="bg-indigo-900 text-white px-3 py-2 rounded-xl font-bold text-sm active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                    title="Send update"
                   >
                     <Send className="w-4 h-4" />
-                    Add Update
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowRemarkInput(false);
-                      setNewRemark('');
-                    }}
-                    className="px-4 bg-slate-100 text-slate-700 py-2 rounded-xl font-bold text-sm active:scale-95 transition-all hover:bg-slate-200"
-                  >
-                    Cancel
                   </button>
                 </div>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* In-Tile Comments Toggle (Arrow Only) */}
-        {task.remarks && task.remarks.length > 0 && (
-          <div className="w-full pl-14">
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => setShowRemarksExpanded(!showRemarksExpanded)}
-                className="p-2 rounded-lg hover:bg-slate-100 transition-colors"
-                title={showRemarksExpanded ? 'Hide comments' : 'Show comments'}
-              >
-                <ChevronDown
-                  className={`w-4 h-4 text-slate-500 transition-transform ${showRemarksExpanded ? 'rotate-180' : ''}`}
-                />
-              </button>
-            </div>
-
-            {showRemarksExpanded && (
-              <div className="space-y-2 mt-2">
-                {task.remarks.map((remark, index) => (
-                  <div key={remark.id} className="bg-white rounded-xl p-3 border border-slate-200">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-semibold text-slate-900">{remark.employeeName}</span>
-                      <span className="text-xs text-slate-500">
-                        {new Date(remark.timestamp).toLocaleString()}
-                      </span>
-                    </div>
-                    <p className="text-sm text-slate-600">{remark.remark}</p>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         )}
       </div>
