@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { DealershipTask, Employee, TaskRemark, TaskType, RecurrenceFrequency } from '../types';
 import { Check, Camera, Maximize2, User, UserCheck, GitFork, ChevronDown, ChevronRight, Layers, Trash2, AlertTriangle, Clock, ArrowRight, Play, RotateCcw, CheckCircle, UserPlus, X, Edit, MessageSquarePlus, Send } from 'lucide-react';
 import { supabase } from '../src/lib/supabase';
@@ -34,6 +34,63 @@ interface TaskItemProps {
   onAddRemark?: (taskId: string, remark: string) => void;
 }
 
+interface NormalizedTaskRemark extends TaskRemark {
+  timestamp: number;
+  employeeName: string;
+}
+
+interface TaskRemarkGroup {
+  dateKey: string;
+  label: string;
+  remarks: NormalizedTaskRemark[];
+}
+
+const getRemarkDateKey = (timestamp: number): string => {
+  const date = new Date(timestamp);
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+};
+
+const formatRemarkDateHeader = (timestamp: number): string => {
+  const remarkDate = new Date(timestamp);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+
+  const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const day = String(remarkDate.getDate()).padStart(2, '0');
+  const month = monthLabels[remarkDate.getMonth()];
+  const year = remarkDate.getFullYear();
+  const absoluteDate = `${day} ${month} ${year}`;
+
+  if (getRemarkDateKey(remarkDate.getTime()) === getRemarkDateKey(today.getTime())) {
+    return `Today • ${absoluteDate}`;
+  }
+
+  if (getRemarkDateKey(remarkDate.getTime()) === getRemarkDateKey(yesterday.getTime())) {
+    return `Yesterday • ${absoluteDate}`;
+  }
+
+  return absoluteDate;
+};
+
+const formatRemarkTime = (timestamp: number): string =>
+  new Date(timestamp).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
+
+const formatRemarkDateTime = (timestamp: number): string => {
+  const date = new Date(timestamp);
+  const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = monthLabels[date.getMonth()];
+  const year = date.getFullYear();
+  const time = formatRemarkTime(timestamp);
+
+  return `${day} ${month} ${year}, ${time}`;
+};
+
 const TaskItem: React.FC<TaskItemProps> = ({ 
   task, 
   subTasks = [], 
@@ -67,6 +124,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const [editRequirePhoto, setEditRequirePhoto] = useState(Boolean(task.requirePhoto));
   const [editTaskType, setEditTaskType] = useState<TaskType>('one_time');
   const [editRecurrenceFrequency, setEditRecurrenceFrequency] = useState<RecurrenceFrequency | ''>('');
+  const remarksScrollRef = useRef<HTMLDivElement | null>(null);
 
   const isManager = currentUser.role === 'manager' || currentUser.role === 'super_admin';
   const canDelete = currentUser.id === task.assignedBy || isManager;
@@ -116,6 +174,78 @@ const TaskItem: React.FC<TaskItemProps> = ({
     : normalizedTaskType === 'recurring'
     ? 'Recurring'
     : null;
+
+  const normalizedRemarks = useMemo(() => {
+    const rawRemarks = Array.isArray(task.remarks) ? task.remarks : [];
+
+    return rawRemarks
+      .map((remark, index): NormalizedTaskRemark | null => {
+        if (!remark || typeof remark !== 'object') {
+          return null;
+        }
+
+        const rawTimestamp = (remark as { timestamp?: number | string }).timestamp;
+        const numericTimestamp =
+          typeof rawTimestamp === 'number'
+            ? rawTimestamp
+            : typeof rawTimestamp === 'string' && rawTimestamp.trim()
+            ? Number.isFinite(Number(rawTimestamp))
+              ? Number(rawTimestamp)
+              : Date.parse(rawTimestamp)
+            : NaN;
+        const resolvedTimestamp = Number.isFinite(numericTimestamp) ? numericTimestamp : Date.now();
+
+        const fallbackEmployeeName =
+          (remark.employeeId && getEmployeeName(remark.employeeId)) || 'Unknown User';
+        const resolvedEmployeeName =
+          typeof remark.employeeName === 'string' && remark.employeeName.trim()
+            ? remark.employeeName.trim()
+            : fallbackEmployeeName;
+        const remarkText = typeof remark.remark === 'string' ? remark.remark.trim() : '';
+
+        if (!remarkText) {
+          return null;
+        }
+
+        return {
+          ...remark,
+          id: remark.id || `remark_${task.id}_${index}`,
+          employeeName: resolvedEmployeeName,
+          timestamp: resolvedTimestamp,
+          remark: remarkText
+        };
+      })
+      .filter((remark): remark is NormalizedTaskRemark => Boolean(remark))
+      .sort((left, right) => left.timestamp - right.timestamp);
+  }, [task.remarks, task.id, employees]);
+
+  const groupedRemarks = useMemo<TaskRemarkGroup[]>(() => {
+    const groups: TaskRemarkGroup[] = [];
+    const groupMap = new Map<string, TaskRemarkGroup>();
+
+    normalizedRemarks.forEach((remark) => {
+      const dateKey = getRemarkDateKey(remark.timestamp);
+      const existingGroup = groupMap.get(dateKey);
+
+      if (existingGroup) {
+        existingGroup.remarks.push(remark);
+        return;
+      }
+
+      const newGroup: TaskRemarkGroup = {
+        dateKey,
+        label: formatRemarkDateHeader(remark.timestamp),
+        remarks: [remark]
+      };
+
+      groupMap.set(dateKey, newGroup);
+      groups.push(newGroup);
+    });
+
+    return groups;
+  }, [normalizedRemarks]);
+
+  const latestRemarkDateLabel = groupedRemarks[groupedRemarks.length - 1]?.label || null;
 
   const formatDateTimeForInput = (timestamp?: number) => {
     if (!timestamp) return '';
@@ -249,6 +379,15 @@ const TaskItem: React.FC<TaskItemProps> = ({
       setNewRemark('');
     }
   };
+
+  useEffect(() => {
+    if (!showRemarkInput || !remarksScrollRef.current) {
+      return;
+    }
+
+    const remarksContainer = remarksScrollRef.current;
+    remarksContainer.scrollTop = remarksContainer.scrollHeight;
+  }, [groupedRemarks, showRemarkInput]);
 
   return (
     <div className="space-y-2">
@@ -615,33 +754,52 @@ const TaskItem: React.FC<TaskItemProps> = ({
           <div className="w-full pl-14">
             <div className="rounded-xl border border-slate-200 bg-white p-3">
               <div className="space-y-3">
-                <div className="max-h-52 overflow-y-auto space-y-2 pr-1">
-                  {task.remarks && task.remarks.length > 0 ? (
-                    task.remarks.map((remark) => {
-                      const isOwnRemark = remark.employeeId === currentUser.id;
-                      return (
-                        <div key={remark.id} className={`flex ${isOwnRemark ? 'justify-end' : 'justify-start'}`}>
-                          <div
-                            className={`max-w-[85%] rounded-xl px-3 py-2 border ${
-                              isOwnRemark
-                                ? 'bg-indigo-50 border-indigo-100 text-slate-900'
-                                : 'bg-white border-slate-200 text-slate-800'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between gap-3 mb-1">
-                              <span className="text-[10px] font-semibold text-slate-700">{remark.employeeName}</span>
-                              <span className="text-[10px] text-slate-500">
-                                {new Date(remark.timestamp).toLocaleTimeString([], {
-                                  hour: '2-digit',
-                                  minute: '2-digit'
-                                })}
-                              </span>
-                            </div>
-                            <p className="text-sm leading-snug break-words">{remark.remark}</p>
-                          </div>
+                {latestRemarkDateLabel && (
+                  <div className="flex justify-center py-1">
+                    <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-indigo-700">
+                      {latestRemarkDateLabel}
+                    </span>
+                  </div>
+                )}
+
+                <div ref={remarksScrollRef} className="max-h-52 overflow-y-auto space-y-2 pr-1">
+                  {groupedRemarks.length > 0 ? (
+                    groupedRemarks.map((group) => (
+                      <div key={group.dateKey} className="space-y-2">
+                        <div className="flex justify-center py-1">
+                          <span className="rounded-full border border-slate-300 bg-slate-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-700">
+                            {group.label}
+                          </span>
                         </div>
-                      );
-                    })
+
+                        {group.remarks.map((remark, remarkIndex) => {
+                          const isOwnRemark = remark.employeeId === currentUser.id;
+
+                          return (
+                            <div
+                              key={`${group.dateKey}_${remark.id}_${remarkIndex}`}
+                              className={`flex ${isOwnRemark ? 'justify-end' : 'justify-start'}`}
+                            >
+                              <div
+                                className={`max-w-[85%] rounded-xl px-3 py-2 border ${
+                                  isOwnRemark
+                                    ? 'bg-indigo-50 border-indigo-100 text-slate-900'
+                                    : 'bg-white border-slate-200 text-slate-800'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between gap-3 mb-1">
+                                  <span className="text-[10px] font-semibold text-slate-700">{remark.employeeName}</span>
+                                  <span className="text-[10px] text-slate-500">
+                                    {formatRemarkDateTime(remark.timestamp)}
+                                  </span>
+                                </div>
+                                <p className="text-sm leading-snug break-words">{remark.remark}</p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))
                   ) : (
                     <p className="text-xs text-slate-400 text-center py-2">No updates yet. Start the conversation.</p>
                   )}

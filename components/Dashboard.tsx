@@ -688,7 +688,10 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
         id: newRemarkId,
         taskId: taskId,
         employeeId: currentUser.id,
-        employeeName: currentUser.name,
+        employeeName:
+          currentUser.name?.trim() ||
+          currentUser.email?.split('@')[0] ||
+          'Unknown User',
         remark: remark,
         timestamp: Date.now()
       };
