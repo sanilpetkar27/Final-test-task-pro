@@ -83,6 +83,12 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   // Voice recognition state
   const [isListening, setIsListening] = useState(false);
   const [recognition, setRecognition] = useState<any>(null);
+  const [isVoiceSupported, setIsVoiceSupported] = useState(false);
+  const isStartingListeningRef = useRef(false);
+  const isStoppingListeningRef = useRef(false);
+  const lastVoiceStartAtRef = useRef(0);
+  const lastVoiceResultAtRef = useRef(0);
+  const autoVoiceRetryCountRef = useRef(0);
   
   // Form state with localStorage persistence
   const [newTaskDesc, setNewTaskDesc] = useState(() => {
@@ -172,16 +178,27 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
 
   // Initialize voice recognition
   useEffect(() => {
+    let recognitionInstance: any = null;
+
     if (typeof window !== 'undefined') {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       
       if (SpeechRecognition) {
-        const recognitionInstance = new SpeechRecognition();
+        setIsVoiceSupported(true);
+        recognitionInstance = new SpeechRecognition();
         recognitionInstance.continuous = false;
         recognitionInstance.interimResults = true;
         recognitionInstance.lang = 'en-US';
 
+        recognitionInstance.onstart = () => {
+          isStartingListeningRef.current = false;
+          isStoppingListeningRef.current = false;
+          lastVoiceStartAtRef.current = Date.now();
+          setIsListening(true);
+        };
+
         recognitionInstance.onresult = (event: any) => {
+          lastVoiceResultAtRef.current = Date.now();
           const transcript = Array.from(event.results)
             .map((result: any) => result[0])
             .map((result: any) => result.transcript)
@@ -192,45 +209,148 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
 
         recognitionInstance.onerror = (event: any) => {
           console.error('Speech recognition error:', event.error);
+          isStartingListeningRef.current = false;
+
+          // On iOS Safari, manual stop often emits "aborted" or "no-speech".
+          if (
+            event.error === 'aborted' ||
+            (isStoppingListeningRef.current && event.error === 'no-speech')
+          ) {
+            return;
+          }
+
           setIsListening(false);
           
           if (event.error === 'not-allowed') {
             alert('Microphone permission denied. Please allow microphone access to use voice input.');
           } else if (event.error === 'no-speech') {
-            alert('No speech detected. Please try again.');
+            // No-speech is noisy on mobile browsers; keep it silent.
+            return;
           } else {
             alert('Voice input error: ' + event.error);
           }
         };
 
         recognitionInstance.onend = () => {
+          const endedTooFastWithoutInput =
+            !isStoppingListeningRef.current &&
+            lastVoiceStartAtRef.current > 0 &&
+            Date.now() - lastVoiceStartAtRef.current < 700 &&
+            lastVoiceResultAtRef.current < lastVoiceStartAtRef.current;
+
+          isStartingListeningRef.current = false;
+          isStoppingListeningRef.current = false;
           setIsListening(false);
+
+          // iOS sometimes ends immediately on first tap; auto-retry once.
+          if (endedTooFastWithoutInput && autoVoiceRetryCountRef.current < 1) {
+            autoVoiceRetryCountRef.current += 1;
+            window.setTimeout(() => {
+              if (recognitionInstance) {
+                try {
+                  isStartingListeningRef.current = true;
+                  recognitionInstance.start();
+                } catch {
+                  isStartingListeningRef.current = false;
+                }
+              }
+            }, 180);
+            return;
+          }
+
+          autoVoiceRetryCountRef.current = 0;
         };
 
         setRecognition(recognitionInstance);
       } else {
+        setIsVoiceSupported(false);
         console.log('Speech recognition not supported');
       }
     }
+    return () => {
+      if (recognitionInstance) {
+        try {
+          recognitionInstance.onstart = null;
+          recognitionInstance.onresult = null;
+          recognitionInstance.onerror = null;
+          recognitionInstance.onend = null;
+          recognitionInstance.abort();
+        } catch {
+          // No-op: browser may already have cleaned up recognition instance.
+        }
+      }
+    };
   }, []);
 
   // Voice input handlers
   const startListening = () => {
-    if (recognition && !isListening) {
+    if (!recognition || isListening || isStartingListeningRef.current) {
+      return;
+    }
+
+    try {
+      isStoppingListeningRef.current = false;
+      isStartingListeningRef.current = true;
+      autoVoiceRetryCountRef.current = 0;
       recognition.start();
-      setIsListening(true);
+    } catch (error: any) {
+      console.error('Failed to start speech recognition:', error);
+      isStartingListeningRef.current = false;
+      const errorMessage = String(error?.message || '').toLowerCase();
+
+      if (errorMessage.includes('already started')) {
+        return;
+      }
+
+      // Recover from stale state by resetting the instance and retrying once.
+      if (errorMessage.includes('invalidstate') || errorMessage.includes('start')) {
+        try {
+          recognition.abort();
+        } catch {
+          // noop
+        }
+        window.setTimeout(() => {
+          try {
+            isStartingListeningRef.current = true;
+            recognition.start();
+          } catch (retryError) {
+            isStartingListeningRef.current = false;
+            console.error('Speech recognition retry failed:', retryError);
+          }
+        }, 180);
+        return;
+      }
+
+      alert('Unable to start voice input. Please try again.');
     }
   };
 
   const stopListening = () => {
-    if (recognition && isListening) {
-      recognition.stop();
+    if (recognition && (isListening || isStartingListeningRef.current)) {
+      isStoppingListeningRef.current = true;
+      isStartingListeningRef.current = false;
+      autoVoiceRetryCountRef.current = 0;
+
+      try {
+        recognition.stop();
+      } catch {
+        try {
+          recognition.abort();
+        } catch {
+          // noop
+        }
+      } finally {
+        window.setTimeout(() => {
+          setIsListening(false);
+        }, 150);
+      }
+    } else {
       setIsListening(false);
     }
   };
 
   const toggleListening = () => {
-    if (isListening) {
+    if (isListening || isStartingListeningRef.current) {
       stopListening();
     } else {
       startListening();
@@ -805,12 +925,21 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
               <button
                 type="button"
                 onClick={toggleListening}
+                disabled={!isVoiceSupported}
                 className={`absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-all ${
                   isListening 
                     ? 'bg-red-500 text-white hover:bg-red-600 animate-pulse' 
-                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-900'
+                    : isVoiceSupported
+                    ? 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-900'
+                    : 'bg-slate-100 text-slate-300 cursor-not-allowed'
                 }`}
-                title={isListening ? 'Stop recording' : 'Start voice input'}
+                title={
+                  !isVoiceSupported
+                    ? 'Voice input is not supported on this browser'
+                    : isListening
+                    ? 'Stop recording'
+                    : 'Start voice input'
+                }
               >
                 {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
               </button>
