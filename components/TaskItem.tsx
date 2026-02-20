@@ -232,8 +232,6 @@ const TaskItem: React.FC<TaskItemProps> = ({
     return groups;
   }, [normalizedRemarks]);
 
-  const latestRemarkDateLabel = groupedRemarks[groupedRemarks.length - 1]?.label || null;
-
   const formatDateTimeForInput = (timestamp?: number) => {
     if (!timestamp) return '';
     const date = new Date(timestamp);
@@ -741,14 +739,6 @@ const TaskItem: React.FC<TaskItemProps> = ({
           <div className="w-full pl-14">
             <div className="rounded-xl border border-slate-200 bg-white p-3">
               <div className="space-y-3">
-                {latestRemarkDateLabel && (
-                  <div className="flex justify-center py-1">
-                    <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-indigo-700">
-                      {latestRemarkDateLabel}
-                    </span>
-                  </div>
-                )}
-
                 <div ref={remarksScrollRef} className="max-h-52 overflow-y-auto space-y-2 pr-1">
                   {groupedRemarks.length > 0 ? (
                     groupedRemarks.map((group) => (
