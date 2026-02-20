@@ -91,6 +91,36 @@ const TeamManager: React.FC<TeamManagerProps> = ({
     return [fallbackCurrentUser, ...normalizedEmployees];
   }, [employees, currentUser]);
 
+  const managerNameById = useMemo(() => {
+    const managerMap = new Map<string, string>();
+    [...(employees || []), ...(teamMembers || [])].forEach((member) => {
+      if (!member || !member.id || !member.name) return;
+      if (member.role === 'manager' || member.role === 'super_admin' || member.role === 'owner') {
+        managerMap.set(String(member.id), String(member.name));
+      }
+    });
+    managerMap.set(String(currentUser.id), String(currentUser.name));
+    return managerMap;
+  }, [employees, teamMembers, currentUser.id, currentUser.name]);
+
+  const getAddedByLabel = (member: Employee): string | null => {
+    if (!member || member.role !== 'staff') {
+      return null;
+    }
+
+    const managerId =
+      typeof member.manager_id === 'string' && member.manager_id.trim()
+        ? member.manager_id.trim()
+        : null;
+
+    if (!managerId) {
+      return 'Added by: Unassigned';
+    }
+
+    const managerName = managerNameById.get(managerId);
+    return `Added by: ${managerName || managerId}`;
+  };
+
   const canDeleteMember = (member: Employee): boolean => {
     if (!member || member.id === currentUser.id) {
       return false;
@@ -524,6 +554,10 @@ const TeamManager: React.FC<TeamManagerProps> = ({
           teamMembers.map((emp) => {
             // Strict safety filter: prevent all invalid data from rendering
             if (!emp || !emp.id || !emp.name || emp.name.trim() === '') return null;
+            const addedByLabel = getAddedByLabel(emp);
+            const showAddedBy =
+              Boolean(addedByLabel) &&
+              (currentUser.role === 'super_admin' || currentUser.role === 'owner');
             
             return (
             <div 
@@ -536,15 +570,20 @@ const TeamManager: React.FC<TeamManagerProps> = ({
                 </div>
                 <div>
                   <p className="font-semibold text-slate-900">{emp.name}</p>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${emp.role === 'super_admin' || emp.role === 'owner' ? 'bg-slate-800 text-white' : emp.role === 'manager' ? 'bg-indigo-900 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                      {emp.role}
-                    </span>
-                    <span className="text-[10px] text-slate-500 font-medium">{emp.mobile}</span>
-                    {SHOW_POINTS_SYSTEM && (
-                    <span className="text-[9px] font-black text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">
-                      {emp.points} pts
-                    </span>
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${emp.role === 'super_admin' || emp.role === 'owner' ? 'bg-slate-800 text-white' : emp.role === 'manager' ? 'bg-indigo-900 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                        {emp.role}
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-medium">{emp.mobile}</span>
+                      {SHOW_POINTS_SYSTEM && (
+                      <span className="text-[9px] font-black text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">
+                        {emp.points} pts
+                      </span>
+                      )}
+                    </div>
+                    {showAddedBy && (
+                      <p className="text-[10px] text-slate-500 font-medium">{addedByLabel}</p>
                     )}
                   </div>
                 </div>
