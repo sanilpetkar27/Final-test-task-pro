@@ -20,6 +20,7 @@ export interface Employee {
   points: number;
   company_id: string;
   auth_user_id?: string;
+  manager_id?: string | null;
 }
 
 export interface RewardConfig {

@@ -21,6 +21,11 @@ const isMissingColumnError = (error: any): boolean => {
   return message.includes('column') && message.includes('does not exist');
 };
 
+const isMissingSpecificColumnError = (error: any, columnName: string): boolean => {
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes(columnName.toLowerCase()) && isMissingColumnError(error);
+};
+
 const TeamManager: React.FC<TeamManagerProps> = ({ 
   employees, 
   currentUser, 
@@ -127,6 +132,10 @@ const TeamManager: React.FC<TeamManagerProps> = ({
     const roleToCreate: UserRole = assignableRoles.includes(newRole)
       ? newRole
       : (assignableRoles[0] || 'staff');
+    const managerOwnerId =
+      currentUser.role === 'manager' && roleToCreate === 'staff'
+        ? currentUser.id
+        : null;
     
     // 1. Validate Form
     if (!newName.trim() || !newEmail.trim() || !newPassword.trim() || !newMobile.trim()) {
@@ -203,37 +212,45 @@ const TeamManager: React.FC<TeamManagerProps> = ({
         role: roleToCreate,
         points: 0,
         company_id: currentUser.company_id || '00000000-0000-0000-0000-000000000001',
+        manager_id: managerOwnerId,
       };
 
       if (safeId) {
-        const payloadWithEmail = {
+        const basePayload = {
           id: safeId,
           company_id: currentUser.company_id,
           name: newName.trim(),
-          email: newEmail.trim(),
           mobile: newMobile.trim(),
           role: roleToCreate,
           points: 0,
           updated_at: new Date().toISOString()
         };
 
+        const payloadWithEmailAndManager = {
+          ...basePayload,
+          email: newEmail.trim(),
+          manager_id: managerOwnerId
+        };
+
         let { error: companyPatchError } = await supabase
           .from('employees')
-          .upsert(payloadWithEmail, { onConflict: 'id' });
+          .upsert(payloadWithEmailAndManager, { onConflict: 'id' });
 
-        if (companyPatchError && isMissingColumnError(companyPatchError)) {
-          const retry = await supabase
+        if (companyPatchError && isMissingSpecificColumnError(companyPatchError, 'manager_id')) {
+          const retryWithoutManagerId = await supabase
             .from('employees')
             .upsert({
-              id: safeId,
-              company_id: currentUser.company_id,
-              name: newName.trim(),
-              mobile: newMobile.trim(),
-              role: roleToCreate,
-              points: 0,
-              updated_at: new Date().toISOString()
+              ...basePayload,
+              email: newEmail.trim()
             }, { onConflict: 'id' });
-          companyPatchError = retry.error;
+          companyPatchError = retryWithoutManagerId.error;
+        }
+
+        if (companyPatchError && isMissingColumnError(companyPatchError)) {
+          const retryWithoutEmail = await supabase
+            .from('employees')
+            .upsert(basePayload, { onConflict: 'id' });
+          companyPatchError = retryWithoutEmail.error;
         }
 
         if (companyPatchError) {

@@ -154,6 +154,11 @@ const normalizeEmployeeProfile = (employee: Partial<Employee> & { id: string }):
   const safeEmail = String(employee.email || `${safeId}@taskpro.local`).trim();
   const safeName = String(employee.name || safeEmail.split('@')[0] || 'User').trim();
   const safeMobile = String(employee.mobile || '').trim();
+  const rawManagerId = (employee as any)?.manager_id ?? (employee as any)?.managerId;
+  const safeManagerId =
+    typeof rawManagerId === 'string' && rawManagerId.trim()
+      ? rawManagerId.trim()
+      : null;
 
   return {
     id: safeId,
@@ -164,7 +169,54 @@ const normalizeEmployeeProfile = (employee: Partial<Employee> & { id: string }):
     points: Number(employee.points || 0),
     company_id: String(employee.company_id || DEFAULT_COMPANY_ID),
     auth_user_id: employee.auth_user_id ? String(employee.auth_user_id) : undefined,
+    manager_id: safeManagerId,
   };
+};
+
+const scopeEmployeesForCurrentUser = (
+  employeeRows: Employee[],
+  taskRows: DealershipTask[],
+  currentUser: Employee | null
+): Employee[] => {
+  const mergedEmployees = mergeCurrentUserIntoEmployees(employeeRows, currentUser);
+  if (!currentUser) {
+    return mergedEmployees;
+  }
+
+  if (currentUser.role === 'super_admin' || currentUser.role === 'owner') {
+    return mergedEmployees;
+  }
+
+  if (currentUser.role === 'manager') {
+    const managedByTasks = new Set<string>();
+    taskRows.forEach((task) => {
+      if (task.assignedBy === currentUser.id && task.assignedTo) {
+        managedByTasks.add(task.assignedTo);
+      }
+    });
+
+    return mergedEmployees.filter((employee) => {
+      if (employee.id === currentUser.id) return true;
+      if (employee.role !== 'staff') return false;
+      const managerId = typeof employee.manager_id === 'string' ? employee.manager_id : null;
+      return managerId === currentUser.id || (!managerId && managedByTasks.has(employee.id));
+    });
+  }
+
+  // Staff: show own profile and direct manager when available.
+  const managerIds = new Set<string>();
+  const profileManagerId = typeof currentUser.manager_id === 'string' ? currentUser.manager_id : null;
+  if (profileManagerId) {
+    managerIds.add(profileManagerId);
+  }
+
+  taskRows.forEach((task) => {
+    if (task.assignedTo === currentUser.id && task.assignedBy) {
+      managerIds.add(task.assignedBy);
+    }
+  });
+
+  return mergedEmployees.filter((employee) => employee.id === currentUser.id || managerIds.has(employee.id));
 };
 
 const mergeCurrentUserIntoEmployees = (employeeRows: Employee[], currentUser: Employee | null): Employee[] => {
@@ -1503,6 +1555,7 @@ const App: React.FC = () => {
 
   const isManager = currentUser.role === 'manager' || currentUser.role === 'super_admin' || currentUser.role === 'owner';
   const isSuperAdmin = currentUser.role === 'super_admin';
+  const scopedEmployees = scopeEmployeesForCurrentUser(employees, tasks, currentUser);
 
   return (
     <div className="flex flex-col h-screen max-w-md mx-auto bg-slate-50 relative overflow-hidden font-sans">
@@ -1571,7 +1624,7 @@ const App: React.FC = () => {
         {activeTab === AppTab.TASKS && (
           <Dashboard
             tasks={tasks}
-            employees={employees}
+            employees={scopedEmployees}
             currentUser={currentUser}
             onAddTask={addTask}
             onStartTask={startTask}
@@ -1586,7 +1639,7 @@ const App: React.FC = () => {
 
         {isManager && activeTab === AppTab.TEAM && (
           <TeamManager
-            employees={employees}
+            employees={scopedEmployees}
             currentUser={currentUser}
             onAddEmployee={addEmployee}
             onRemoveEmployee={removeEmployee}
