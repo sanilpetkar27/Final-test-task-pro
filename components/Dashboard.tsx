@@ -90,6 +90,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   const lastVoiceResultAtRef = useRef(0);
   const autoVoiceRetryCountRef = useRef(0);
   const voiceSafetyStopTimerRef = useRef<number | null>(null);
+  const voiceIdleStopTimerRef = useRef<number | null>(null);
   
   // Form state with localStorage persistence
   const [newTaskDesc, setNewTaskDesc] = useState(() => {
@@ -183,6 +184,13 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
     }
   };
 
+  const clearVoiceIdleStopTimer = () => {
+    if (voiceIdleStopTimerRef.current !== null) {
+      window.clearTimeout(voiceIdleStopTimerRef.current);
+      voiceIdleStopTimerRef.current = null;
+    }
+  };
+
   const stopRecognitionInstanceSafely = (recognitionInstance: any) => {
     try {
       recognitionInstance.stop();
@@ -214,6 +222,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
           isStoppingListeningRef.current = false;
           lastVoiceStartAtRef.current = Date.now();
           setIsListening(true);
+          clearVoiceIdleStopTimer();
 
           // Safety guard: close dangling sessions to prevent background mic lock on iOS.
           clearVoiceSafetyStopTimer();
@@ -222,6 +231,13 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
               isStoppingListeningRef.current = true;
               setIsListening(false);
               stopRecognitionInstanceSafely(recognitionInstance);
+              window.setTimeout(() => {
+                try {
+                  recognitionInstance.abort();
+                } catch {
+                  // noop
+                }
+              }, 120);
             }
           }, 12000);
         };
@@ -235,14 +251,39 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
           
           setNewTaskDesc(transcript);
 
+          // Auto-close shortly after speech text arrives so iOS doesn't keep mic active in PWA mode.
+          clearVoiceIdleStopTimer();
+          voiceIdleStopTimerRef.current = window.setTimeout(() => {
+            if (!isStoppingListeningRef.current) {
+              isStoppingListeningRef.current = true;
+              setIsListening(false);
+              stopRecognitionInstanceSafely(recognitionInstance);
+              window.setTimeout(() => {
+                try {
+                  recognitionInstance.abort();
+                } catch {
+                  // noop
+                }
+              }, 120);
+            }
+          }, 900);
+
           const hasFinalResult = Array.from(event.results || []).some((result: any) => Boolean(result?.isFinal));
           if (hasFinalResult && !isStoppingListeningRef.current) {
             // On iOS, explicit close after final transcript prevents delayed audio-capture errors.
             isStoppingListeningRef.current = true;
             setIsListening(false);
             clearVoiceSafetyStopTimer();
+            clearVoiceIdleStopTimer();
             window.setTimeout(() => {
               stopRecognitionInstanceSafely(recognitionInstance);
+              window.setTimeout(() => {
+                try {
+                  recognitionInstance.abort();
+                } catch {
+                  // noop
+                }
+              }, 120);
             }, 80);
           }
         };
@@ -251,6 +292,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
           console.error('Speech recognition error:', event.error);
           isStartingListeningRef.current = false;
           clearVoiceSafetyStopTimer();
+          clearVoiceIdleStopTimer();
 
           // On iOS Safari, manual stop often emits "aborted" or "no-speech".
           if (
@@ -277,6 +319,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
 
         recognitionInstance.onend = () => {
           clearVoiceSafetyStopTimer();
+          clearVoiceIdleStopTimer();
           const endedTooFastWithoutInput =
             !isStoppingListeningRef.current &&
             lastVoiceStartAtRef.current > 0 &&
@@ -314,6 +357,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
     }
     return () => {
       clearVoiceSafetyStopTimer();
+      clearVoiceIdleStopTimer();
       if (recognitionInstance) {
         try {
           recognitionInstance.onstart = null;
@@ -377,6 +421,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
       isStartingListeningRef.current = false;
       autoVoiceRetryCountRef.current = 0;
       clearVoiceSafetyStopTimer();
+      clearVoiceIdleStopTimer();
 
       try {
         recognition.stop();
@@ -387,6 +432,13 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
           // noop
         }
       } finally {
+        window.setTimeout(() => {
+          try {
+            recognition.abort();
+          } catch {
+            // noop
+          }
+        }, 120);
         window.setTimeout(() => {
           setIsListening(false);
         }, 150);
@@ -403,6 +455,48 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
       startListening();
     }
   };
+
+  useEffect(() => {
+    if (!recognition || typeof document === 'undefined') {
+      return;
+    }
+
+    const releaseVoiceCapture = () => {
+      if (!isListening && !isStartingListeningRef.current) {
+        return;
+      }
+
+      isStoppingListeningRef.current = true;
+      isStartingListeningRef.current = false;
+      clearVoiceSafetyStopTimer();
+      clearVoiceIdleStopTimer();
+      setIsListening(false);
+
+      try {
+        recognition.abort();
+      } catch {
+        // noop
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        releaseVoiceCapture();
+      }
+    };
+
+    const handlePageHide = () => {
+      releaseVoiceCapture();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pagehide', handlePageHide);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pagehide', handlePageHide);
+    };
+  }, [recognition, isListening]);
 
   // Dashboard uses tasks from props, not fetched independently
 
