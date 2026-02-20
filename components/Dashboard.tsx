@@ -450,36 +450,37 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   };
   const handleDelegate = async (parentTaskId: string, desc: string, targetAssigneeId: string, deadlineTimestamp?: number) => {
     try {
-      console.log('🔧 Creating delegated task...');
-      const newTaskId = `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      const result = await supabase
-        .from('tasks')
-        .insert([{
-          id: newTaskId,
-          description: desc,
-          assignedTo: targetAssigneeId,
-          status: 'pending',
-          assignedBy: currentUser.id,
-          parentTaskId: parentTaskId,
-          deadline: deadlineTimestamp,
-          createdAt: Date.now()
-        }]);
-      
-      if (result.error) {
-        console.error('❌ Delegated task creation failed:', result.error);
-        alert(`Task Creation Error: ${result.error.message}`);
-      } else {
-        console.log('✅ Delegated task created successfully:', result.data);
-        
-        // Send push notification to assigned user
-        if (result.data && result.data.length > 0) {
-          const assignedEmployee = employees.find(emp => emp.id === targetAssigneeId);
-          // setTasks(prev => [result.data[0], ...prev]);
-        }
-        
-        // Auto-reset filter to show new task
-        setSelectedPersonFilter('ALL');
+      const trimmedDescription = desc.trim();
+      if (!trimmedDescription) {
+        alert('Task description is required.');
+        return;
       }
+
+      console.log('🔧 Creating delegated task...');
+
+      // Route delegation through the main add-task pipeline so tenant/company_id
+      // and recurrence-safe insert fallbacks stay consistent in one place.
+      await Promise.resolve(
+        onAddTask(
+          trimmedDescription,
+          targetAssigneeId,
+          parentTaskId,
+          deadlineTimestamp
+        )
+      );
+
+      const assignedEmployee = employees.find(emp => emp.id === targetAssigneeId);
+      if (assignedEmployee) {
+        await sendTaskAssignmentNotification(
+          trimmedDescription,
+          assignedEmployee.name,
+          currentUser.name,
+          assignedEmployee.id
+        );
+      }
+
+      // Auto-reset filter to show new task
+      setSelectedPersonFilter('ALL');
     } catch (err) {
       console.error('🚨 Unexpected error creating delegated task:', err);
       alert(`Unexpected Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
