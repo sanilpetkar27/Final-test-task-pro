@@ -89,6 +89,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   const lastVoiceStartAtRef = useRef(0);
   const lastVoiceResultAtRef = useRef(0);
   const autoVoiceRetryCountRef = useRef(0);
+  const voiceSafetyStopTimerRef = useRef<number | null>(null);
   
   // Form state with localStorage persistence
   const [newTaskDesc, setNewTaskDesc] = useState(() => {
@@ -175,6 +176,24 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   const previousTaskStatusRef = useRef<Record<string, TaskStatus>>({});
 
   // Dashboard uses employees from props, no independent fetching needed
+  const clearVoiceSafetyStopTimer = () => {
+    if (voiceSafetyStopTimerRef.current !== null) {
+      window.clearTimeout(voiceSafetyStopTimerRef.current);
+      voiceSafetyStopTimerRef.current = null;
+    }
+  };
+
+  const stopRecognitionInstanceSafely = (recognitionInstance: any) => {
+    try {
+      recognitionInstance.stop();
+    } catch {
+      try {
+        recognitionInstance.abort();
+      } catch {
+        // noop
+      }
+    }
+  };
 
   // Initialize voice recognition
   useEffect(() => {
@@ -195,6 +214,16 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
           isStoppingListeningRef.current = false;
           lastVoiceStartAtRef.current = Date.now();
           setIsListening(true);
+
+          // Safety guard: close dangling sessions to prevent background mic lock on iOS.
+          clearVoiceSafetyStopTimer();
+          voiceSafetyStopTimerRef.current = window.setTimeout(() => {
+            if (!isStoppingListeningRef.current) {
+              isStoppingListeningRef.current = true;
+              setIsListening(false);
+              stopRecognitionInstanceSafely(recognitionInstance);
+            }
+          }, 12000);
         };
 
         recognitionInstance.onresult = (event: any) => {
@@ -205,11 +234,23 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
             .join('');
           
           setNewTaskDesc(transcript);
+
+          const hasFinalResult = Array.from(event.results || []).some((result: any) => Boolean(result?.isFinal));
+          if (hasFinalResult && !isStoppingListeningRef.current) {
+            // On iOS, explicit close after final transcript prevents delayed audio-capture errors.
+            isStoppingListeningRef.current = true;
+            setIsListening(false);
+            clearVoiceSafetyStopTimer();
+            window.setTimeout(() => {
+              stopRecognitionInstanceSafely(recognitionInstance);
+            }, 80);
+          }
         };
 
         recognitionInstance.onerror = (event: any) => {
           console.error('Speech recognition error:', event.error);
           isStartingListeningRef.current = false;
+          clearVoiceSafetyStopTimer();
 
           // On iOS Safari, manual stop often emits "aborted" or "no-speech".
           if (
@@ -226,12 +267,16 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
           } else if (event.error === 'no-speech') {
             // No-speech is noisy on mobile browsers; keep it silent.
             return;
+          } else if (event.error === 'audio-capture') {
+            // Safari/iOS can emit this after an already-finished capture; avoid noisy popups.
+            return;
           } else {
             alert('Voice input error: ' + event.error);
           }
         };
 
         recognitionInstance.onend = () => {
+          clearVoiceSafetyStopTimer();
           const endedTooFastWithoutInput =
             !isStoppingListeningRef.current &&
             lastVoiceStartAtRef.current > 0 &&
@@ -268,6 +313,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
       }
     }
     return () => {
+      clearVoiceSafetyStopTimer();
       if (recognitionInstance) {
         try {
           recognitionInstance.onstart = null;
@@ -330,6 +376,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
       isStoppingListeningRef.current = true;
       isStartingListeningRef.current = false;
       autoVoiceRetryCountRef.current = 0;
+      clearVoiceSafetyStopTimer();
 
       try {
         recognition.stop();
