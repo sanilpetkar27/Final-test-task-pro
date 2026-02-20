@@ -221,6 +221,8 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
           isStartingListeningRef.current = false;
           isStoppingListeningRef.current = false;
           lastVoiceStartAtRef.current = Date.now();
+          // Reset per-session result marker so no-result retries work reliably.
+          lastVoiceResultAtRef.current = 0;
           setIsListening(true);
           clearVoiceIdleStopTimer();
 
@@ -320,18 +322,23 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
         recognitionInstance.onend = () => {
           clearVoiceSafetyStopTimer();
           clearVoiceIdleStopTimer();
-          const endedTooFastWithoutInput =
+          const endedWithoutInput =
             !isStoppingListeningRef.current &&
             lastVoiceStartAtRef.current > 0 &&
-            Date.now() - lastVoiceStartAtRef.current < 700 &&
             lastVoiceResultAtRef.current < lastVoiceStartAtRef.current;
+          const sessionDuration = Date.now() - lastVoiceStartAtRef.current;
+          const shouldAutoRetryNoInput =
+            endedWithoutInput &&
+            sessionDuration < 5000 &&
+            autoVoiceRetryCountRef.current < 2;
 
           isStartingListeningRef.current = false;
           isStoppingListeningRef.current = false;
           setIsListening(false);
 
-          // iOS sometimes ends immediately on first tap; auto-retry once.
-          if (endedTooFastWithoutInput && autoVoiceRetryCountRef.current < 1) {
+          // iOS PWA may end the first capture immediately (permission/activation edge case).
+          // Retry automatically so user doesn't need to tap mic twice.
+          if (shouldAutoRetryNoInput) {
             autoVoiceRetryCountRef.current += 1;
             window.setTimeout(() => {
               if (recognitionInstance) {
@@ -342,7 +349,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
                   isStartingListeningRef.current = false;
                 }
               }
-            }, 180);
+            }, 220);
             return;
           }
 
