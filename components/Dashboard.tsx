@@ -84,6 +84,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   const [isListening, setIsListening] = useState(false);
   const [recognition, setRecognition] = useState<any>(null);
   const [isVoiceSupported, setIsVoiceSupported] = useState(false);
+  const [isPreparingMicPermission, setIsPreparingMicPermission] = useState(false);
   const isStartingListeningRef = useRef(false);
   const isStoppingListeningRef = useRef(false);
   const lastVoiceStartAtRef = useRef(0);
@@ -91,11 +92,10 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   const autoVoiceRetryCountRef = useRef(0);
   const voiceSafetyStopTimerRef = useRef<number | null>(null);
   const voiceIdleStopTimerRef = useRef<number | null>(null);
+  const hasPrimedMicPermissionRef = useRef(false);
   
-  // Form state with localStorage persistence
-  const [newTaskDesc, setNewTaskDesc] = useState(() => {
-    return localStorage.getItem('task_form_desc') || '';
-  });
+  // Keep task description ephemeral to avoid stale dictated text after app relaunch.
+  const [newTaskDesc, setNewTaskDesc] = useState('');
   const [assigneeId, setAssigneeId] = useState(() => {
     return localStorage.getItem('task_form_assignee') || 'none';
   });
@@ -116,11 +116,12 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
       : '';
   });
   
-  // Persist form state to localStorage
+  // Clear legacy cached task description so old dictated text is not restored.
   useEffect(() => {
-    localStorage.setItem('task_form_desc', newTaskDesc);
-  }, [newTaskDesc]);
-  
+    localStorage.removeItem('task_form_desc');
+  }, []);
+
+  // Persist form state to localStorage
   useEffect(() => {
     localStorage.setItem('task_form_assignee', assigneeId);
   }, [assigneeId]);
@@ -200,6 +201,35 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
       } catch {
         // noop
       }
+    }
+  };
+
+  const primeMicrophonePermission = async (): Promise<boolean> => {
+    if (hasPrimedMicPermissionRef.current) {
+      return true;
+    }
+
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      hasPrimedMicPermissionRef.current = true;
+      return true;
+    }
+
+    setIsPreparingMicPermission(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((track) => track.stop());
+      hasPrimedMicPermissionRef.current = true;
+      return true;
+    } catch (error: any) {
+      const errorName = String(error?.name || '').toLowerCase();
+      if (errorName === 'notallowederror' || errorName === 'securityerror') {
+        alert('Microphone permission denied. Please allow microphone access to use voice input.');
+      } else {
+        alert('Unable to access microphone. Please try again.');
+      }
+      return false;
+    } finally {
+      setIsPreparingMicPermission(false);
     }
   };
 
@@ -380,10 +410,18 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   }, []);
 
   // Voice input handlers
-  const startListening = () => {
-    if (!recognition || isListening || isStartingListeningRef.current) {
+  const startListening = async () => {
+    if (!recognition || isListening || isStartingListeningRef.current || isPreparingMicPermission) {
       return;
     }
+
+    const permissionReady = await primeMicrophonePermission();
+    if (!permissionReady) {
+      return;
+    }
+
+    // Small handoff delay helps iOS release getUserMedia before SpeechRecognition.start().
+    await new Promise((resolve) => window.setTimeout(resolve, 80));
 
     try {
       isStoppingListeningRef.current = false;
@@ -459,7 +497,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
     if (isListening || isStartingListeningRef.current) {
       stopListening();
     } else {
-      startListening();
+      void startListening();
     }
   };
 
@@ -1073,10 +1111,12 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
               <button
                 type="button"
                 onClick={toggleListening}
-                disabled={!isVoiceSupported}
+                disabled={!isVoiceSupported || isPreparingMicPermission}
                 className={`absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-all ${
                   isListening 
                     ? 'bg-red-500 text-white hover:bg-red-600 animate-pulse' 
+                    : isPreparingMicPermission
+                    ? 'bg-slate-200 text-slate-500 cursor-wait'
                     : isVoiceSupported
                     ? 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-900'
                     : 'bg-slate-100 text-slate-300 cursor-not-allowed'
@@ -1084,6 +1124,8 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
                 title={
                   !isVoiceSupported
                     ? 'Voice input is not supported on this browser'
+                    : isPreparingMicPermission
+                    ? 'Preparing microphone permission...'
                     : isListening
                     ? 'Stop recording'
                     : 'Start voice input'
@@ -1092,6 +1134,13 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
                 {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
               </button>
             </div>
+
+            {isPreparingMicPermission && (
+              <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-100 px-3 py-2 rounded-lg">
+                <div className="w-2 h-2 bg-slate-500 rounded-full animate-pulse"></div>
+                <span>Preparing microphone...</span>
+              </div>
+            )}
             
             {isListening && (
               <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">
