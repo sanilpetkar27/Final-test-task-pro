@@ -52,25 +52,12 @@ const getRemarkDateKey = (timestamp: number): string => {
 
 const formatRemarkDateHeader = (timestamp: number): string => {
   const remarkDate = new Date(timestamp);
-  const today = new Date();
-  const yesterday = new Date();
-  yesterday.setDate(today.getDate() - 1);
 
   const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const day = String(remarkDate.getDate()).padStart(2, '0');
   const month = monthLabels[remarkDate.getMonth()];
   const year = remarkDate.getFullYear();
-  const absoluteDate = `${day} ${month} ${year}`;
-
-  if (getRemarkDateKey(remarkDate.getTime()) === getRemarkDateKey(today.getTime())) {
-    return `Today • ${absoluteDate}`;
-  }
-
-  if (getRemarkDateKey(remarkDate.getTime()) === getRemarkDateKey(yesterday.getTime())) {
-    return `Yesterday • ${absoluteDate}`;
-  }
-
-  return absoluteDate;
+  return `${day} ${month} ${year}`;
 };
 
 const formatRemarkTime = (timestamp: number): string =>
