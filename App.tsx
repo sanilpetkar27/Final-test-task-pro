@@ -725,16 +725,33 @@ const App: React.FC = () => {
 
   // --- REALTIME SUBSCRIPTION FOR TASKS ---
   useEffect(() => {
+    if (!currentUser?.id) {
+      return;
+    }
+
+    const companyFilter = currentUser.company_id ? `company_id=eq.${currentUser.company_id}` : undefined;
+    const taskChangeFilter: { schema: 'public'; table: 'tasks'; filter?: string } = {
+      schema: 'public',
+      table: 'tasks',
+      ...(companyFilter ? { filter: companyFilter } : {}),
+    };
+
     const taskListener = supabase
-      .channel('public:tasks')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tasks' }, async (payload) => {
+      .channel(`public:tasks:${currentUser.company_id || 'all'}:${currentUser.id}`)
+      .on('postgres_changes', { event: 'INSERT', ...taskChangeFilter }, async (payload) => {
         console.log('🔔 Realtime INSERT:', payload);
         try {
+          const payloadTaskId = String((payload.new as any)?.id || '');
+          if (!payloadTaskId) {
+            console.warn('Realtime INSERT payload missing task id:', payload);
+            return;
+          }
+
           // Step 1: Fetch the raw task
           const { data: task, error: taskError } = await supabase
             .from('tasks')
             .select('*')
-            .eq('id', payload.new.id)
+            .eq('id', payloadTaskId)
             .single();
           
           if (taskError || !task) {
@@ -744,11 +761,12 @@ const App: React.FC = () => {
 
           // Step 2: Fetch assignee if exists
           let assignee = null;
-          if (task.assignedTo) {
+          const taskAssignedTo = (task as any).assignedTo ?? (task as any).assigned_to;
+          if (taskAssignedTo) {
             const { data: assigneeData, error: assigneeError } = await supabase
               .from('employees')
               .select('*')
-              .eq('id', task.assignedTo)
+              .eq('id', taskAssignedTo)
               .single();
             
             if (!assigneeError && assigneeData) {
@@ -758,11 +776,12 @@ const App: React.FC = () => {
 
           // Step 3: Fetch assigner if exists
           let assigner = null;
-          if (task.assigned_by) {
+          const taskAssignedBy = (task as any).assignedBy ?? (task as any).assigned_by;
+          if (taskAssignedBy) {
             const { data: assignerData, error: assignerError } = await supabase
               .from('employees')
               .select('*')
-              .eq('id', task.assigned_by)
+              .eq('id', taskAssignedBy)
               .single();
             
             if (!assignerError && assignerData) {
@@ -785,7 +804,7 @@ const App: React.FC = () => {
           console.error('🚨 Error in realtime INSERT handler:', err);
         }
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tasks' }, async (payload) => {
+      .on('postgres_changes', { event: 'UPDATE', ...taskChangeFilter }, async (payload) => {
         console.log('🔔 Realtime UPDATE:', payload);
         try {
           const payloadTaskId = String((payload.new as any)?.id || '');
@@ -821,11 +840,12 @@ const App: React.FC = () => {
 
           // Step 2: Fetch assignee if exists
           let assignee = null;
-          if (task.assignedTo) {
+          const taskAssignedTo = (task as any).assignedTo ?? (task as any).assigned_to;
+          if (taskAssignedTo) {
             const { data: assigneeData, error: assigneeError } = await supabase
               .from('employees')
               .select('*')
-              .eq('id', task.assignedTo)
+              .eq('id', taskAssignedTo)
               .single();
             
             if (!assigneeError && assigneeData) {
@@ -835,11 +855,12 @@ const App: React.FC = () => {
 
           // Step 3: Fetch assigner if exists
           let assigner = null;
-          if (task.assigned_by) {
+          const taskAssignedBy = (task as any).assignedBy ?? (task as any).assigned_by;
+          if (taskAssignedBy) {
             const { data: assignerData, error: assignerError } = await supabase
               .from('employees')
               .select('*')
-              .eq('id', task.assigned_by)
+              .eq('id', taskAssignedBy)
               .single();
             
             if (!assignerError && assignerData) {
@@ -862,7 +883,7 @@ const App: React.FC = () => {
           console.error('🚨 Error in realtime UPDATE handler:', err);
         }
       })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'tasks' }, (payload) => {
+      .on('postgres_changes', { event: 'DELETE', ...taskChangeFilter }, (payload) => {
         console.log('🔔 Realtime DELETE:', payload);
         const deletedTaskId = payload.old.id;
         setTasks(prev => prev.filter(task => task.id !== deletedTaskId));
@@ -871,9 +892,9 @@ const App: React.FC = () => {
 
     // Cleanup subscription when component unmounts
     return () => {
-      taskListener.unsubscribe();
+      supabase.removeChannel(taskListener);
     };
-  }, []);
+  }, [currentUser?.id, currentUser?.company_id]);
 
   // --- APP RESUME LISTENERS FOR TASK SYNC ---
   useEffect(() => {
