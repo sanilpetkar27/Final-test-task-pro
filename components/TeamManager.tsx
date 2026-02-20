@@ -306,28 +306,18 @@ const TeamManager: React.FC<TeamManagerProps> = ({
               ''
             ).trim();
 
-      const localCreatedEmployee: Employee = {
-        id: safeId || `emp-${Date.now()}`,
+      const buildPayload = (employeeId: string) => ({
+        id: employeeId,
+        company_id: currentUser.company_id,
         name: newName.trim(),
-        email: newEmail.trim() || `${newMobile.trim()}@taskpro.local`,
         mobile: newMobile.trim(),
         role: roleToCreate,
         points: 0,
-        company_id: currentUser.company_id || '00000000-0000-0000-0000-000000000001',
-        manager_id: managerOwnerId,
-      };
+        updated_at: new Date().toISOString()
+      });
 
-      if (safeId) {
-        const basePayload = {
-          id: safeId,
-          company_id: currentUser.company_id,
-          name: newName.trim(),
-          mobile: newMobile.trim(),
-          role: roleToCreate,
-          points: 0,
-          updated_at: new Date().toISOString()
-        };
-
+      const upsertEmployeeProfile = async (employeeId: string) => {
+        const basePayload = buildPayload(employeeId);
         const payloadWithEmailAndManager = {
           ...basePayload,
           email: newEmail.trim(),
@@ -355,10 +345,61 @@ const TeamManager: React.FC<TeamManagerProps> = ({
           companyPatchError = retryWithoutEmail.error;
         }
 
-        if (companyPatchError) {
-          console.warn('Could not sync new employee profile row:', companyPatchError);
+        return companyPatchError;
+      };
+
+      let resolvedEmployeeId = safeId || '';
+      let companyPatchError: any = null;
+
+      if (resolvedEmployeeId) {
+        companyPatchError = await upsertEmployeeProfile(resolvedEmployeeId);
+      }
+
+      // Fallback path: if RPC response id is empty/legacy, resolve row by email/mobile and patch again.
+      if (!resolvedEmployeeId || companyPatchError) {
+        const { data: byEmailRows, error: byEmailError } = await supabase
+          .from('employees')
+          .select('id')
+          .eq('company_id', currentUser.company_id)
+          .eq('email', newEmail.trim())
+          .limit(1);
+
+        if (!byEmailError && byEmailRows && byEmailRows.length > 0) {
+          resolvedEmployeeId = String((byEmailRows[0] as any).id || '').trim();
+        }
+
+        if (!resolvedEmployeeId) {
+          const { data: byMobileRows, error: byMobileError } = await supabase
+            .from('employees')
+            .select('id')
+            .eq('company_id', currentUser.company_id)
+            .eq('mobile', newMobile.trim())
+            .limit(1);
+
+          if (!byMobileError && byMobileRows && byMobileRows.length > 0) {
+            resolvedEmployeeId = String((byMobileRows[0] as any).id || '').trim();
+          }
+        }
+
+        if (resolvedEmployeeId) {
+          companyPatchError = await upsertEmployeeProfile(resolvedEmployeeId);
         }
       }
+
+      if (companyPatchError) {
+        console.warn('Could not fully sync new employee profile row:', companyPatchError);
+      }
+
+      const localCreatedEmployee: Employee = {
+        id: resolvedEmployeeId || safeId || `emp-${Date.now()}`,
+        name: newName.trim(),
+        email: newEmail.trim() || `${newMobile.trim()}@taskpro.local`,
+        mobile: newMobile.trim(),
+        role: roleToCreate,
+        points: 0,
+        company_id: currentUser.company_id || '00000000-0000-0000-0000-000000000001',
+        manager_id: managerOwnerId,
+      };
 
       // 4. Refresh team list for this company; fallback to local append if refresh fails.
       if (setEmployees && currentUser.company_id) {
@@ -369,9 +410,15 @@ const TeamManager: React.FC<TeamManagerProps> = ({
 
         if (!refreshError && refreshedEmployees) {
           const employeeRows = refreshedEmployees as Employee[];
-          const hasCreatedEmployee = employeeRows.some(
-            (emp) => String(emp?.id || '').trim() === String(localCreatedEmployee.id).trim()
-          );
+          const hasCreatedEmployee = employeeRows.some((emp) => {
+            const sameId = String(emp?.id || '').trim() === String(localCreatedEmployee.id).trim();
+            const sameEmail =
+              String(emp?.email || '').trim().toLowerCase() ===
+              String(localCreatedEmployee.email || '').trim().toLowerCase();
+            const sameMobile =
+              String(emp?.mobile || '').trim() === String(localCreatedEmployee.mobile || '').trim();
+            return sameId || sameEmail || sameMobile;
+          });
           setEmployees(hasCreatedEmployee ? employeeRows : [localCreatedEmployee, ...employeeRows]);
         } else {
           console.warn('Failed to refresh employees after create_user_by_admin:', refreshError);
