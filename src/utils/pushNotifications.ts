@@ -11,16 +11,8 @@ type PushRecord = {
 
 const invokeSendPush = async (record: PushRecord) => {
   try {
-    const authClient = (supabase as any).auth;
-    const session = authClient ? (await authClient.getSession())?.data?.session : null;
-
-    const headers = session?.access_token
-      ? { Authorization: `Bearer ${session.access_token}` }
-      : undefined;
-
     const { data, error } = await supabase.functions.invoke('send-push', {
       body: { record },
-      headers,
     });
 
     if (error) {

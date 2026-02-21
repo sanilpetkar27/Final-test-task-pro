@@ -182,8 +182,14 @@ export const isOneSignalInitialized = (): boolean => {
  */
 export const setOneSignalExternalUserId = async (userId: string): Promise<void> => {
   try {
-    await OneSignal.User.addAlias('external_id', userId);
-    console.log('External user ID set:', userId);
+    // OneSignal reserves `external_id`; use login when available.
+    if (typeof (OneSignal as any).login === 'function') {
+      await (OneSignal as any).login(userId);
+    } else {
+      // Fallback alias for older SDK behavior.
+      await OneSignal.User.addAlias('employee_id', userId);
+    }
+    console.log('OneSignal user binding set:', userId);
   } catch (error) {
     console.error('Error setting external user ID:', error);
   }
