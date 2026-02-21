@@ -45,11 +45,13 @@ serve(async (req) => {
       });
     }
 
-    // Resolve recipient by id first, then by mobile to support legacy callers.
-    const searchValue = encodeURIComponent(record.assigned_to);
+    // Resolve recipient by employee id only.
+    // Mobile fallback can accidentally target the wrong row in mixed legacy data.
+    const encodedAssigneeId = encodeURIComponent(record.assigned_to);
+    const encodedCompanyId = encodeURIComponent(record.company_id);
     const employeeUrl =
       `${SUPABASE_URL}/rest/v1/employees` +
-      `?or=(id.eq.${searchValue},mobile.eq.${searchValue})&company_id=eq.${record.company_id}&select=id,onesignal_id,company_id`;
+      `?id=eq.${encodedAssigneeId}&company_id=eq.${encodedCompanyId}&select=id,onesignal_id,company_id`;
 
     const employeeRes = await fetch(employeeUrl, {
       headers: {
@@ -79,6 +81,44 @@ serve(async (req) => {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Safety check: if the same OneSignal id is attached to multiple users in this company,
+    // skip sending to avoid wrong-recipient notifications.
+    const encodedOneSignalId = encodeURIComponent(employee.onesignal_id);
+    const duplicateUrl =
+      `${SUPABASE_URL}/rest/v1/employees` +
+      `?company_id=eq.${encodedCompanyId}&onesignal_id=eq.${encodedOneSignalId}&select=id&limit=3`;
+
+    const duplicateRes = await fetch(duplicateUrl, {
+      headers: {
+        Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+        apikey: SERVICE_ROLE_KEY,
+      },
+    });
+
+    if (!duplicateRes.ok) {
+      console.error('Failed duplicate-check query:', await duplicateRes.text());
+      throw new Error('Failed to validate OneSignal recipient mapping');
+    }
+
+    const duplicateRows = await duplicateRes.json();
+    if (Array.isArray(duplicateRows) && duplicateRows.length > 1) {
+      console.warn('Ambiguous onesignal_id mapping. Skipping push to avoid wrong recipient.', {
+        assigned_to: record.assigned_to,
+        company_id: record.company_id,
+        duplicate_user_ids: duplicateRows.map((row: any) => row.id),
+      });
+      return new Response(
+        JSON.stringify({
+          error: "Ambiguous OneSignal mapping for recipient. Ask users to re-login to rebind device.",
+          duplicate_user_ids: duplicateRows.map((row: any) => row.id),
+        }),
+        {
+          status: 409,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
     const notification = {
