@@ -664,6 +664,16 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
     }
   };
 
+  const openDateTimePicker = (input: HTMLInputElement | null) => {
+    if (!input) return;
+    input.focus();
+    try {
+      (input as HTMLInputElement & { showPicker?: () => void }).showPicker?.();
+    } catch {
+      // Some browsers block showPicker; focus still allows normal native interaction.
+    }
+  };
+
   const handleInlineTaskUpdate = async (
     taskId: string,
     updatePayload: {
@@ -1148,7 +1158,8 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
                   type="datetime-local" 
                   value={deadline}
                   onChange={(e) => setDeadline(e.target.value)}
-                  className="w-full border rounded-xl px-3 py-3 bg-white border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-800 transition-all"
+                  onClick={(e) => openDateTimePicker(e.currentTarget)}
+                  className="w-full border rounded-xl px-3 py-3 bg-white border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-800 transition-all cursor-pointer"
                 />
                 <CalendarClock className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
