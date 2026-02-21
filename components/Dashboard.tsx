@@ -1126,6 +1126,34 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
               </div>
             )}
 
+            <div className="flex gap-2">
+              <div className="flex-1 relative">
+                <select 
+                  value={assigneeId}
+                  onChange={(e) => setAssigneeId(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 appearance-none transition-all pr-10"
+                >
+                  <option value="none" className="text-slate-900">Anyone / Unassigned</option>
+                  {employees.map(emp => (
+                      <option key={emp.id} value={emp.id} className="text-slate-900">
+                        {emp.name} ({emp.role === 'super_admin' ? 'Super Admin' : emp.role === 'manager' ? 'Manager' : 'Staff'})
+                      </option>
+                    ))}
+                </select>
+                <UserPlus className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+              
+              <div className="relative w-1/3 flex-shrink-0">
+                <input 
+                  type="datetime-local" 
+                  value={deadline}
+                  onChange={(e) => setDeadline(e.target.value)}
+                  className="w-full border rounded-xl px-3 py-3 bg-white border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-800 transition-all"
+                />
+                <CalendarClock className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               <div className="relative">
                 <select
@@ -1160,34 +1188,6 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
                   <Calendar className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
                 </div>
               )}
-            </div>
-            
-            <div className="flex gap-2">
-              <div className="flex-1 relative">
-                <select 
-                  value={assigneeId}
-                  onChange={(e) => setAssigneeId(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 appearance-none transition-all pr-10"
-                >
-                  <option value="none" className="text-slate-900">Anyone / Unassigned</option>
-                  {employees.map(emp => (
-                      <option key={emp.id} value={emp.id} className="text-slate-900">
-                        {emp.name} ({emp.role === 'super_admin' ? 'Super Admin' : emp.role === 'manager' ? 'Manager' : 'Staff'})
-                      </option>
-                    ))}
-                </select>
-                <UserPlus className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
-              
-              <div className="relative w-1/3 flex-shrink-0">
-                <input 
-                  type="datetime-local" 
-                  value={deadline}
-                  onChange={(e) => setDeadline(e.target.value)}
-                  className="w-full border rounded-xl px-3 py-3 bg-white border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-800 transition-all"
-                />
-                <CalendarClock className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
             </div>
 
             <div className="flex items-center gap-2">
