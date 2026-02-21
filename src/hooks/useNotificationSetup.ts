@@ -5,6 +5,7 @@ import {
   areNotificationsEnabled,
   promptPushNotifications,
   getOneSignalSubscriptionId,
+  requestPushSubscription,
   setOneSignalExternalUserId,
 } from '../utils/notifications';
 
@@ -22,6 +23,7 @@ interface UseNotificationSetupProps {
 export const useNotificationSetup = ({ userId, userMobile, companyId, isLoggedIn }: UseNotificationSetupProps) => {
   const setupInFlightRef = useRef(false);
   const lastCompletedSetupKeyRef = useRef<string | null>(null);
+  const retryTimerRef = useRef<number | null>(null);
 
   const saveOneSignalIdToDatabase = useCallback(async (oneSignalId: string, employeeId: string, tenantCompanyId: string) => {
     try {
@@ -70,10 +72,10 @@ export const useNotificationSetup = ({ userId, userMobile, companyId, isLoggedIn
     }
   }, []);
 
-  const setupNotifications = useCallback(async () => {
+  const setupNotifications = useCallback(async (): Promise<boolean> => {
     if (!isLoggedIn || !userId || !companyId) {
       console.log('Skipping notification setup - user not logged in or missing tenant context');
-      return;
+      return false;
     }
 
     try {
@@ -88,7 +90,7 @@ export const useNotificationSetup = ({ userId, userMobile, companyId, isLoggedIn
         }
 
         await saveOneSignalIdToDatabase(testId, userId, companyId);
-        return;
+        return true;
       }
 
       const isEnabled = await areNotificationsEnabled();
@@ -97,13 +99,33 @@ export const useNotificationSetup = ({ userId, userMobile, companyId, isLoggedIn
         await new Promise(resolve => setTimeout(resolve, 2000));
       }
 
-      const subscriptionId = await getOneSignalSubscriptionId();
+      // Request push subscription explicitly, then retry to fetch id because iOS/PWA
+      // often delays subscription creation on fresh app launch.
+      await requestPushSubscription();
+
+      let subscriptionId: string | null = null;
+      for (let attempt = 1; attempt <= 5; attempt++) {
+        subscriptionId = await getOneSignalSubscriptionId();
+        if (subscriptionId) {
+          break;
+        }
+
+        if (attempt < 5) {
+          await new Promise(resolve => setTimeout(resolve, 1200));
+        }
+      }
+
       if (subscriptionId) {
         await setOneSignalExternalUserId(userId);
         await saveOneSignalIdToDatabase(subscriptionId, userId, companyId);
+        return true;
       }
+
+      console.warn('OneSignal subscription ID not available yet. Will retry setup.');
+      return false;
     } catch (error) {
       console.error('Error in notification setup:', error);
+      return false;
     }
   }, [isLoggedIn, userId, companyId, saveOneSignalIdToDatabase]);
 
@@ -120,6 +142,13 @@ export const useNotificationSetup = ({ userId, userMobile, companyId, isLoggedIn
 
     let cancelled = false;
 
+    const clearRetryTimer = () => {
+      if (retryTimerRef.current !== null) {
+        window.clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
+    };
+
     const runSetup = async () => {
       if (setupInFlightRef.current) {
         return;
@@ -130,12 +159,30 @@ export const useNotificationSetup = ({ userId, userMobile, companyId, isLoggedIn
         await initializeOneSignal();
         if (cancelled) return;
 
-        await setupNotifications();
+        const didSync = await setupNotifications();
         if (!cancelled) {
-          lastCompletedSetupKeyRef.current = setupKey;
+          if (didSync) {
+            lastCompletedSetupKeyRef.current = setupKey;
+            clearRetryTimer();
+          } else {
+            clearRetryTimer();
+            retryTimerRef.current = window.setTimeout(() => {
+              if (!cancelled) {
+                runSetup();
+              }
+            }, 5000);
+          }
         }
       } catch (err) {
         console.error('OneSignal init failed:', err);
+        if (!cancelled) {
+          clearRetryTimer();
+          retryTimerRef.current = window.setTimeout(() => {
+            if (!cancelled) {
+              runSetup();
+            }
+          }, 5000);
+        }
       } finally {
         setupInFlightRef.current = false;
       }
@@ -145,6 +192,10 @@ export const useNotificationSetup = ({ userId, userMobile, companyId, isLoggedIn
 
     return () => {
       cancelled = true;
+      if (retryTimerRef.current !== null) {
+        window.clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
     };
   }, [isLoggedIn, userId, companyId, setupNotifications]);
 };
