@@ -659,7 +659,8 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
             newTaskDesc.trim(),
             assignedEmployee.name,
             currentUser.name,
-            assignedEmployee.id
+            assignedEmployee.id,
+            currentUser.company_id
           );
         }
       }
@@ -781,7 +782,8 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
           trimmedDescription,
           assignedEmployee.name,
           currentUser.name,
-          assignedEmployee.id
+          assignedEmployee.id,
+          currentUser.company_id
         );
       }
 

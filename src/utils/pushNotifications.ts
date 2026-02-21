@@ -42,7 +42,8 @@ export const sendTaskAssignmentNotification = async (
   taskDescription: string,
   assignedToName: string,
   assignedBy: string,
-  assignedToId: string
+  assignedToId: string,
+  companyId?: string
 ): Promise<void> => {
   try {
     console.log('Sending task assignment notification...', {
@@ -50,26 +51,11 @@ export const sendTaskAssignmentNotification = async (
       assignedToName,
       assignedBy,
       assignedToId,
+      companyId,
     });
 
-    const { data: employee, error: employeeError } = await supabase
-      .from('employees')
-      .select('onesignal_id, company_id')
-      .eq('id', assignedToId)
-      .maybeSingle();
-
-    if (employeeError) {
-      console.error('Supabase query error:', employeeError);
-      return;
-    }
-
-    if (!employee?.onesignal_id) {
-      console.log('No OneSignal ID found for user:', assignedToId);
-      return;
-    }
-
-    const companyId = String(employee.company_id || '').trim();
-    if (!companyId) {
+    const tenantCompanyId = String(companyId || '').trim();
+    if (!tenantCompanyId) {
       console.warn('Missing company_id for assignee. Skipping push send:', assignedToId);
       return;
     }
@@ -77,7 +63,7 @@ export const sendTaskAssignmentNotification = async (
     const record: PushRecord = {
       description: taskDescription,
       assigned_to: assignedToId,
-      company_id: companyId,
+      company_id: tenantCompanyId,
     };
 
     console.log('Frontend payload:', JSON.stringify({ record }));
