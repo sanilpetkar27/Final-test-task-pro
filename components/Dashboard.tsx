@@ -855,7 +855,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
                 await sendTaskCompletionNotification(
                   completedTask.description,
                   currentUser.name,
-                  taskCreator.mobile
+                  taskCreator.id
                 );
               }
             }
