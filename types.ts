@@ -23,6 +23,14 @@ export interface Employee {
   manager_id?: string | null;
 }
 
+export interface StaffManagerLink {
+  company_id: string;
+  staff_id: string;
+  manager_id: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface RewardConfig {
   targetPoints: number;
   rewardName: string;

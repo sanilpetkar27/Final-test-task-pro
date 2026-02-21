@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { AppTab, DealershipTask, Employee, UserRole, TaskStatus, RewardConfig, TaskType, RecurrenceFrequency, TaskRemark } from './types';
+import { AppTab, DealershipTask, Employee, UserRole, TaskStatus, RewardConfig, TaskType, RecurrenceFrequency, TaskRemark, StaffManagerLink } from './types';
 import Dashboard from './components/Dashboard';
 import StatsScreen from './components/StatsScreen';
 import TeamManager from './components/TeamManager';
@@ -24,6 +24,7 @@ const DEFAULT_COMPANY_ID = '00000000-0000-0000-0000-000000000001';
 const USER_CACHE_KEY = 'universal_app_user';
 const EMPLOYEES_CACHE_KEY = 'universalAppEmployees';
 const TASKS_CACHE_KEY = 'universalAppTasks';
+const STAFF_MANAGER_LINKS_CACHE_KEY = 'universalAppStaffManagerLinks';
 const DAILY_MS = 24 * 60 * 60 * 1000;
 const WEEKLY_MS = 7 * DAILY_MS;
 const MONTHLY_MS = 30 * DAILY_MS;
@@ -101,6 +102,12 @@ const normalizeMobile = (mobile: unknown): string => {
 const isMissingColumnError = (error: any): boolean => {
   const message = String(error?.message || '').toLowerCase();
   return message.includes('column') && message.includes('does not exist');
+};
+
+const isMissingRelationError = (error: any): boolean => {
+  const message = String(error?.message || '').toLowerCase();
+  const code = String(error?.code || '').toUpperCase();
+  return code === '42P01' || (message.includes('relation') && message.includes('does not exist'));
 };
 
 const isMissingTaskRecurrenceColumnError = (error: any): boolean => {
@@ -201,10 +208,49 @@ const normalizeEmployeeProfile = (employee: Partial<Employee> & { id: string }):
   };
 };
 
+const filterStaffManagerLinksByCompany = (
+  links: StaffManagerLink[],
+  companyId: string | null
+): StaffManagerLink[] => {
+  if (!companyId) {
+    return links;
+  }
+  return links.filter((link) => String(link?.company_id || '').trim() === companyId);
+};
+
+const getManagerIdsForStaff = (
+  staffId: string,
+  staffManagerLinks: StaffManagerLink[],
+  fallbackManagerId?: string | null
+): string[] => {
+  const normalizedStaffId = String(staffId || '').trim();
+  if (!normalizedStaffId) {
+    return [];
+  }
+
+  const ids = new Set<string>();
+  for (const link of staffManagerLinks || []) {
+    if (!link) continue;
+    if (String(link.staff_id || '').trim() !== normalizedStaffId) continue;
+    const managerId = String(link.manager_id || '').trim();
+    if (managerId) {
+      ids.add(managerId);
+    }
+  }
+
+  const fallback = String(fallbackManagerId || '').trim();
+  if (fallback) {
+    ids.add(fallback);
+  }
+
+  return Array.from(ids);
+};
+
 const scopeEmployeesForCurrentUser = (
   employeeRows: Employee[],
   taskRows: DealershipTask[],
-  currentUser: Employee | null
+  currentUser: Employee | null,
+  staffManagerLinks: StaffManagerLink[] = []
 ): Employee[] => {
   const mergedEmployees = mergeCurrentUserIntoEmployees(employeeRows, currentUser);
   if (!currentUser) {
@@ -219,16 +265,24 @@ const scopeEmployeesForCurrentUser = (
     return mergedEmployees.filter((employee) => {
       if (employee.id === currentUser.id) return true;
       if (employee.role !== 'staff') return false;
-      const managerId = typeof employee.manager_id === 'string' ? employee.manager_id : null;
-      return managerId === currentUser.id;
+      const managerIds = getManagerIdsForStaff(
+        employee.id,
+        staffManagerLinks,
+        typeof employee.manager_id === 'string' ? employee.manager_id : null
+      );
+      return managerIds.includes(currentUser.id);
     });
   }
 
   // Staff: show own profile and direct manager when available.
   const managerIds = new Set<string>();
-  const profileManagerId = typeof currentUser.manager_id === 'string' ? currentUser.manager_id : null;
-  if (profileManagerId) {
-    managerIds.add(profileManagerId);
+  const profileManagerIds = getManagerIdsForStaff(
+    currentUser.id,
+    staffManagerLinks,
+    typeof currentUser.manager_id === 'string' ? currentUser.manager_id : null
+  );
+  for (const managerId of profileManagerIds) {
+    managerIds.add(managerId);
   }
 
   taskRows.forEach((task) => {
@@ -552,6 +606,9 @@ const App: React.FC = () => {
   ];
 
   const [employees, setEmployees] = useState<Employee[]>(() => parseCachedArray<Employee>(EMPLOYEES_CACHE_KEY));
+  const [staffManagerLinks, setStaffManagerLinks] = useState<StaffManagerLink[]>(() =>
+    parseCachedArray<StaffManagerLink>(STAFF_MANAGER_LINKS_CACHE_KEY)
+  );
   const [rewardConfig, setRewardConfig] = useState<RewardConfig>({
     targetPoints: 100,
     rewardName: 'Bonus Day Off'
@@ -577,6 +634,24 @@ const App: React.FC = () => {
       }
 
       const { data: employeesData, error: employeesError } = await employeesQuery;
+
+      let finalStaffManagerLinks = filterStaffManagerLinksByCompany(
+        parseCachedArray<StaffManagerLink>(STAFF_MANAGER_LINKS_CACHE_KEY),
+        activeCompanyId
+      );
+
+      if (activeCompanyId) {
+        const { data: staffManagerLinksData, error: staffManagerLinksError } = await supabase
+          .from('staff_manager_links')
+          .select('*')
+          .eq('company_id', activeCompanyId);
+
+        if (!staffManagerLinksError && Array.isArray(staffManagerLinksData)) {
+          finalStaffManagerLinks = staffManagerLinksData as StaffManagerLink[];
+        } else if (staffManagerLinksError && !isMissingRelationError(staffManagerLinksError)) {
+          console.warn('Staff manager links error:', staffManagerLinksError);
+        }
+      }
 
       // Fetch tasks from Supabase with role + company filtering
       let tasksQuery = supabase.from('tasks').select('*');
@@ -619,8 +694,27 @@ const App: React.FC = () => {
       const finalTasks = (tasksData && tasksData.length > 0)
         ? transformTasksToApp(tasksData as DatabaseTask[])
         : (cachedTasks.length > 0 ? cachedTasks : []);
-      const mergedEmployees = mergeCurrentUserIntoEmployees(finalEmployeesBase as Employee[], currentUser);
-      const finalEmployees = scopeEmployeesForCurrentUser(mergedEmployees, finalTasks, currentUser);
+      const mergedEmployees = mergeCurrentUserIntoEmployees(finalEmployeesBase as Employee[], currentUser).map((employee) => {
+        if (employee.role !== 'staff') {
+          return employee;
+        }
+
+        const managerIds = getManagerIdsForStaff(employee.id, finalStaffManagerLinks, employee.manager_id || null);
+        if (!managerIds.length) {
+          return employee;
+        }
+
+        return {
+          ...employee,
+          manager_id: managerIds[0],
+        };
+      });
+      const finalEmployees = scopeEmployeesForCurrentUser(
+        mergedEmployees,
+        finalTasks,
+        currentUser,
+        finalStaffManagerLinks
+      );
 
       if (employeesError || tasksError) {
         console.warn('using fallback data due to Supabase error');
@@ -635,13 +729,15 @@ const App: React.FC = () => {
       }
 
       localStorage.setItem(EMPLOYEES_CACHE_KEY, JSON.stringify(mergedEmployees));
+      localStorage.setItem(STAFF_MANAGER_LINKS_CACHE_KEY, JSON.stringify(finalStaffManagerLinks));
       if (tasksData && tasksData.length > 0) {
         localStorage.setItem(TASKS_CACHE_KEY, JSON.stringify(transformTasksToApp(tasksData as DatabaseTask[])));
       }
 
       return {
         employees: finalEmployees,
-        tasks: finalTasks
+        tasks: finalTasks,
+        staffManagerLinks: finalStaffManagerLinks
       };
     } catch (error) {
       console.error('Supabase connection failed - using cached fallback data');
@@ -654,10 +750,15 @@ const App: React.FC = () => {
         parseCachedArray<DealershipTask>(TASKS_CACHE_KEY),
         activeCompanyId
       );
+      const cachedStaffManagerLinks = filterStaffManagerLinksByCompany(
+        parseCachedArray<StaffManagerLink>(STAFF_MANAGER_LINKS_CACHE_KEY),
+        activeCompanyId
+      );
       const mergedEmployees = mergeCurrentUserIntoEmployees(cachedEmployees, currentUser);
       return {
-        employees: scopeEmployeesForCurrentUser(mergedEmployees, cachedTasks, currentUser),
-        tasks: cachedTasks
+        employees: scopeEmployeesForCurrentUser(mergedEmployees, cachedTasks, currentUser, cachedStaffManagerLinks),
+        tasks: cachedTasks,
+        staffManagerLinks: cachedStaffManagerLinks
       };
     } finally {
       setLoading(false);
@@ -744,6 +845,7 @@ const App: React.FC = () => {
           localStorage.removeItem(USER_CACHE_KEY);
           localStorage.removeItem(EMPLOYEES_CACHE_KEY);
           localStorage.removeItem(TASKS_CACHE_KEY);
+          localStorage.removeItem(STAFF_MANAGER_LINKS_CACHE_KEY);
           return;
         }
 
@@ -785,6 +887,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!currentUser) {
       setEmployees([]);
+      setStaffManagerLinks([]);
       setTasks([]);
       return;
     }
@@ -793,6 +896,7 @@ const App: React.FC = () => {
     loadInitialData(false).then(data => {
       if (data) {
         setEmployees(data.employees);
+        setStaffManagerLinks(data.staffManagerLinks || []);
         setTasks(data.tasks);
       }
     });
@@ -989,6 +1093,7 @@ const App: React.FC = () => {
       loadInitialData(false).then(data => {
         if (data) {
           setEmployees(data.employees);
+          setStaffManagerLinks(data.staffManagerLinks || []);
           setTasks(data.tasks);
         }
       });
@@ -1037,6 +1142,12 @@ const App: React.FC = () => {
       localStorage.setItem(EMPLOYEES_CACHE_KEY, JSON.stringify(employees));
     }
   }, [employees, appReady]);
+
+  useEffect(() => {
+    if (appReady) {
+      localStorage.setItem(STAFF_MANAGER_LINKS_CACHE_KEY, JSON.stringify(staffManagerLinks));
+    }
+  }, [staffManagerLinks, appReady]);
 
   // Notifications Logic
   useEffect(() => {
@@ -1439,6 +1550,122 @@ const App: React.FC = () => {
     );
   };
 
+  const updateStaffManagers = async (staffId: string, managerIds: string[]): Promise<boolean> => {
+    if (!currentUser) {
+      return false;
+    }
+
+    const companyId = String(currentUser.company_id || DEFAULT_COMPANY_ID).trim();
+    const normalizedStaffId = String(staffId || '').trim();
+    if (!normalizedStaffId) {
+      return false;
+    }
+
+    const normalizedManagerIds = Array.from(
+      new Set(
+        (managerIds || [])
+          .map((managerId) => String(managerId || '').trim())
+          .filter(Boolean)
+      )
+    );
+
+    try {
+      let staffManagerLinksUnavailable = false;
+
+      const { error: deleteLinksError } = await supabase
+        .from('staff_manager_links')
+        .delete()
+        .eq('company_id', companyId)
+        .eq('staff_id', normalizedStaffId);
+
+      if (deleteLinksError && !isMissingRelationError(deleteLinksError)) {
+        console.error('Failed to clear existing staff-manager links:', deleteLinksError);
+        toast.error(`Failed to update manager links: ${deleteLinksError.message}`);
+        return false;
+      }
+
+      if (deleteLinksError && isMissingRelationError(deleteLinksError)) {
+        staffManagerLinksUnavailable = true;
+        console.warn('staff_manager_links table not available, falling back to employees.manager_id only.');
+      }
+
+      if (normalizedManagerIds.length > 0 && !staffManagerLinksUnavailable) {
+        const rows = normalizedManagerIds.map((managerId) => ({
+          company_id: companyId,
+          staff_id: normalizedStaffId,
+          manager_id: managerId,
+        }));
+
+        const { error: upsertLinksError } = await supabase
+          .from('staff_manager_links')
+          .upsert(rows, { onConflict: 'company_id,staff_id,manager_id' });
+
+        if (upsertLinksError && !isMissingRelationError(upsertLinksError)) {
+          console.error('Failed to upsert staff-manager links:', upsertLinksError);
+          toast.error(`Failed to update manager links: ${upsertLinksError.message}`);
+          return false;
+        }
+
+        if (upsertLinksError && isMissingRelationError(upsertLinksError)) {
+          staffManagerLinksUnavailable = true;
+          console.warn('staff_manager_links table not available during upsert, falling back to employees.manager_id only.');
+        }
+      }
+
+      const primaryManagerId = normalizedManagerIds[0] || null;
+      const { error: updateEmployeeError } = await supabase
+        .from('employees')
+        .update({ manager_id: primaryManagerId })
+        .eq('id', normalizedStaffId)
+        .eq('company_id', companyId);
+
+      if (updateEmployeeError && !isMissingColumnError(updateEmployeeError)) {
+        console.warn('Failed to update employee.manager_id after manager-link sync:', updateEmployeeError);
+        toast.error(`Failed to update manager assignment: ${updateEmployeeError.message}`);
+        return false;
+      }
+
+      const nowIso = new Date().toISOString();
+      setStaffManagerLinks((prev) => {
+        const remaining = prev.filter(
+          (link) =>
+            !(
+              String(link.company_id || '').trim() === companyId &&
+              String(link.staff_id || '').trim() === normalizedStaffId
+            )
+        );
+
+        const nextLinks = normalizedManagerIds.map((managerId) => ({
+          company_id: companyId,
+          staff_id: normalizedStaffId,
+          manager_id: managerId,
+          created_at: nowIso,
+          updated_at: nowIso,
+        }));
+
+        return staffManagerLinksUnavailable ? remaining : [...remaining, ...nextLinks];
+      });
+
+      setEmployees((prev) =>
+        prev.map((employee) =>
+          employee.id === normalizedStaffId
+            ? { ...employee, manager_id: primaryManagerId }
+            : employee
+        )
+      );
+
+      if (staffManagerLinksUnavailable) {
+        toast.warning('Multi-manager links table not found. Saved primary manager assignment only.');
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Unexpected error updating staff-manager links:', error);
+      toast.error(`Failed to update manager links: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      return false;
+    }
+  };
+
   const addEmployee = async (
     name: string,
     mobile: string,
@@ -1500,12 +1727,21 @@ const App: React.FC = () => {
 
     const isSuperAdminOrOwner =
       currentUser?.role === 'super_admin' || currentUser?.role === 'owner';
+    const isManagerLinkedViaJunction =
+      currentUser?.role === 'manager' &&
+      employeeToDelete.role === 'staff' &&
+      staffManagerLinks.some(
+        (link) =>
+          String(link.company_id || '').trim() === String(currentUser.company_id || '').trim() &&
+          String(link.staff_id || '').trim() === String(employeeToDelete.id || '').trim() &&
+          String(link.manager_id || '').trim() === String(currentUser.id || '').trim()
+      );
     const isManagerDeletingOwnStaff =
       currentUser?.role === 'manager' &&
       employeeToDelete.role === 'staff' &&
       employeeToDelete.manager_id === currentUser.id;
 
-    if (!isSuperAdminOrOwner && !isManagerDeletingOwnStaff) {
+    if (!isSuperAdminOrOwner && !isManagerDeletingOwnStaff && !isManagerLinkedViaJunction) {
       toast.error('You can only delete staff members from your own team.');
       return;
     }
@@ -1529,6 +1765,9 @@ const App: React.FC = () => {
         toast.error(`Database Error: ${error.message}. Employee removed locally.`);
       } else {
         console.log('✅ Employee removed from database successfully');
+        setStaffManagerLinks((prev) =>
+          prev.filter((link) => String(link.staff_id || '').trim() !== String(id || '').trim())
+        );
         toast.success('Employee deleted successfully');
       }
     } catch (error) {
@@ -1547,6 +1786,7 @@ const App: React.FC = () => {
         if (previousUser?.company_id && normalizedInputUser.company_id && previousUser.company_id !== normalizedInputUser.company_id) {
           localStorage.removeItem(EMPLOYEES_CACHE_KEY);
           localStorage.removeItem(TASKS_CACHE_KEY);
+          localStorage.removeItem(STAFF_MANAGER_LINKS_CACHE_KEY);
         }
       }
     } catch {
@@ -1606,6 +1846,7 @@ const App: React.FC = () => {
       localStorage.removeItem(USER_CACHE_KEY);
       localStorage.removeItem(EMPLOYEES_CACHE_KEY);
       localStorage.removeItem(TASKS_CACHE_KEY);
+      localStorage.removeItem(STAFF_MANAGER_LINKS_CACHE_KEY);
     }
   };
 
@@ -1659,7 +1900,7 @@ const App: React.FC = () => {
 
   const isManager = currentUser.role === 'manager' || currentUser.role === 'super_admin' || currentUser.role === 'owner';
   const isSuperAdmin = currentUser.role === 'super_admin';
-  const scopedEmployees = scopeEmployeesForCurrentUser(employees, tasks, currentUser);
+  const scopedEmployees = scopeEmployeesForCurrentUser(employees, tasks, currentUser, staffManagerLinks);
 
   return (
     <div className="flex flex-col h-screen max-w-md mx-auto bg-slate-50 relative overflow-hidden font-sans">
@@ -1744,9 +1985,11 @@ const App: React.FC = () => {
         {isManager && activeTab === AppTab.TEAM && (
           <TeamManager
             employees={scopedEmployees}
+            staffManagerLinks={staffManagerLinks}
             currentUser={currentUser}
             onAddEmployee={addEmployee}
             onRemoveEmployee={removeEmployee}
+            onUpdateStaffManagers={updateStaffManagers}
             rewardConfig={rewardConfig}
             onUpdateRewardConfig={setRewardConfig}
             isSuperAdmin={isSuperAdmin}

@@ -1,15 +1,17 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Employee, UserRole, RewardConfig } from '../types';
+import { Employee, UserRole, RewardConfig, StaffManagerLink } from '../types';
 import { UserPlus, Trash2, User, ShieldCheck, Phone, Trophy, Target, Star, Medal, RefreshCw, Wifi } from 'lucide-react';
 import { supabase } from '../src/lib/supabase';
 import { toast } from 'sonner';
 
 interface TeamManagerProps {
   employees: Employee[];
+  staffManagerLinks: StaffManagerLink[];
   currentUser: Employee;
   onAddEmployee: (name: string, mobile: string, role: UserRole, managerId?: string | null) => void;
   onRemoveEmployee: (id: string) => void;
+  onUpdateStaffManagers: (staffId: string, managerIds: string[]) => Promise<boolean>;
   rewardConfig: RewardConfig;
   onUpdateRewardConfig: (config: RewardConfig) => void;
   isSuperAdmin: boolean;
@@ -92,9 +94,11 @@ const getRoleLabel = (role: UserRole): string => {
 
 const TeamManager: React.FC<TeamManagerProps> = ({ 
   employees, 
+  staffManagerLinks,
   currentUser, 
   onAddEmployee, 
   onRemoveEmployee, 
+  onUpdateStaffManagers,
   onUpdateRewardConfig,
   rewardConfig,
   isSuperAdmin,
@@ -109,13 +113,17 @@ const TeamManager: React.FC<TeamManagerProps> = ({
   const [newPassword, setNewPassword] = useState('');
   const [newMobile, setNewMobile] = useState('');
   const [newRole, setNewRole] = useState<UserRole>('staff');
-  const [selectedManagerId, setSelectedManagerId] = useState('');
+  const [selectedManagerIds, setSelectedManagerIds] = useState<string[]>([]);
+  const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
+  const [editingManagerIds, setEditingManagerIds] = useState<string[]>([]);
+  const [isSavingManagers, setIsSavingManagers] = useState(false);
   const [targetPoints, setTargetPoints] = useState(rewardConfig.targetPoints.toString());
   const [rewardName, setRewardName] = useState(rewardConfig.rewardName);
   const [isAdding, setIsAdding] = useState(false);
   const canAddMembers = ['super_admin', 'manager', 'owner'].includes(currentUser.role);
-  const requiresManagerSelection =
-    (currentUser.role === 'super_admin' || currentUser.role === 'owner') && newRole === 'staff';
+  const canAssignMultipleManagers =
+    currentUser.role === 'super_admin' || currentUser.role === 'owner' || isSuperAdmin;
+  const requiresManagerSelection = canAssignMultipleManagers && newRole === 'staff';
 
   const assignableRoles = useMemo<UserRole[]>(() => {
     if (currentUser.role === 'super_admin' || currentUser.role === 'owner') {
@@ -145,7 +153,8 @@ const TeamManager: React.FC<TeamManagerProps> = ({
 
     return Array.from(uniqueManagers.values());
   }, [employees, currentUser]);
-  const canSubmitCreateUser = !requiresManagerSelection || managerOptions.length > 0;
+  const canSubmitCreateUser =
+    !requiresManagerSelection || (managerOptions.length > 0 && selectedManagerIds.length > 0);
 
   // Always show the logged-in admin/super-admin in team list, even if DB sync lags.
   const teamMembers = useMemo(() => {
@@ -188,22 +197,49 @@ const TeamManager: React.FC<TeamManagerProps> = ({
     return managerMap;
   }, [employees, teamMembers, currentUser.id, currentUser.name]);
 
+  const managerIdsByStaffId = useMemo(() => {
+    const managerMap = new Map<string, string[]>();
+    (staffManagerLinks || []).forEach((link) => {
+      if (!link) return;
+      if (String(link.company_id || '').trim() !== String(currentUser.company_id || '').trim()) return;
+
+      const staffId = String(link.staff_id || '').trim();
+      const managerId = String(link.manager_id || '').trim();
+      if (!staffId || !managerId) return;
+
+      const existing = managerMap.get(staffId) || [];
+      if (!existing.includes(managerId)) {
+        managerMap.set(staffId, [...existing, managerId]);
+      }
+    });
+    return managerMap;
+  }, [staffManagerLinks, currentUser.company_id]);
+
+  const getManagerIdsForMember = (member: Employee): string[] => {
+    const linkManagerIds = managerIdsByStaffId.get(String(member.id || '').trim()) || [];
+    if (linkManagerIds.length > 0) {
+      return linkManagerIds;
+    }
+
+    const fallbackManagerId =
+      typeof member.manager_id === 'string' && member.manager_id.trim()
+        ? member.manager_id.trim()
+        : '';
+    return fallbackManagerId ? [fallbackManagerId] : [];
+  };
+
   const getAddedByLabel = (member: Employee): string | null => {
     if (!member || member.role !== 'staff') {
       return null;
     }
 
-    const managerId =
-      typeof member.manager_id === 'string' && member.manager_id.trim()
-        ? member.manager_id.trim()
-        : null;
-
-    if (!managerId) {
+    const managerIds = getManagerIdsForMember(member);
+    if (!managerIds.length) {
       return 'Added by: Unassigned';
     }
 
-    const managerName = managerNameById.get(managerId);
-    return `Added by: ${managerName || managerId}`;
+    const managerNames = managerIds.map((managerId) => managerNameById.get(managerId) || managerId);
+    return `Added by: ${managerNames.join(', ')}`;
   };
 
   const canDeleteMember = (member: Employee): boolean => {
@@ -216,11 +252,21 @@ const TeamManager: React.FC<TeamManagerProps> = ({
     }
 
     if (currentUser.role === 'manager') {
-      const memberManagerId =
-        typeof member.manager_id === 'string' && member.manager_id.trim()
-          ? member.manager_id
-          : null;
-      return member.role === 'staff' && memberManagerId === currentUser.id;
+      return member.role === 'staff' && getManagerIdsForMember(member).includes(currentUser.id);
+    }
+
+    return false;
+  };
+
+  const canManageMemberManagers = (member: Employee): boolean => {
+    if (!member || member.role !== 'staff') return false;
+
+    if (currentUser.role === 'super_admin' || currentUser.role === 'owner') {
+      return true;
+    }
+
+    if (currentUser.role === 'manager') {
+      return getManagerIdsForMember(member).includes(currentUser.id);
     }
 
     return false;
@@ -236,26 +282,28 @@ const TeamManager: React.FC<TeamManagerProps> = ({
 
   useEffect(() => {
     if (newRole !== 'staff') {
-      setSelectedManagerId('');
+      setSelectedManagerIds([]);
       return;
     }
 
     if (currentUser.role === 'manager') {
-      setSelectedManagerId(currentUser.id);
+      setSelectedManagerIds([currentUser.id]);
       return;
     }
 
     if (currentUser.role === 'super_admin' || currentUser.role === 'owner') {
-      setSelectedManagerId((prev) => {
-        if (prev && managerOptions.some((manager) => manager.id === prev)) {
-          return prev;
+      setSelectedManagerIds((prev) => {
+        const allowedIds = new Set(managerOptions.map((manager) => manager.id));
+        const retained = prev.filter((managerId) => allowedIds.has(managerId));
+        if (retained.length > 0) {
+          return retained;
         }
-        return managerOptions[0]?.id || '';
+        return managerOptions[0]?.id ? [managerOptions[0].id] : [];
       });
       return;
     }
 
-    setSelectedManagerId('');
+    setSelectedManagerIds([]);
   }, [newRole, currentUser.role, currentUser.id, managerOptions]);
 
   const handleRefresh = () => {
@@ -291,12 +339,13 @@ const TeamManager: React.FC<TeamManagerProps> = ({
     const roleToCreate: UserRole = assignableRoles.includes(newRole)
       ? newRole
       : (assignableRoles[0] || 'staff');
-    const managerOwnerId =
+    const managerOwnerIds =
       roleToCreate === 'staff' && currentUser.role === 'manager'
-        ? currentUser.id
+        ? [currentUser.id]
         : roleToCreate === 'staff' && (currentUser.role === 'super_admin' || currentUser.role === 'owner')
-        ? (selectedManagerId || null)
-        : null;
+        ? selectedManagerIds
+        : [];
+    const managerOwnerId = managerOwnerIds[0] || null;
     
     // 1. Validate Form
     if (!newName.trim() || !newEmail.trim() || !newPassword.trim() || !newMobile.trim()) {
@@ -310,7 +359,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
       return;
     }
 
-    if (requiresManagerSelection && !managerOwnerId) {
+    if (requiresManagerSelection && managerOwnerIds.length === 0) {
       toast.error('Please select a manager for this staff member.');
       return;
     }
@@ -427,6 +476,47 @@ const TeamManager: React.FC<TeamManagerProps> = ({
         return lastError;
       };
 
+      const findEmployeeIdentity = async (scopeToCompany: boolean) => {
+        let query = supabase
+          .from('employees')
+          .select('*')
+          .limit(1);
+
+        if (scopeToCompany) {
+          query = query.eq('company_id', currentUser.company_id);
+        }
+
+        if (canLookupByEmail) {
+          const { data: byEmailRow, error: byEmailError } = await query
+            .eq('email', newEmail.trim())
+            .maybeSingle();
+
+          if (isMissingSpecificColumnError(byEmailError, 'email')) {
+            canLookupByEmail = false;
+          }
+
+          if (!byEmailError && byEmailRow) {
+            return byEmailRow as Employee;
+          }
+        }
+
+        const mobileQuery = supabase
+          .from('employees')
+          .select('*')
+          .eq('mobile', newMobile.trim())
+          .limit(1);
+
+        const { data: byMobileRow, error: byMobileError } = scopeToCompany
+          ? await mobileQuery.eq('company_id', currentUser.company_id).maybeSingle()
+          : await mobileQuery.maybeSingle();
+
+        if (!byMobileError && byMobileRow) {
+          return byMobileRow as Employee;
+        }
+
+        return null;
+      };
+
       let resolvedEmployeeId = safeId || '';
       let companyPatchError: any = null;
 
@@ -434,36 +524,17 @@ const TeamManager: React.FC<TeamManagerProps> = ({
         companyPatchError = await upsertEmployeeProfile(resolvedEmployeeId);
       }
 
-      // Fallback path: if RPC response id is empty/legacy, resolve row by email/mobile and patch again.
+      // Fallback path: if RPC response id is empty/legacy, resolve row by identity and patch again.
       if (!resolvedEmployeeId || companyPatchError) {
-        if (canLookupByEmail) {
-          const { data: byEmailRows, error: byEmailError } = await supabase
-            .from('employees')
-            .select('id')
-            .eq('company_id', currentUser.company_id)
-            .eq('email', newEmail.trim())
-            .limit(1);
-
-          if (isMissingSpecificColumnError(byEmailError, 'email')) {
-            canLookupByEmail = false;
-          }
-
-          if (!byEmailError && byEmailRows && byEmailRows.length > 0) {
-            resolvedEmployeeId = String((byEmailRows[0] as any).id || '').trim();
-          }
+        // 1) Try inside current company first.
+        let matchedIdentity = await findEmployeeIdentity(true);
+        // 2) If still not found, try globally and then force company upsert.
+        if (!matchedIdentity) {
+          matchedIdentity = await findEmployeeIdentity(false);
         }
 
-        if (!resolvedEmployeeId) {
-          const { data: byMobileRows, error: byMobileError } = await supabase
-            .from('employees')
-            .select('id')
-            .eq('company_id', currentUser.company_id)
-            .eq('mobile', newMobile.trim())
-            .limit(1);
-
-          if (!byMobileError && byMobileRows && byMobileRows.length > 0) {
-            resolvedEmployeeId = String((byMobileRows[0] as any).id || '').trim();
-          }
+        if (matchedIdentity) {
+          resolvedEmployeeId = String((matchedIdentity as any).id || '').trim();
         }
 
         if (resolvedEmployeeId) {
@@ -471,20 +542,135 @@ const TeamManager: React.FC<TeamManagerProps> = ({
         }
       }
 
-      if (companyPatchError) {
-        console.warn('Could not fully sync new employee profile row:', companyPatchError);
+      if (!resolvedEmployeeId) {
+        toast.error('User auth account was created, but employee profile sync failed. Please retry once.');
+        return;
+      }
+
+      const fetchPersistedEmployee = async () => {
+        const { data, error } = await supabase
+          .from('employees')
+          .select('*')
+          .eq('id', resolvedEmployeeId)
+          .eq('company_id', currentUser.company_id)
+          .maybeSingle();
+        return { data: data as Employee | null, error };
+      };
+
+      let { data: persistedEmployee, error: persistedEmployeeError } = await fetchPersistedEmployee();
+
+      if (persistedEmployeeError && !isMissingColumnError(persistedEmployeeError)) {
+        console.warn('Could not verify persisted employee row after create_user_by_admin:', persistedEmployeeError);
+      }
+
+      if (!persistedEmployee) {
+        // Recovery path: legacy RPCs may create the profile row in a default/wrong tenant.
+        // Repair by identity and force current company mapping.
+        let repairPayload: Record<string, any> = {
+          company_id: currentUser.company_id,
+          name: newName.trim(),
+          mobile: newMobile.trim(),
+          role: roleToCreate,
+          updated_at: new Date().toISOString(),
+          ...(managerOwnerId ? { manager_id: managerOwnerId } : {}),
+        };
+
+        const attemptRepairUpdate = async () => {
+          while (true) {
+            const { error } = await supabase
+              .from('employees')
+              .update(repairPayload)
+              .eq('id', resolvedEmployeeId);
+
+            if (!error) {
+              return null;
+            }
+
+            if (!isMissingColumnError(error)) {
+              return error;
+            }
+
+            const nextPayload = removeMissingColumnFromPayload(repairPayload, error);
+            if (!nextPayload) {
+              return error;
+            }
+            repairPayload = nextPayload;
+          }
+        };
+
+        const repairError = await attemptRepairUpdate();
+        if (repairError) {
+          console.warn('Profile repair by id failed, trying identity-based repair:', repairError);
+
+          let identityRepairPayload = { ...repairPayload };
+          while (true) {
+            let identityRepairQuery = supabase
+              .from('employees')
+              .update(identityRepairPayload)
+              .eq('mobile', newMobile.trim());
+
+            if (canLookupByEmail) {
+              identityRepairQuery = supabase
+                .from('employees')
+                .update(identityRepairPayload)
+                .or(`mobile.eq.${newMobile.trim()},email.eq.${newEmail.trim()}`);
+            }
+
+            const { error } = await identityRepairQuery;
+            if (!error) {
+              break;
+            }
+
+            if (!isMissingColumnError(error)) {
+              console.warn('Identity repair update failed:', error);
+              break;
+            }
+
+            const nextPayload = removeMissingColumnFromPayload(identityRepairPayload, error);
+            if (!nextPayload) {
+              console.warn('Identity repair could not strip missing column from payload:', error);
+              break;
+            }
+            identityRepairPayload = nextPayload;
+          }
+        }
+
+        const retryFetch = await fetchPersistedEmployee();
+        persistedEmployee = retryFetch.data;
+        persistedEmployeeError = retryFetch.error;
+        if (persistedEmployeeError && !isMissingColumnError(persistedEmployeeError)) {
+          console.warn('Could not verify persisted employee row after repair attempt:', persistedEmployeeError);
+        }
+      }
+
+      if (!persistedEmployee) {
+        if (companyPatchError) {
+          console.warn('Could not fully sync new employee profile row:', companyPatchError);
+        }
+        toast.error('User created, but profile row was not saved in this company. Please retry once.');
+        return;
       }
 
       const localCreatedEmployee: Employee = {
-        id: resolvedEmployeeId || safeId || `emp-${Date.now()}`,
-        name: newName.trim(),
-        email: newEmail.trim() || `${newMobile.trim()}@taskpro.local`,
-        mobile: newMobile.trim(),
-        role: roleToCreate,
-        points: 0,
-        company_id: currentUser.company_id || '00000000-0000-0000-0000-000000000001',
-        manager_id: managerOwnerId,
+        id: String((persistedEmployee as any).id || resolvedEmployeeId),
+        name: String((persistedEmployee as any).name || newName.trim()),
+        email: String((persistedEmployee as any).email || newEmail.trim() || `${newMobile.trim()}@taskpro.local`),
+        mobile: String((persistedEmployee as any).mobile || newMobile.trim()),
+        role: ((persistedEmployee as any).role || roleToCreate) as UserRole,
+        points: Number((persistedEmployee as any).points || 0),
+        company_id: String((persistedEmployee as any).company_id || currentUser.company_id || '00000000-0000-0000-0000-000000000001'),
+        manager_id:
+          typeof (persistedEmployee as any).manager_id === 'string' && (persistedEmployee as any).manager_id.trim()
+            ? (persistedEmployee as any).manager_id.trim()
+            : managerOwnerId,
       };
+
+      if (roleToCreate === 'staff') {
+        const linkSyncOk = await onUpdateStaffManagers(localCreatedEmployee.id, managerOwnerIds);
+        if (!linkSyncOk) {
+          toast.warning('User created, but manager links could not be fully synced. Run latest SQL migration.');
+        }
+      }
 
       // 4. Refresh team list for this company; fallback to local append if refresh fails.
       if (setEmployees && currentUser.company_id) {
@@ -522,13 +708,38 @@ const TeamManager: React.FC<TeamManagerProps> = ({
       setNewPassword('');
       setNewMobile('');
       setNewRole('staff');
-      setSelectedManagerId(currentUser.role === 'manager' ? currentUser.id : '');
+      setSelectedManagerIds(currentUser.role === 'manager' ? [currentUser.id] : []);
       setIsAdding(false);
     } catch (err: any) {
       console.error('Unexpected crash:', err);
       toast.error('Something went wrong. Please try again.');
     } finally {
       setIsAdding(false);
+    }
+  };
+
+  const openManagerEditor = (member: Employee) => {
+    setEditingStaffId(member.id);
+    setEditingManagerIds(getManagerIdsForMember(member));
+  };
+
+  const closeManagerEditor = () => {
+    setEditingStaffId(null);
+    setEditingManagerIds([]);
+  };
+
+  const handleSaveManagerLinks = async (staffId: string) => {
+    setIsSavingManagers(true);
+    try {
+      const success = await onUpdateStaffManagers(staffId, editingManagerIds);
+      if (success) {
+        toast.success('Manager links updated.');
+        closeManagerEditor();
+      } else {
+        toast.error('Could not update manager links.');
+      }
+    } finally {
+      setIsSavingManagers(false);
     }
   };
 
@@ -621,27 +832,45 @@ const TeamManager: React.FC<TeamManagerProps> = ({
                 {isAdding ? 'Creating...' : 'Create User'}
               </button>
             </div>
-            {requiresManagerSelection && (
-              <div className="relative">
-                <select
-                  value={selectedManagerId}
-                  onChange={(e) => setSelectedManagerId(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 transition-all"
-                  required
-                >
-                  <option value="">Select Manager</option>
+            {canAssignMultipleManagers && (
+              <div className="space-y-2">
+                <div className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 space-y-2">
+                  <p className="text-[11px] font-semibold text-slate-600">Assign Managers</p>
                   {managerOptions.map((manager) => (
-                    <option key={manager.id} value={manager.id}>
-                      {manager.name}
-                    </option>
+                    <label key={manager.id} className="flex items-center gap-2 text-sm text-slate-800">
+                      <input
+                        type="checkbox"
+                        checked={selectedManagerIds.includes(manager.id)}
+                        onChange={(e) => {
+                          setSelectedManagerIds((prev) => {
+                            if (e.target.checked) {
+                              return prev.includes(manager.id) ? prev : [...prev, manager.id];
+                            }
+                            return prev.filter((managerId) => managerId !== manager.id);
+                          });
+                        }}
+                        className="w-4 h-4 rounded border-slate-300 text-indigo-900 focus:ring-slate-800"
+                      />
+                      <span>{manager.name}</span>
+                    </label>
                   ))}
-                </select>
-                <p className="mt-1 text-[11px] text-slate-500">
-                  This staff member will be assigned to the selected manager's team.
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  This staff member will be visible under all selected managers.
                 </p>
+                {newRole !== 'staff' && (
+                  <p className="text-[11px] text-slate-500">
+                    Manager selection applies when role is set to Staff.
+                  </p>
+                )}
                 {managerOptions.length === 0 && (
                   <p className="mt-1 text-[11px] text-rose-600">
                     Create at least one manager first.
+                  </p>
+                )}
+                {requiresManagerSelection && managerOptions.length > 0 && selectedManagerIds.length === 0 && (
+                  <p className="mt-1 text-[11px] text-rose-600">
+                    Select at least one manager.
                   </p>
                 )}
               </div>
@@ -769,8 +998,8 @@ const TeamManager: React.FC<TeamManagerProps> = ({
               (currentUser.role === 'super_admin' || currentUser.role === 'owner');
             
             return (
+            <React.Fragment key={emp.id}>
             <div 
-              key={emp.id} 
               className="bg-white p-4 rounded-2xl border border-slate-200 flex items-start justify-between gap-3 group transition-all hover:bg-slate-50"
             >
               <div className="flex items-center gap-3">
@@ -799,6 +1028,15 @@ const TeamManager: React.FC<TeamManagerProps> = ({
               </div>
               <div className="flex flex-col items-end gap-2 shrink-0">
                 <span className="text-[10px] font-semibold text-indigo-700">ACTIVE</span>
+              {canManageMemberManagers(emp) && (
+                <button
+                  type="button"
+                  onClick={() => openManagerEditor(emp)}
+                  className="text-[10px] font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-2 py-1 rounded-lg transition-all"
+                >
+                  Managers
+                </button>
+              )}
               {canDeleteMember(emp) && (
                 <button 
                   type="button"
@@ -825,6 +1063,50 @@ const TeamManager: React.FC<TeamManagerProps> = ({
               )}
               </div>
             </div>
+            {editingStaffId === emp.id && canManageMemberManagers(emp) && (
+              <div className="bg-white border border-slate-200 rounded-2xl p-3 space-y-3">
+                <p className="text-[11px] font-semibold text-slate-600">Edit managers for {emp.name}</p>
+                <div className="space-y-2">
+                  {managerOptions.map((manager) => (
+                    <label key={`${emp.id}-${manager.id}`} className="flex items-center gap-2 text-sm text-slate-800">
+                      <input
+                        type="checkbox"
+                        checked={editingManagerIds.includes(manager.id)}
+                        onChange={(e) => {
+                          setEditingManagerIds((prev) => {
+                            if (e.target.checked) {
+                              return prev.includes(manager.id) ? prev : [...prev, manager.id];
+                            }
+                            return prev.filter((managerId) => managerId !== manager.id);
+                          });
+                        }}
+                        className="w-4 h-4 rounded border-slate-300 text-indigo-900 focus:ring-slate-800"
+                      />
+                      <span>{manager.name}</span>
+                    </label>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={closeManagerEditor}
+                    className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold py-2 rounded-xl transition-all"
+                    disabled={isSavingManagers}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSaveManagerLinks(emp.id)}
+                    className="flex-1 bg-indigo-900 hover:bg-indigo-800 text-white text-sm font-semibold py-2 rounded-xl transition-all disabled:opacity-60"
+                    disabled={isSavingManagers}
+                  >
+                    {isSavingManagers ? 'Saving...' : 'Save Managers'}
+                  </button>
+                </div>
+              </div>
+            )}
+            </React.Fragment>
             );
           })
         ) : (
