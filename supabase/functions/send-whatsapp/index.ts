@@ -12,6 +12,7 @@ type WhatsAppRecord = {
   company_id?: string;
   message?: string;
   to_mobile?: string;
+  trace_id?: string;
 };
 
 const normalizeCountryCode = (value: string): string => {
@@ -76,7 +77,12 @@ serve(async (req) => {
   try {
     const payload = await req.json().catch(() => ({}));
     const record: WhatsAppRecord = payload?.record ?? payload ?? {};
-    console.log("send-whatsapp payload:", JSON.stringify(record));
+    const traceId = String(record.trace_id || "").trim();
+    if (traceId) {
+      console.log(`[WA-TRACE ${traceId}] send-whatsapp payload:`, JSON.stringify(record));
+    } else {
+      console.log("send-whatsapp payload:", JSON.stringify(record));
+    }
 
     const accountSid = Deno.env.get("TWILIO_ACCOUNT_SID");
     const authToken = Deno.env.get("TWILIO_AUTH_TOKEN");
@@ -179,7 +185,11 @@ serve(async (req) => {
 
     const twilioData = await twilioRes.json().catch(() => ({}));
     if (!twilioRes.ok) {
-      console.error("Twilio API error:", twilioRes.status, twilioData);
+      if (traceId) {
+        console.error(`[WA-TRACE ${traceId}] Twilio API error:`, twilioRes.status, twilioData);
+      } else {
+        console.error("Twilio API error:", twilioRes.status, twilioData);
+      }
       return new Response(
         JSON.stringify({
           error: "Failed to send WhatsApp message",
@@ -200,6 +210,7 @@ serve(async (req) => {
         from,
         sid: twilioData?.sid ?? null,
         status: twilioData?.status ?? null,
+        trace_id: traceId || null,
       }),
       {
         status: 200,

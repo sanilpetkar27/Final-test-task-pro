@@ -7,6 +7,31 @@ type NotificationRecord = {
   assigned_to: string;
   company_id: string;
   message?: string;
+  trace_id?: string;
+};
+
+const buildTraceId = (prefix: 'asg' | 'cmp'): string =>
+  `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+const resolveCompanyIdForEmployee = async (employeeId: string): Promise<string | null> => {
+  const normalizedEmployeeId = String(employeeId || '').trim();
+  if (!normalizedEmployeeId) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from('employees')
+    .select('company_id')
+    .eq('id', normalizedEmployeeId)
+    .maybeSingle();
+
+  if (error) {
+    console.warn('Company lookup failed for employee:', normalizedEmployeeId, error.message);
+    return null;
+  }
+
+  const resolved = String((data as any)?.company_id || '').trim();
+  return resolved || null;
 };
 
 const getSupabaseFunctionUrl = (functionName: string): string => {
@@ -117,7 +142,9 @@ export const sendTaskAssignmentNotification = async (
   companyId?: string
 ): Promise<void> => {
   try {
+    const traceId = buildTraceId('asg');
     console.log('Sending task assignment notification...', {
+      traceId,
       taskDescription,
       assignedToName,
       assignedBy,
@@ -125,9 +152,16 @@ export const sendTaskAssignmentNotification = async (
       companyId,
     });
 
-    const tenantCompanyId = String(companyId || '').trim();
+    let tenantCompanyId = String(companyId || '').trim();
     if (!tenantCompanyId) {
-      console.warn('Missing company_id for assignee. Skipping notifications:', assignedToId);
+      tenantCompanyId = (await resolveCompanyIdForEmployee(assignedToId)) || '';
+      if (tenantCompanyId) {
+        console.log(`[WA-TRACE ${traceId}] Resolved company_id from assignee row:`, tenantCompanyId);
+      }
+    }
+
+    if (!tenantCompanyId) {
+      console.warn(`[WA-TRACE ${traceId}] Missing company_id for assignee. Skipping notifications:`, assignedToId);
       return;
     }
 
@@ -136,9 +170,10 @@ export const sendTaskAssignmentNotification = async (
       assigned_to: assignedToId,
       company_id: tenantCompanyId,
       message: `Task assigned by ${assignedBy}: ${taskDescription}`,
+      trace_id: traceId,
     };
 
-    console.log('Assignment payload:', JSON.stringify({ record }));
+    console.log(`[WA-TRACE ${traceId}] Assignment payload:`, JSON.stringify({ record }));
 
     const [pushResult, whatsappResult] = await Promise.all([
       invokeSendPush(record),
@@ -146,15 +181,15 @@ export const sendTaskAssignmentNotification = async (
     ]);
 
     if (pushResult) {
-      console.log('Push response:', JSON.stringify(pushResult.data, null, 2));
+      console.log(`[WA-TRACE ${traceId}] Push response:`, JSON.stringify(pushResult.data, null, 2));
     }
 
     if (whatsappResult) {
-      console.log('WhatsApp response:', JSON.stringify(whatsappResult.data, null, 2));
+      console.log(`[WA-TRACE ${traceId}] WhatsApp response:`, JSON.stringify(whatsappResult.data, null, 2));
     }
 
     if (!pushResult && !whatsappResult) {
-      console.warn('Assignment notifications failed on all channels. Task is still created.');
+      console.warn(`[WA-TRACE ${traceId}] Assignment notifications failed on all channels. Task is still created.`);
     }
   } catch (error) {
     console.error('Error sending task assignment notifications:', error);
@@ -167,7 +202,9 @@ export const sendTaskCompletionNotification = async (
   assignedById: string
 ): Promise<void> => {
   try {
+    const traceId = buildTraceId('cmp');
     console.log('Sending task completion notification...', {
+      traceId,
       taskDescription,
       completedByName,
       assignedById,
@@ -195,9 +232,10 @@ export const sendTaskCompletionNotification = async (
       assigned_to: assignedById,
       company_id: companyId,
       message: `Task completed by ${completedByName}: ${taskDescription}`,
+      trace_id: traceId,
     };
 
-    console.log('Completion payload:', JSON.stringify({ record }));
+    console.log(`[WA-TRACE ${traceId}] Completion payload:`, JSON.stringify({ record }));
 
     const [pushResult, whatsappResult] = await Promise.all([
       invokeSendPush(record),
@@ -205,15 +243,15 @@ export const sendTaskCompletionNotification = async (
     ]);
 
     if (pushResult) {
-      console.log('Push response:', JSON.stringify(pushResult.data, null, 2));
+      console.log(`[WA-TRACE ${traceId}] Push response:`, JSON.stringify(pushResult.data, null, 2));
     }
 
     if (whatsappResult) {
-      console.log('WhatsApp response:', JSON.stringify(whatsappResult.data, null, 2));
+      console.log(`[WA-TRACE ${traceId}] WhatsApp response:`, JSON.stringify(whatsappResult.data, null, 2));
     }
 
     if (!pushResult && !whatsappResult) {
-      console.warn('Completion notifications failed on all channels. Task update still succeeded.');
+      console.warn(`[WA-TRACE ${traceId}] Completion notifications failed on all channels. Task update still succeeded.`);
     }
   } catch (error) {
     console.error('Error sending task completion notifications:', error);
