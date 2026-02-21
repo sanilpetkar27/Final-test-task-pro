@@ -71,6 +71,12 @@ const normalizeRole = (role: unknown): Employee['role'] => {
     : 'staff';
 };
 
+const getRoleLabel = (role: Employee['role']): string => {
+  if (role === 'super_admin' || role === 'owner') return 'Owner';
+  if (role === 'manager') return 'Manager';
+  return 'Staff';
+};
+
 const toFallbackEmployeeFromAuthUser = (authUser: any): Employee => {
   const metadata = authUser?.user_metadata || {};
   const email = String(authUser?.email || metadata.email || '').trim();
@@ -1696,7 +1702,7 @@ const App: React.FC = () => {
         <div className="flex items-center gap-4">
           <div className="text-right">
             <p className="text-[10px] font-black leading-none text-slate-900">{currentUser.name}</p>
-            <p className="text-[8px] text-indigo-700 uppercase font-black tracking-widest mt-0.5">{currentUser.role}</p>
+            <p className="text-[8px] text-indigo-700 uppercase font-black tracking-widest mt-0.5">{getRoleLabel(currentUser.role)}</p>
           </div>
           <button
             onClick={handleLogout}

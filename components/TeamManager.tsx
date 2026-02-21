@@ -84,6 +84,12 @@ const removeMissingColumnFromPayload = (
   return null;
 };
 
+const getRoleLabel = (role: UserRole): string => {
+  if (role === 'super_admin' || role === 'owner') return 'Owner';
+  if (role === 'manager') return 'Manager';
+  return 'Staff';
+};
+
 const TeamManager: React.FC<TeamManagerProps> = ({ 
   employees, 
   currentUser, 
@@ -602,9 +608,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
               >
                 {assignableRoles.map((roleOption) => (
                   <option key={roleOption} value={roleOption} className="text-slate-900">
-                    {roleOption === 'super_admin'
-                      ? 'Super Admin'
-                      : roleOption.charAt(0).toUpperCase() + roleOption.slice(1)}
+                    {getRoleLabel(roleOption)}
                   </option>
                 ))}
               </select>
@@ -718,7 +722,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
                   </div>
                   <div>
                     <p className="font-semibold text-slate-700">{emp.name}</p>
-                    <p className="text-xs text-slate-500">{emp.role}</p>
+                    <p className="text-xs text-slate-500">{getRoleLabel(emp.role)}</p>
                   </div>
                 </div>
                 <div className="text-right">
@@ -778,7 +782,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
                   <div className="space-y-0.5">
                     <div className="flex items-center gap-2">
                       <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${emp.role === 'super_admin' || emp.role === 'owner' ? 'bg-slate-800 text-white' : emp.role === 'manager' ? 'bg-indigo-900 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                        {emp.role}
+                        {getRoleLabel(emp.role)}
                       </span>
                       <span className="text-[10px] text-slate-500 font-medium">{emp.mobile}</span>
                       {SHOW_POINTS_SYSTEM && (

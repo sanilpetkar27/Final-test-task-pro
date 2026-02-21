@@ -450,7 +450,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
                     <option value="none">Anyone / Unassigned</option>
                     {employees.map((emp) => (
                       <option key={emp.id} value={emp.id}>
-                        {emp.name} ({emp.role === 'super_admin' ? 'Super Admin' : emp.role === 'manager' ? 'Manager' : 'Staff'})
+                        {emp.name} ({emp.role === 'super_admin' || emp.role === 'owner' ? 'Owner' : emp.role === 'manager' ? 'Manager' : 'Staff'})
                       </option>
                     ))}
                   </select>

@@ -1146,7 +1146,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
                   <option value="none" className="text-slate-900">Anyone / Unassigned</option>
                   {employees.map(emp => (
                       <option key={emp.id} value={emp.id} className="text-slate-900">
-                        {emp.name} ({emp.role === 'super_admin' ? 'Super Admin' : emp.role === 'manager' ? 'Manager' : 'Staff'})
+                        {emp.name} ({emp.role === 'super_admin' || emp.role === 'owner' ? 'Owner' : emp.role === 'manager' ? 'Manager' : 'Staff'})
                       </option>
                     ))}
                 </select>
