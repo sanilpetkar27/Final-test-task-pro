@@ -9,6 +9,46 @@ type PushRecord = {
   company_id: string;
 };
 
+const invokeSendPushViaFetch = async (record: PushRecord) => {
+  const supabaseUrl = String(import.meta.env.VITE_SUPABASE_URL || '').trim();
+  const anonKey = String(import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
+
+  if (!supabaseUrl || !anonKey) {
+    throw new Error('Missing Supabase environment variables for direct function invoke');
+  }
+
+  const authClient = (supabase as any).auth;
+  const session = authClient ? (await authClient.getSession())?.data?.session : null;
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    apikey: anonKey,
+  };
+
+  if (session?.access_token) {
+    headers.Authorization = `Bearer ${session.access_token}`;
+  }
+
+  const response = await fetch(`${supabaseUrl}/functions/v1/send-push`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ record }),
+  });
+
+  let payload: any = null;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+
+  if (!response.ok) {
+    const errorMessage = payload?.error || payload?.message || `HTTP ${response.status}`;
+    throw new Error(errorMessage);
+  }
+
+  return { data: payload, error: null };
+};
+
 const invokeSendPush = async (record: PushRecord) => {
   try {
     const { data, error } = await supabase.functions.invoke('send-push', {
@@ -16,13 +56,41 @@ const invokeSendPush = async (record: PushRecord) => {
     });
 
     if (error) {
+      const rawMessage = String(error.message || '');
+      const isUnauthorized = rawMessage.toLowerCase().includes('401') || rawMessage.toLowerCase().includes('unauthorized');
+
+      // Fallback path: call function endpoint directly with explicit headers.
+      // This protects against edge verify_jwt configuration drift.
+      if (isUnauthorized) {
+        try {
+          console.warn('send-push via invoke returned 401. Retrying with direct fetch...');
+          return await invokeSendPushViaFetch(record);
+        } catch (fallbackError: any) {
+          console.warn('⚠️ Push notification fallback failed, but task was created:', fallbackError.message);
+          return null;
+        }
+      }
+
       console.warn('⚠️ Push notification failed, but task was created:', error.message);
       return null;
     }
 
     return { data, error: null };
   } catch (error: any) {
-    console.warn('⚠️ Push notification failed, but task was created:', error.message);
+    const message = String(error?.message || '');
+    const isUnauthorized = message.toLowerCase().includes('401') || message.toLowerCase().includes('unauthorized');
+
+    if (isUnauthorized) {
+      try {
+        console.warn('send-push invoke threw 401. Retrying with direct fetch...');
+        return await invokeSendPushViaFetch(record);
+      } catch (fallbackError: any) {
+        console.warn('⚠️ Push notification fallback failed, but task was created:', fallbackError.message);
+        return null;
+      }
+    }
+
+    console.warn('⚠️ Push notification failed, but task was created:', message);
     return null;
   }
 };
