@@ -7,6 +7,7 @@ import LoginScreen from './components/LoginScreen';
 import { supabase, supabaseAuth } from './src/lib/supabase';
 import { useNotificationSetup } from './src/hooks/useNotificationSetup';
 import { transformTaskToApp, transformTaskToDB, transformTasksToApp, DatabaseTask } from './src/utils/transformers';
+import { sendTaskAssignmentNotification } from './src/utils/pushNotifications';
 import { Toaster, toast } from 'sonner';
 import {
   ClipboardList,
@@ -1148,6 +1149,18 @@ const App: React.FC = () => {
       // Transform returned database task back to app format
       const appTask = transformTaskToApp(data as DatabaseTask);
       setTasks(prev => upsertTaskAtTop(prev, appTask));
+
+      // Centralized assignment notification path for both desktop + mobile flows.
+      if (appTask.assignedTo) {
+        const assignedEmployee = employees.find((employee) => employee.id === appTask.assignedTo);
+        await sendTaskAssignmentNotification(
+          appTask.description,
+          assignedEmployee?.name || 'Team Member',
+          currentUser.name,
+          appTask.assignedTo,
+          appTask.company_id || currentUser.company_id || DEFAULT_COMPANY_ID
+        );
+      }
     } catch (error) {
       console.error('Error adding task:', error);
       toast.error(`Failed to save task: ${error instanceof Error ? error.message : 'Unknown error'}`);

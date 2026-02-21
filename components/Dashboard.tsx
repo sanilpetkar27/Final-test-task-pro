@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { DealershipTask, Employee, UserRole, TaskStatus, TaskType, RecurrenceFrequency, TaskRemark } from '../types';
 import { supabase } from '../src/lib/supabase';
-import { sendTaskAssignmentNotification, sendTaskCompletionNotification } from '../src/utils/pushNotifications';
+import { sendTaskCompletionNotification } from '../src/utils/pushNotifications';
 import TaskItem from './TaskItem';
 import CompletionModal from './CompletionModal';
 import DelegationModal from './DelegationModal';
@@ -651,20 +651,6 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
       setTaskType('one_time');
       setRecurrenceFrequency('');
 
-      // Send push notification to assigned user
-      if (assigneeId !== 'none') {
-        const assignedEmployee = employees.find(emp => emp.id === assigneeId);
-        if (assignedEmployee) {
-          await sendTaskAssignmentNotification(
-            newTaskDesc.trim(),
-            assignedEmployee.name,
-            currentUser.name,
-            assignedEmployee.id,
-            currentUser.company_id
-          );
-        }
-      }
-
       // Auto-reset filter to show new task
       setSelectedPersonFilter('ALL');
 
@@ -775,17 +761,6 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
           deadlineTimestamp
         )
       );
-
-      const assignedEmployee = employees.find(emp => emp.id === targetAssigneeId);
-      if (assignedEmployee) {
-        await sendTaskAssignmentNotification(
-          trimmedDescription,
-          assignedEmployee.name,
-          currentUser.name,
-          assignedEmployee.id,
-          currentUser.company_id
-        );
-      }
 
       // Auto-reset filter to show new task
       setSelectedPersonFilter('ALL');
