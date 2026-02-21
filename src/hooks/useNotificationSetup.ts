@@ -5,6 +5,7 @@ import {
   areNotificationsEnabled,
   promptPushNotifications,
   getOneSignalSubscriptionId,
+  setOneSignalExternalUserId,
 } from '../utils/notifications';
 
 interface UseNotificationSetupProps {
@@ -25,6 +26,19 @@ export const useNotificationSetup = ({ userId, userMobile, companyId, isLoggedIn
   const saveOneSignalIdToDatabase = useCallback(async (oneSignalId: string, employeeId: string, tenantCompanyId: string) => {
     try {
       console.log('Saving OneSignal ID to database...', { oneSignalId, employeeId, companyId: tenantCompanyId });
+
+      // Ensure a device subscription id is bound to only one employee inside a tenant.
+      // This avoids cross-user push leakage when stale rows still hold the same OneSignal id.
+      const { error: dedupeError } = await supabase
+        .from('employees')
+        .update({ onesignal_id: null })
+        .eq('company_id', tenantCompanyId)
+        .eq('onesignal_id', oneSignalId)
+        .neq('id', employeeId);
+
+      if (dedupeError) {
+        console.warn('Failed to clear duplicate OneSignal IDs in company scope:', dedupeError);
+      }
 
       const { data: currentEmployee, error: fetchError } = await supabase
         .from('employees')
@@ -85,6 +99,7 @@ export const useNotificationSetup = ({ userId, userMobile, companyId, isLoggedIn
 
       const subscriptionId = await getOneSignalSubscriptionId();
       if (subscriptionId) {
+        await setOneSignalExternalUserId(userId);
         await saveOneSignalIdToDatabase(subscriptionId, userId, companyId);
       }
     } catch (error) {
