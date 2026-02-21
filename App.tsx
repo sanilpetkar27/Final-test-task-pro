@@ -43,6 +43,27 @@ const computeNextRecurrenceNotificationAt = (
   return Number(baseTimestamp || Date.now()) + intervalMs;
 };
 
+const resolveRecurringFrequencyForTask = (
+  task: DealershipTask | undefined
+): RecurrenceFrequency | null => {
+  if (!task) return null;
+
+  const rawTaskType = String((task as any).taskType ?? (task as any).task_type ?? 'one_time').toLowerCase();
+  if (rawTaskType !== 'recurring') {
+    return null;
+  }
+
+  const rawFrequency = String(
+    (task as any).recurrenceFrequency ?? (task as any).recurrence_frequency ?? ''
+  ).toLowerCase();
+
+  if (rawFrequency === 'daily' || rawFrequency === 'weekly' || rawFrequency === 'monthly') {
+    return rawFrequency as RecurrenceFrequency;
+  }
+
+  return null;
+};
+
 const normalizeRole = (role: unknown): Employee['role'] => {
   return role === 'owner' || role === 'manager' || role === 'staff' || role === 'super_admin'
     ? role
@@ -1191,14 +1212,26 @@ const App: React.FC = () => {
 
   const completeTask = async (taskId: string, proofData: { imageUrl: string, timestamp: number }) => {
     try {
+      const task = tasks.find(t => t.id === taskId);
+      const recurringFrequency = resolveRecurringFrequencyForTask(task);
+      const nextRecurrenceNotificationAt = recurringFrequency
+        ? computeNextRecurrenceNotificationAt(proofData.timestamp, recurringFrequency)
+        : null;
+
+      const completionPayload: Record<string, any> = {
+        status: 'completed' as TaskStatus,
+        completedAt: proofData.timestamp,
+        proof: proofData
+      };
+
+      if (nextRecurrenceNotificationAt) {
+        completionPayload.next_recurrence_notification_at = nextRecurrenceNotificationAt;
+      }
+
       // Update task in Supabase
       const { error: taskError } = await supabase
         .from('tasks')
-        .update({
-          status: 'completed' as TaskStatus,
-          completedAt: proofData.timestamp,
-          proof: proofData
-        })
+        .update(completionPayload)
         .eq('id', taskId);
 
       if (taskError) {
@@ -1210,12 +1243,17 @@ const App: React.FC = () => {
       // Update local state
       setTasks(prev => prev.map(t =>
         t.id === taskId
-          ? { ...t, status: 'completed' as TaskStatus, completedAt: proofData.timestamp, proof: proofData }
+          ? {
+              ...t,
+              status: 'completed' as TaskStatus,
+              completedAt: proofData.timestamp,
+              proof: proofData,
+              ...(nextRecurrenceNotificationAt ? { nextRecurrenceNotificationAt } : {})
+            }
           : t
       ));
 
       // Add 10 points to the user who completed the task
-      const task = tasks.find(t => t.id === taskId);
       if (task && task.assignedTo) {
         const employee = employees.find(emp => emp.id === task.assignedTo);
         if (employee) {
@@ -1250,10 +1288,26 @@ const App: React.FC = () => {
 
   const completeTaskWithoutPhoto = async (taskId: string) => {
     try {
+      const completionTimestamp = Date.now();
+      const task = tasks.find(t => t.id === taskId);
+      const recurringFrequency = resolveRecurringFrequencyForTask(task);
+      const nextRecurrenceNotificationAt = recurringFrequency
+        ? computeNextRecurrenceNotificationAt(completionTimestamp, recurringFrequency)
+        : null;
+
+      const completionPayload: Record<string, any> = {
+        status: 'completed' as TaskStatus,
+        completedAt: completionTimestamp
+      };
+
+      if (nextRecurrenceNotificationAt) {
+        completionPayload.next_recurrence_notification_at = nextRecurrenceNotificationAt;
+      }
+
       // Update task in Supabase
       const { error: taskError } = await supabase
         .from('tasks')
-        .update({ status: 'completed' as TaskStatus, completedAt: Date.now() })
+        .update(completionPayload)
         .eq('id', taskId);
 
       if (taskError) {
@@ -1265,12 +1319,16 @@ const App: React.FC = () => {
       // Update local state
       setTasks(prev => prev.map(t =>
         t.id === taskId
-          ? { ...t, status: 'completed' as TaskStatus, completedAt: Date.now() }
+          ? {
+              ...t,
+              status: 'completed' as TaskStatus,
+              completedAt: completionTimestamp,
+              ...(nextRecurrenceNotificationAt ? { nextRecurrenceNotificationAt } : {})
+            }
           : t
       ));
 
       // Add 10 points to the user who completed the task
-      const task = tasks.find(t => t.id === taskId);
       if (task && task.assignedTo) {
         const employee = employees.find(emp => emp.id === task.assignedTo);
         if (employee) {

@@ -81,7 +81,7 @@ serve(async (req) => {
       .from("tasks")
       .select("id,description,assignedTo,company_id,recurrence_frequency,next_recurrence_notification_at,status")
       .eq("task_type", "recurring")
-      .in("status", ["pending", "in-progress"])
+      .in("status", ["pending", "in-progress", "completed"])
       .not("assignedTo", "is", null)
       .or(`next_recurrence_notification_at.lte.${nowMs},next_recurrence_notification_at.is.null`)
       .limit(200);
@@ -95,6 +95,7 @@ serve(async (req) => {
     let advancedWithoutDevice = 0;
     let sendFailures = 0;
     let updatedSchedule = 0;
+    let reopened = 0;
 
     for (const task of (tasks || []) as RecurringTaskRow[]) {
       processed += 1;
@@ -124,6 +125,69 @@ serve(async (req) => {
       }
 
       const oneSignalId = String(employee?.onesignal_id || "").trim();
+
+      if (task.status === "completed") {
+        const { error: reopenError } = await adminClient
+          .from("tasks")
+          .update({
+            status: "pending",
+            completedAt: null,
+            proof: null,
+            next_recurrence_notification_at: nextReminderAt,
+          })
+          .eq("id", task.id)
+          .eq("company_id", task.company_id);
+
+        if (reopenError) {
+          sendFailures += 1;
+          continue;
+        }
+
+        reopened += 1;
+        updatedSchedule += 1;
+
+        if (!oneSignalId) {
+          advancedWithoutDevice += 1;
+          continue;
+        }
+
+        const reopenNotificationPayload = {
+          app_id: APP_ID,
+          include_player_ids: [oneSignalId],
+          headings: { en: "Recurring Task Reopened" },
+          contents: {
+            en: task.description
+              ? `Ready again (${frequency}): ${task.description}`
+              : `Your ${frequency} recurring task is active again.`,
+          },
+          url: "https://final-test-task-pro.vercel.app/",
+          data: {
+            type: "recurring_task_reopened",
+            task_id: task.id,
+            recurrence_frequency: frequency,
+          },
+        };
+
+        const reopenOneSignalRes = await fetch("https://onesignal.com/api/v1/notifications", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Basic ${API_KEY}`,
+          },
+          body: JSON.stringify(reopenNotificationPayload),
+        });
+
+        const reopenOneSignalData = await reopenOneSignalRes.json().catch(() => ({}));
+        if (!reopenOneSignalRes.ok) {
+          console.error("OneSignal recurring reopen error:", reopenOneSignalRes.status, reopenOneSignalData);
+          sendFailures += 1;
+          continue;
+        }
+
+        notified += 1;
+        continue;
+      }
+
       if (!oneSignalId) {
         const { error: scheduleError } = await adminClient
           .from("tasks")
@@ -192,6 +256,7 @@ serve(async (req) => {
         advancedWithoutDevice,
         sendFailures,
         updatedSchedule,
+        reopened,
         nowMs,
       }),
       {
