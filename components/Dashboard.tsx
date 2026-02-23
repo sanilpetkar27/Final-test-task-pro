@@ -96,25 +96,11 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   
   // Keep task description ephemeral to avoid stale dictated text after app relaunch.
   const [newTaskDesc, setNewTaskDesc] = useState('');
-  const [assigneeId, setAssigneeId] = useState(() => {
-    return sessionStorage.getItem('task_form_assignee') || 'none';
-  });
-  const [deadline, setDeadline] = useState(() => {
-    return sessionStorage.getItem('task_form_deadline') || '';
-  });
-  const [requirePhoto, setRequirePhoto] = useState(() => {
-    return sessionStorage.getItem('task_form_photo') === 'true';
-  });
-  const [taskType, setTaskType] = useState<TaskType>(() => {
-    const cachedTaskType = sessionStorage.getItem('task_form_task_type');
-    return cachedTaskType === 'recurring' ? 'recurring' : 'one_time';
-  });
-  const [recurrenceFrequency, setRecurrenceFrequency] = useState<RecurrenceFrequency | ''>(() => {
-    const cachedFrequency = sessionStorage.getItem('task_form_recurrence_frequency');
-    return cachedFrequency === 'daily' || cachedFrequency === 'weekly' || cachedFrequency === 'monthly'
-      ? cachedFrequency
-      : '';
-  });
+  const [assigneeId, setAssigneeId] = useState('none');
+  const [deadline, setDeadline] = useState('');
+  const [requirePhoto, setRequirePhoto] = useState(false);
+  const [taskType, setTaskType] = useState<TaskType>('one_time');
+  const [recurrenceFrequency, setRecurrenceFrequency] = useState<RecurrenceFrequency | ''>('');
   
   // Clear legacy cached task description so old dictated text is not restored.
   useEffect(() => {
