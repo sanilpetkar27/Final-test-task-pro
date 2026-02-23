@@ -97,20 +97,20 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   // Keep task description ephemeral to avoid stale dictated text after app relaunch.
   const [newTaskDesc, setNewTaskDesc] = useState('');
   const [assigneeId, setAssigneeId] = useState(() => {
-    return localStorage.getItem('task_form_assignee') || 'none';
+    return sessionStorage.getItem('task_form_assignee') || 'none';
   });
   const [deadline, setDeadline] = useState(() => {
-    return localStorage.getItem('task_form_deadline') || '';
+    return sessionStorage.getItem('task_form_deadline') || '';
   });
   const [requirePhoto, setRequirePhoto] = useState(() => {
-    return localStorage.getItem('task_form_photo') === 'true';
+    return sessionStorage.getItem('task_form_photo') === 'true';
   });
   const [taskType, setTaskType] = useState<TaskType>(() => {
-    const cachedTaskType = localStorage.getItem('task_form_task_type');
+    const cachedTaskType = sessionStorage.getItem('task_form_task_type');
     return cachedTaskType === 'recurring' ? 'recurring' : 'one_time';
   });
   const [recurrenceFrequency, setRecurrenceFrequency] = useState<RecurrenceFrequency | ''>(() => {
-    const cachedFrequency = localStorage.getItem('task_form_recurrence_frequency');
+    const cachedFrequency = sessionStorage.getItem('task_form_recurrence_frequency');
     return cachedFrequency === 'daily' || cachedFrequency === 'weekly' || cachedFrequency === 'monthly'
       ? cachedFrequency
       : '';
@@ -118,32 +118,32 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   
   // Clear legacy cached task description so old dictated text is not restored.
   useEffect(() => {
-    localStorage.removeItem('task_form_desc');
+    sessionStorage.removeItem('task_form_desc');
   }, []);
 
-  // Persist form state to localStorage
+  // Persist form state to sessionStorage (clears when app/browser is closed)
   useEffect(() => {
-    localStorage.setItem('task_form_assignee', assigneeId);
+    sessionStorage.setItem('task_form_assignee', assigneeId);
   }, [assigneeId]);
-  
+
   useEffect(() => {
-    localStorage.setItem('task_form_deadline', deadline);
+    sessionStorage.setItem('task_form_deadline', deadline);
   }, [deadline]);
-  
+
   useEffect(() => {
-    localStorage.setItem('task_form_photo', String(requirePhoto));
+    sessionStorage.setItem('task_form_photo', String(requirePhoto));
   }, [requirePhoto]);
 
   useEffect(() => {
-    localStorage.setItem('task_form_task_type', taskType);
+    sessionStorage.setItem('task_form_task_type', taskType);
   }, [taskType]);
 
   useEffect(() => {
     if (taskType === 'recurring' && recurrenceFrequency) {
-      localStorage.setItem('task_form_recurrence_frequency', recurrenceFrequency);
+      sessionStorage.setItem('task_form_recurrence_frequency', recurrenceFrequency);
       return;
     }
-    localStorage.removeItem('task_form_recurrence_frequency');
+    sessionStorage.removeItem('task_form_recurrence_frequency');
   }, [taskType, recurrenceFrequency]);
 
   useEffect(() => {
@@ -159,12 +159,12 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
     setRequirePhoto(false);
     setTaskType('one_time');
     setRecurrenceFrequency('');
-    localStorage.removeItem('task_form_desc');
-    localStorage.removeItem('task_form_assignee');
-    localStorage.removeItem('task_form_deadline');
-    localStorage.removeItem('task_form_photo');
-    localStorage.removeItem('task_form_task_type');
-    localStorage.removeItem('task_form_recurrence_frequency');
+    sessionStorage.removeItem('task_form_desc');
+    sessionStorage.removeItem('task_form_assignee');
+    sessionStorage.removeItem('task_form_deadline');
+    sessionStorage.removeItem('task_form_photo');
+    sessionStorage.removeItem('task_form_task_type');
+    sessionStorage.removeItem('task_form_recurrence_frequency');
   };
   // Dashboard uses employees from props, no local state needed
   const [selectedPersonFilter, setSelectedPersonFilter] = useState('ALL');
