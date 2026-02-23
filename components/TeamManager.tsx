@@ -16,6 +16,7 @@ interface TeamManagerProps {
   onUpdateRewardConfig: (config: RewardConfig) => void;
   isSuperAdmin: boolean;
   setEmployees?: (employees: Employee[]) => void;
+  onRefreshData?: () => Promise<void>;
 }
 
 const extractMissingColumnName = (error: any): string | null => {
@@ -102,7 +103,8 @@ const TeamManager: React.FC<TeamManagerProps> = ({
   onUpdateRewardConfig,
   rewardConfig,
   isSuperAdmin,
-  setEmployees // ✅ Use this prop for state updates
+  setEmployees,
+  onRefreshData
 }) => {
   // Feature flag - set to true to show points system
   const SHOW_POINTS_SYSTEM = false;
@@ -669,6 +671,12 @@ const TeamManager: React.FC<TeamManagerProps> = ({
         const linkSyncOk = await onUpdateStaffManagers(localCreatedEmployee.id, managerOwnerIds);
         if (!linkSyncOk) {
           toast.warning('User created, but manager links could not be fully synced. Run latest SQL migration.');
+        } else {
+          // Trigger full data refresh to ensure all managers see the updated staff list
+          if (onRefreshData && managerOwnerIds.length > 1) {
+            console.log('🔄 Triggering full data refresh after multi-manager assignment...');
+            await onRefreshData();
+          }
         }
       }
 

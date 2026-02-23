@@ -1569,9 +1569,12 @@ const App: React.FC = () => {
       )
     );
 
+    console.log('🔗 Updating staff managers:', { staffId: normalizedStaffId, managerIds: normalizedManagerIds, companyId });
+
     try {
       let staffManagerLinksUnavailable = false;
 
+      // Delete existing links first
       const { error: deleteLinksError } = await supabase
         .from('staff_manager_links')
         .delete()
@@ -1589,6 +1592,10 @@ const App: React.FC = () => {
         console.warn('staff_manager_links table not available, falling back to employees.manager_id only.');
       }
 
+      // Small delay to ensure delete is committed before insert
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Insert all new links
       if (normalizedManagerIds.length > 0 && !staffManagerLinksUnavailable) {
         const rows = normalizedManagerIds.map((managerId) => ({
           company_id: companyId,
@@ -1596,9 +1603,12 @@ const App: React.FC = () => {
           manager_id: managerId,
         }));
 
-        const { error: upsertLinksError } = await supabase
+        console.log('📥 Inserting manager links:', rows);
+
+        const { data: insertedData, error: upsertLinksError } = await supabase
           .from('staff_manager_links')
-          .upsert(rows, { onConflict: 'company_id,staff_id,manager_id' });
+          .upsert(rows, { onConflict: 'company_id,staff_id,manager_id' })
+          .select();
 
         if (upsertLinksError && !isMissingRelationError(upsertLinksError)) {
           console.error('Failed to upsert staff-manager links:', upsertLinksError);
@@ -1610,8 +1620,11 @@ const App: React.FC = () => {
           staffManagerLinksUnavailable = true;
           console.warn('staff_manager_links table not available during upsert, falling back to employees.manager_id only.');
         }
+
+        console.log('✅ Successfully inserted manager links:', insertedData);
       }
 
+      // Update primary manager in employees table
       const primaryManagerId = normalizedManagerIds[0] || null;
       const { error: updateEmployeeError } = await supabase
         .from('employees')
@@ -1625,6 +1638,7 @@ const App: React.FC = () => {
         return false;
       }
 
+      // Update local state immediately
       const nowIso = new Date().toISOString();
       setStaffManagerLinks((prev) => {
         const remaining = prev.filter(
@@ -1643,9 +1657,12 @@ const App: React.FC = () => {
           updated_at: nowIso,
         }));
 
-        return staffManagerLinksUnavailable ? remaining : [...remaining, ...nextLinks];
+        const newLinks = staffManagerLinksUnavailable ? remaining : [...remaining, ...nextLinks];
+        console.log('🔄 Updated staffManagerLinks state:', newLinks);
+        return newLinks;
       });
 
+      // Also update employees state with the new manager_id
       setEmployees((prev) =>
         prev.map((employee) =>
           employee.id === normalizedStaffId
@@ -1654,8 +1671,35 @@ const App: React.FC = () => {
         )
       );
 
+      // Force a refresh to ensure all managers see the updated staff list
+      if (!staffManagerLinksUnavailable) {
+        setTimeout(async () => {
+          const { data: refreshedLinks } = await supabase
+            .from('staff_manager_links')
+            .select('*')
+            .eq('company_id', companyId)
+            .eq('staff_id', normalizedStaffId);
+          
+          if (refreshedLinks && refreshedLinks.length > 0) {
+            console.log('🔄 Refresh confirmed manager links:', refreshedLinks);
+            setStaffManagerLinks((prev) => {
+              const otherLinks = prev.filter(
+                (link) =>
+                  !(
+                    String(link.company_id || '').trim() === companyId &&
+                    String(link.staff_id || '').trim() === normalizedStaffId
+                  )
+              );
+              return [...otherLinks, ...(refreshedLinks as StaffManagerLink[])];
+            });
+          }
+        }, 500);
+      }
+
       if (staffManagerLinksUnavailable) {
         toast.warning('Multi-manager links table not found. Saved primary manager assignment only.');
+      } else {
+        console.log('✅ Successfully updated staff managers:', normalizedManagerIds);
       }
 
       return true;
@@ -1994,6 +2038,14 @@ const App: React.FC = () => {
             onUpdateRewardConfig={setRewardConfig}
             isSuperAdmin={isSuperAdmin}
             setEmployees={setEmployees}
+            onRefreshData={async () => {
+              const data = await loadInitialData(false);
+              if (data) {
+                setEmployees(data.employees);
+                setStaffManagerLinks(data.staffManagerLinks || []);
+                setTasks(data.tasks);
+              }
+            }}
           />
         )}
       </main>
