@@ -376,10 +376,10 @@ const TaskItem: React.FC<TaskItemProps> = ({
 
   return (
     <div className="space-y-2">
-      <div className={`bg-white rounded-xl p-4 shadow-sm border ${isOverdue ? 'border-red-300 bg-red-50 animate-pulse' : (task.status === 'completed' ? 'border-emerald-200' : (task.status === 'in-progress' ? 'border-indigo-200' : 'border-slate-200'))} flex flex-wrap items-start justify-between gap-3 transition-all relative overflow-hidden hover:bg-slate-50 hover:shadow-sm`}>
+      <div className={`bg-white rounded-xl p-4 shadow-sm border ${isOverdue ? 'border-red-300 bg-red-50' : (task.status === 'completed' ? 'border-emerald-200' : (task.status === 'in-progress' ? 'border-indigo-200' : 'border-slate-200'))} flex flex-wrap items-start justify-between gap-3 transition-all relative overflow-hidden hover:bg-slate-50 hover:shadow-sm`}>
         
         {/* Overdue Warning Stripe */}
-        {isOverdue && <div className="absolute top-0 left-0 w-1 h-full bg-red-500 animate-pulse" />}
+        {isOverdue && <div className="absolute top-0 left-0 w-1 h-full bg-red-500" />}
 
         <div className="w-11 h-11 rounded-full bg-indigo-50 text-indigo-700 flex items-center justify-center text-sm font-black shrink-0 mt-0.5">
           {taskAvatarLabel || 'T'}
@@ -480,7 +480,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
               {/* Context Labels */}
               <div className="flex flex-wrap items-center gap-2 mb-1.5">
                  {isOverdue && (
-                  <span className="inline-flex items-center gap-1 bg-red-500 text-white px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider animate-pulse">
+                  <span className="inline-flex items-center gap-1 bg-red-500 text-white px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider">
                     <AlertTriangle className="w-3 h-3" />
                     Overdue
                   </span>

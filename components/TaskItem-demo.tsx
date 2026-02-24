@@ -105,7 +105,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
           {/* Context Labels */}
           <div className="flex flex-wrap items-center gap-2 mb-1.5">
              {isOverdue && (
-              <span className="inline-flex items-center gap-1 bg-red-500 text-white px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider animate-pulse">
+              <span className="inline-flex items-center gap-1 bg-red-500 text-white px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider">
                 <AlertTriangle className="w-3 h-3" />
                 Overdue
               </span>
