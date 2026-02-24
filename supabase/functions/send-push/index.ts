@@ -77,8 +77,12 @@ serve(async (req) => {
     const employee = employees[0];
     if (!employee.onesignal_id) {
       console.log('No OneSignal ID for employee:', employee.id);
-      return new Response(JSON.stringify({ error: "No OneSignal ID for employee" }), {
-        status: 400,
+      return new Response(JSON.stringify({ 
+        success: true, 
+        skipped: true, 
+        reason: "No OneSignal ID for employee" 
+      }), {
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

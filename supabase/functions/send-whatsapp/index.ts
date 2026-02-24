@@ -151,8 +151,13 @@ serve(async (req) => {
 
     const recipientE164 = toE164(recipientMobile, defaultCountryCode);
     if (!recipientE164) {
-      return new Response(JSON.stringify({ error: "Recipient mobile is empty or invalid" }), {
-        status: 400,
+      console.log('Recipient mobile is empty or invalid for:', record.assigned_to || record.to_mobile);
+      return new Response(JSON.stringify({ 
+        success: true, 
+        skipped: true, 
+        reason: "Recipient mobile is empty or invalid" 
+      }), {
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
