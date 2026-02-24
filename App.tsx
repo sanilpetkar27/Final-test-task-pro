@@ -1223,15 +1223,16 @@ const App: React.FC = () => {
         .from('tasks')
         .insert([dbTask])
         .select('*')
-        .single();
+        .maybeSingle();
 
       if (error && isMissingNextRecurrenceNotificationColumnError(error)) {
+        console.warn('Retrying task insert without next_recurrence_notification_at...');
         const retryPayload = stripTaskNextRecurrenceField(dbTask as unknown as Record<string, any>);
         const retryResult = await supabase
           .from('tasks')
           .insert([retryPayload])
           .select('*')
-          .single();
+          .maybeSingle();
 
         data = retryResult.data as any;
         error = retryResult.error as any;
@@ -1242,12 +1243,13 @@ const App: React.FC = () => {
       }
 
       if (error && isMissingTaskRecurrenceColumnError(error)) {
+        console.warn('Retrying task insert without recurrence fields...');
         const legacyTaskPayload = stripTaskRecurrenceFields(dbTask as unknown as Record<string, any>);
         const legacyResult = await supabase
           .from('tasks')
           .insert([legacyTaskPayload])
           .select('*')
-          .single();
+          .maybeSingle();
 
         data = legacyResult.data as any;
         error = legacyResult.error as any;
@@ -1258,8 +1260,14 @@ const App: React.FC = () => {
       }
 
       if (error) {
-        console.error('Error adding task:', error);
+        console.error('Error adding task to database:', error);
         toast.error(`Failed to save task: ${error.message}`);
+        return;
+      }
+
+      if (!data) {
+        console.error('Task insert returned no data');
+        toast.error('Failed to save task: No data returned from database.');
         return;
       }
 
@@ -1267,17 +1275,24 @@ const App: React.FC = () => {
       const appTask = transformTaskToApp(data as DatabaseTask);
       setTasks(prev => upsertTaskAtTop(prev, appTask));
 
-      // Centralized assignment notification path for both desktop + mobile flows.
-      if (appTask.assignedTo) {
-        const assignedEmployee = employees.find((employee) => employee.id === appTask.assignedTo);
-        await sendTaskAssignmentNotification(
-          appTask.description,
-          assignedEmployee?.name || 'Team Member',
-          currentUser.name,
-          appTask.assignedTo,
-          appTask.company_id || currentUser.company_id || DEFAULT_COMPANY_ID
-        );
-      }
+      // Notification is secondary; we fire it in the background and DON'T await it
+      // to ensure the UI remains responsive and the function completes successfully.
+      void (async () => {
+        try {
+          if (appTask.assignedTo) {
+            const assignedEmployee = employees.find((employee) => employee.id === appTask.assignedTo);
+            await sendTaskAssignmentNotification(
+              appTask.description,
+              assignedEmployee?.name || 'Team Member',
+              currentUser.name,
+              appTask.assignedTo,
+              appTask.company_id || currentUser.company_id || DEFAULT_COMPANY_ID
+            );
+          }
+        } catch (notiError) {
+          console.error('Background notification dispatch failed:', notiError);
+        }
+      })();
     } catch (error) {
       console.error('Error adding task:', error);
       toast.error(`Failed to save task: ${error instanceof Error ? error.message : 'Unknown error'}`);

@@ -821,14 +821,21 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
               // The parent App.tsx will handle employee state updates
               
               // Send completion notification to task creator
-              const taskCreator = employees.find(emp => emp.id === completedTask?.assignedBy);
-              if (taskCreator) {
-                await sendTaskCompletionNotification(
-                  completedTask.description,
-                  currentUser.name,
-                  taskCreator.id
-                );
-              }
+              // Fire-and-forget in the background to avoid blocking local state updates
+              void (async () => {
+                try {
+                  const taskCreator = employees.find(emp => emp.id === completedTask?.assignedBy);
+                  if (taskCreator) {
+                    await sendTaskCompletionNotification(
+                      completedTask.description,
+                      currentUser.name,
+                      taskCreator.id
+                    );
+                  }
+                } catch (notiError) {
+                  console.error('Background task completion notification failed:', notiError);
+                }
+              })();
             }
           }
         }
