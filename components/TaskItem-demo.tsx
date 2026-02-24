@@ -45,7 +45,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const completedSubTasks = subTasks.filter(st => st.status === 'completed');
   const hasSubTasks = subTasks.length > 0;
   const allSubTasksDone = hasSubTasks && completedSubTasks.length === subTasks.length;
-  const isOverdue = task.status === 'pending' && task.deadline && Date.now() > task.deadline;
+  const isOverdue = task.status !== 'completed' && task.deadline && Date.now() > task.deadline;
 
   // Name lookup logic
   const getEmployeeName = (employeeId: string | null | undefined) => {
@@ -166,7 +166,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
               Created: {new Date(task.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
             
-            {task.deadline && task.status === 'pending' && (
+            {task.deadline && task.status !== 'completed' && (
                <span className={`flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest ${isOverdue ? 'text-red-600' : 'text-amber-600'}`}>
                  <Clock className="w-3 h-3" />
                  Due: {new Date(task.deadline).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'})}

@@ -120,7 +120,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const completedSubTasks = subTasks.filter(st => st.status === 'completed');
   const hasSubTasks = subTasks.length > 0;
   const allSubTasksDone = hasSubTasks && completedSubTasks.length === subTasks.length;
-  const isOverdue = task.status === 'pending' && task.deadline && Date.now() > task.deadline;
+  const isOverdue = task.status !== 'completed' && task.deadline && Date.now() > task.deadline;
 
   // Name lookup logic
   const getEmployeeName = (employeeId: string | null | undefined) => {
@@ -142,10 +142,10 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const taskStatusColorClass =
     task.status === 'completed'
       ? 'text-emerald-600'
-      : task.status === 'in-progress'
-      ? 'text-indigo-700'
       : isOverdue
       ? 'text-red-600'
+      : task.status === 'in-progress'
+      ? 'text-indigo-700'
       : 'text-slate-500';
   const rawTaskType = String((task as any).taskType ?? (task as any).task_type ?? '').toLowerCase();
   const rawRecurrenceFrequency = String(
@@ -376,10 +376,10 @@ const TaskItem: React.FC<TaskItemProps> = ({
 
   return (
     <div className="space-y-2">
-      <div className={`bg-white rounded-xl p-4 shadow-sm border ${isOverdue ? 'border-red-300 bg-red-50' : (task.status === 'completed' ? 'border-emerald-200' : (task.status === 'in-progress' ? 'border-indigo-200' : 'border-slate-200'))} flex flex-wrap items-start justify-between gap-3 transition-all relative overflow-hidden hover:bg-slate-50 hover:shadow-sm`}>
+      <div className={`bg-white rounded-xl p-4 shadow-sm border ${isOverdue ? 'border-red-300 bg-red-50 animate-pulse' : (task.status === 'completed' ? 'border-emerald-200' : (task.status === 'in-progress' ? 'border-indigo-200' : 'border-slate-200'))} flex flex-wrap items-start justify-between gap-3 transition-all relative overflow-hidden hover:bg-slate-50 hover:shadow-sm`}>
         
         {/* Overdue Warning Stripe */}
-        {isOverdue && <div className="absolute top-0 left-0 w-1 h-full bg-red-500" />}
+        {isOverdue && <div className="absolute top-0 left-0 w-1 h-full bg-red-500 animate-pulse" />}
 
         <div className="w-11 h-11 rounded-full bg-indigo-50 text-indigo-700 flex items-center justify-center text-sm font-black shrink-0 mt-0.5">
           {taskAvatarLabel || 'T'}
@@ -544,7 +544,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
                   Created: {new Date(task.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
                 
-                {task.deadline && task.status === 'pending' && (
+                {task.deadline && task.status !== 'completed' && (
                    <span className={`flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest ${isOverdue ? 'text-red-600' : 'text-amber-600'}`}>
                      <Clock className="w-3 h-3" />
                      Due: {new Date(task.deadline).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'})}
