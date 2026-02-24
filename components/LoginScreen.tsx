@@ -291,10 +291,32 @@ const findLegacyEmployeeProfile = async (authUser: any): Promise<Employee | null
 const handleAuthLogin = async (email: string, password: string) => {
   console.log('Starting login for:', email);
 
-  const { data: authData, error: authError } = await supabaseAuth.signInWithPassword({
-    email,
-    password,
-  });
+  // Add timeout wrapper for Supabase auth call
+  const signInWithTimeout = async () => {
+    const timeoutMs = 15000; // 15 second timeout
+    const signInPromise = supabaseAuth.signInWithPassword({
+      email,
+      password,
+    });
+    
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Connection timeout - Supabase is not responding')), timeoutMs);
+    });
+    
+    return Promise.race([signInPromise, timeoutPromise]);
+  };
+
+  let authData;
+  let authError;
+  
+  try {
+    const result = await signInWithTimeout() as any;
+    authData = result.data;
+    authError = result.error;
+  } catch (timeoutError: any) {
+    console.error('Auth timeout:', timeoutError);
+    throw new Error('Unable to connect to server. Please check your internet connection or try again later.');
+  }
 
   if (authError) {
     console.error('Auth error:', authError);
