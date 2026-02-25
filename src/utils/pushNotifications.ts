@@ -1,7 +1,5 @@
 import { supabase } from '../lib/supabase';
 
-console.log('Notification logic updated. Fail-safe mode active.');
-
 type NotificationRecord = {
   description: string;
   assigned_to: string;
@@ -132,7 +130,6 @@ const invokeEdgeFunction = async (functionName: string, record: NotificationReco
 };
 
 const invokeSendPush = async (record: NotificationRecord) => invokeEdgeFunction('send-push', record);
-const invokeSendWhatsApp = async (record: NotificationRecord) => invokeEdgeFunction('send-whatsapp', record);
 
 export const sendTaskAssignmentNotification = async (
   taskDescription: string,
@@ -175,21 +172,14 @@ export const sendTaskAssignmentNotification = async (
 
     console.log(`[WA-TRACE ${traceId}] Assignment payload:`, JSON.stringify({ record }));
 
-    const [pushResult, whatsappResult] = await Promise.all([
-      invokeSendPush(record),
-      invokeSendWhatsApp(record),
-    ]);
+    const pushResult = await invokeSendPush(record);
 
     if (pushResult) {
       console.log(`[WA-TRACE ${traceId}] Push response:`, JSON.stringify(pushResult.data, null, 2));
     }
 
-    if (whatsappResult) {
-      console.log(`[WA-TRACE ${traceId}] WhatsApp response:`, JSON.stringify(whatsappResult.data, null, 2));
-    }
-
-    if (!pushResult && !whatsappResult) {
-      console.warn(`[WA-TRACE ${traceId}] Assignment notifications failed on all channels. Task is still created.`);
+    if (!pushResult) {
+      console.warn(`[WA-TRACE ${traceId}] Assignment push notification failed. Task is still created.`);
     }
   } catch (error) {
     console.error('Error sending task assignment notifications:', error);

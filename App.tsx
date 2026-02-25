@@ -1291,23 +1291,6 @@ const App: React.FC = () => {
               appTask.company_id || currentUser.company_id || DEFAULT_COMPANY_ID
             );
 
-            // Send WhatsApp Notification via Edge Function
-            if (assignedEmployee?.mobile) {
-              try {
-                const { error: whatsappError } = await supabase.functions.invoke('send-whatsapp', {
-                  body: {
-                    taskTitle: appTask.description,
-                    assigneeName: assignedEmployee.name,
-                    employeePhoneNumber: assignedEmployee.mobile
-                  }
-                });
-                if (whatsappError) {
-                  console.error('WhatsApp Edge Function invocation failed:', whatsappError);
-                }
-              } catch (waError) {
-                console.error('Failed to trigger WhatsApp notification:', waError);
-              }
-            }
           }
         } catch (notiError) {
           console.error('Background notification dispatch failed:', notiError);

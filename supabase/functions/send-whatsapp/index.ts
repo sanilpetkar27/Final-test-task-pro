@@ -1,233 +1,156 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
-type WhatsAppRecord = {
-  description?: string;
-  assigned_to?: string;
-  company_id?: string;
-  message?: string;
-  to_mobile?: string;
-  trace_id?: string;
-};
-
-const normalizeCountryCode = (value: string): string => {
-  const trimmed = String(value || "").trim();
-  const digits = trimmed.replace(/[^\d]/g, "");
-  return digits ? `+${digits}` : "+91";
-};
-
-const toE164 = (value: string, defaultCountryCode: string): string | null => {
-  const raw = String(value || "").trim();
-  if (!raw) {
-    return null;
-  }
-
-  const withoutPrefix = raw.replace(/^whatsapp:/i, "").trim();
-  const cleaned = withoutPrefix.replace(/[^\d+]/g, "");
-
-  if (!cleaned) {
-    return null;
-  }
-
-  if (cleaned.startsWith("+")) {
-    return `+${cleaned.replace(/[^\d]/g, "")}`;
-  }
-
-  let digits = cleaned.replace(/\D/g, "").replace(/^0+/, "");
-  if (!digits) {
-    return null;
-  }
-
-  const normalizedCode = normalizeCountryCode(defaultCountryCode);
-  const codeDigits = normalizedCode.slice(1);
-
-  if (digits.startsWith(codeDigits)) {
-    return `+${digits}`;
-  }
-
-  return `${normalizedCode}${digits}`;
-};
-
-const ensureWhatsAppPrefix = (value: string): string => {
-  const trimmed = String(value || "").trim();
-  if (!trimmed) {
-    return "";
-  }
-
-  return /^whatsapp:/i.test(trimmed) ? trimmed : `whatsapp:${trimmed}`;
 };
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), {
-      status: 405,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
   try {
-    const payload = await req.json().catch(() => ({}));
-    const record: WhatsAppRecord = payload?.record ?? payload ?? {};
-    const traceId = String(record.trace_id || "").trim();
-    if (traceId) {
-      console.log(`[WA-TRACE ${traceId}] send-whatsapp payload:`, JSON.stringify(record));
-    } else {
-      console.log("send-whatsapp payload:", JSON.stringify(record));
-    }
+    const payload = await req.json();
+    const userAgent = String(req.headers.get("user-agent") || "").toLowerCase();
+    const clientInfo = String(req.headers.get("x-client-info") || "").toLowerCase();
+    const isLikelyFrontendInvocation =
+      userAgent.includes("mozilla") || clientInfo.includes("supabase-js-web");
 
-    const accountSid = Deno.env.get("TWILIO_ACCOUNT_SID");
-    const authToken = Deno.env.get("TWILIO_AUTH_TOKEN");
-    const fromRaw = Deno.env.get("TWILIO_WHATSAPP_FROM");
-    const defaultCountryCode = Deno.env.get("TWILIO_DEFAULT_COUNTRY_CODE") || "+91";
+    const record = payload?.record ?? payload?.new ?? payload ?? null;
+    const fallbackBody = payload ?? {};
+    const assignedEmployeeId =
+      String(
+        record?.assigned_to ||
+          record?.assignedTo ||
+          record?.assignee_id ||
+          record?.assigneeId ||
+          fallbackBody?.assigned_to ||
+          fallbackBody?.assignedTo ||
+          ""
+      ).trim() || undefined;
+    const fallbackPhoneNumber = String(fallbackBody?.employeePhoneNumber || "").trim() || undefined;
+    const fallbackAssigneeName = String(fallbackBody?.assigneeName || "").trim() || "Team Member";
+    const taskDescription =
+      String(
+        record?.description ||
+          record?.task_title ||
+          record?.taskTitle ||
+          record?.title ||
+          fallbackBody?.taskTitle ||
+          fallbackBody?.description ||
+          ""
+      ).trim() || "New task assigned";
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
+    const authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
+    const fromNumber = Deno.env.get('TWILIO_PHONE_NUMBER');
 
-    if (!accountSid || !authToken || !fromRaw) {
-      throw new Error("Missing required Twilio secrets");
+    if (!supabaseUrl || !serviceRoleKey) {
+      throw new Error("Missing Supabase environment variables (SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY).");
     }
 
-    const from = ensureWhatsAppPrefix(fromRaw);
-    if (!from) {
-      throw new Error("Invalid TWILIO_WHATSAPP_FROM secret");
+    if (!accountSid || !authToken || !fromNumber) {
+      throw new Error("Missing Twilio environment variables.");
     }
 
-    if (!record.to_mobile && (!record.assigned_to || !record.company_id)) {
+    const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false },
+    });
+
+    let assigneeName = fallbackAssigneeName;
+    let destinationMobile = fallbackPhoneNumber;
+
+    // Primary mode: DB webhook payload with assigned_to employee id.
+    if (assignedEmployeeId) {
+      const { data: employee, error: employeeError } = await adminClient
+        .from("employees")
+        .select("id, name, mobile")
+        .eq("id", assignedEmployeeId)
+        .maybeSingle();
+
+      if (employeeError) {
+        throw new Error(`Failed to fetch employee mobile: ${employeeError.message}`);
+      }
+
+      assigneeName = employee?.name || assigneeName;
+      destinationMobile = employee?.mobile || destinationMobile;
+    }
+
+    // Temporary backward-compatibility: allow old frontend payload during rollout.
+    if (!destinationMobile) {
+      if (isLikelyFrontendInvocation) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            skipped: true,
+            reason: "legacy_frontend_payload_without_destination_mobile",
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       return new Response(
         JSON.stringify({
-          error: "Missing recipient information. Provide to_mobile or both assigned_to and company_id.",
+          success: false,
+          error: "Missing destination mobile. Provide record.assigned_to (webhook) or employeePhoneNumber (legacy).",
         }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    let recipientMobile = String(record.to_mobile || "").trim();
+    // Construct the WhatsApp message
+    const messageBody = `Hello ${assigneeName}, you have a new task: ${taskDescription}`;
 
-    if (!recipientMobile) {
-      if (!supabaseUrl || !serviceRoleKey) {
-        throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
-      }
-
-      const encodedAssigneeId = encodeURIComponent(String(record.assigned_to || "").trim());
-      const encodedCompanyId = encodeURIComponent(String(record.company_id || "").trim());
-      const employeeUrl =
-        `${supabaseUrl}/rest/v1/employees` +
-        `?id=eq.${encodedAssigneeId}&company_id=eq.${encodedCompanyId}&select=id,name,mobile&limit=1`;
-
-      const employeeRes = await fetch(employeeUrl, {
-        headers: {
-          Authorization: `Bearer ${serviceRoleKey}`,
-          apikey: serviceRoleKey,
-        },
-      });
-
-      if (!employeeRes.ok) {
-        const details = await employeeRes.text().catch(() => "");
-        console.error("send-whatsapp employee lookup failed:", details);
-        throw new Error("Failed to fetch employee mobile");
-      }
-
-      const employees = await employeeRes.json();
-      if (!Array.isArray(employees) || employees.length === 0) {
-        return new Response(JSON.stringify({ error: "Employee not found for WhatsApp" }), {
-          status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      recipientMobile = String(employees[0]?.mobile || "").trim();
-    }
-
-    const recipientE164 = toE164(recipientMobile, defaultCountryCode);
-    if (!recipientE164) {
-      console.log('Recipient mobile is empty or invalid for:', record.assigned_to || record.to_mobile);
-      return new Response(JSON.stringify({ 
-        success: true, 
-        skipped: true, 
-        reason: "Recipient mobile is empty or invalid" 
-      }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const to = ensureWhatsAppPrefix(recipientE164);
-    const body = String(record.message || record.description || "Task update").trim();
-    if (!body) {
-      return new Response(JSON.stringify({ error: "Message body is empty" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    // Twilio WhatsApp API requires the 'whatsapp:' prefix
+    const from = fromNumber.startsWith('whatsapp:') ? fromNumber : `whatsapp:${fromNumber}`;
+    const to = destinationMobile.startsWith('whatsapp:') ? destinationMobile : `whatsapp:${destinationMobile}`;
 
     const formData = new URLSearchParams();
-    formData.set("From", from);
-    formData.set("To", to);
-    formData.set("Body", body);
+    formData.append("To", to);
+    formData.append("From", from);
+    formData.append("Body", messageBody);
 
-    const twilioRes = await fetch(
+    const twilioResponse = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
       {
         method: "POST",
         headers: {
-          Authorization: `Basic ${btoa(`${accountSid}:${authToken}`)}`,
           "Content-Type": "application/x-www-form-urlencoded",
+          Authorization: `Basic ${btoa(`${accountSid}:${authToken}`)}`,
         },
-        body: formData,
+        body: formData.toString(),
       }
     );
 
-    const twilioData = await twilioRes.json().catch(() => ({}));
-    if (!twilioRes.ok) {
-      if (traceId) {
-        console.error(`[WA-TRACE ${traceId}] Twilio API error:`, twilioRes.status, twilioData);
-      } else {
-        console.error("Twilio API error:", twilioRes.status, twilioData);
-      }
+    const result = await twilioResponse.json();
+
+    if (!twilioResponse.ok) {
       return new Response(
-        JSON.stringify({
-          error: "Failed to send WhatsApp message",
-          status: twilioRes.status,
-          details: twilioData,
-        }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        JSON.stringify({ success: false, error: result.message || "Failed to send WhatsApp message", twilio: result }),
+        { status: twilioResponse.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     return new Response(
       JSON.stringify({
         success: true,
-        to,
-        from,
-        sid: twilioData?.sid ?? null,
-        status: twilioData?.status ?? null,
-        trace_id: traceId || null,
+        messageId: result.sid,
+        employeeId: assignedEmployeeId || null,
+        payload_mode: assignedEmployeeId ? "webhook" : "legacy",
       }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (error) {
+
+  } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    console.error("send-whatsapp fatal error:", message);
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ success: false, error: message }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   }
 });

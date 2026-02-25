@@ -78,6 +78,7 @@ export const tasksRepository = {
       .single();
 
     if (error) throw error;
+
     return mapTask(data);
   },
 
