@@ -45,6 +45,24 @@ serve(async (req) => {
 
   try {
     const payload = await req.json();
+    const eventType = String(
+      payload?.type ??
+      payload?.eventType ??
+      payload?.event_type ??
+      ""
+    ).trim().toUpperCase();
+    if (eventType !== "INSERT") {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          skipped: true,
+          reason: "non_insert_event_ignored_for_assignment_notification",
+          event_type: eventType || null,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const hasOldRecord = Boolean(payload?.old_record ?? payload?.old);
     if (hasOldRecord) {
       return new Response(
