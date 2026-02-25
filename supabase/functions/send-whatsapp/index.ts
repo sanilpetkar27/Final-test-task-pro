@@ -83,13 +83,13 @@ serve(async (req) => {
       ).trim() || "New task assigned";
 
     const taskStatus = String(record?.status || "").trim().toLowerCase();
-    if (taskStatus && taskStatus !== "pending") {
+    if (taskStatus !== "pending") {
       return new Response(
         JSON.stringify({
           success: true,
           skipped: true,
-          reason: "non_pending_task_ignored_for_assignment_notification",
-          status: taskStatus,
+          reason: "non_pending_or_missing_status_ignored_for_assignment_notification",
+          status: taskStatus || null,
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
