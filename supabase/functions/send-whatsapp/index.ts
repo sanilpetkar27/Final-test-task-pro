@@ -45,6 +45,18 @@ serve(async (req) => {
 
   try {
     const payload = await req.json();
+    const hasOldRecord = Boolean(payload?.old_record ?? payload?.old);
+    if (hasOldRecord) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          skipped: true,
+          reason: "update_event_ignored_for_assignment_notification",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const record = payload?.record ?? payload?.new ?? null;
     const assignedEmployeeId =
       String(
@@ -69,6 +81,19 @@ serve(async (req) => {
           record?.title ||
           ""
       ).trim() || "New task assigned";
+
+    const taskStatus = String(record?.status || "").trim().toLowerCase();
+    if (taskStatus && taskStatus !== "pending") {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          skipped: true,
+          reason: "non_pending_task_ignored_for_assignment_notification",
+          status: taskStatus,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
