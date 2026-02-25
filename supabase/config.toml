@@ -1,0 +1,2 @@
+[functions.send-whatsapp]
+verify_jwt = false
