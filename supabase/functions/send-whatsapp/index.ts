@@ -152,6 +152,12 @@ serve(async (req) => {
     // Twilio WhatsApp API requires the 'whatsapp:' prefix
     const from = fromNumber.startsWith('whatsapp:') ? fromNumber : `whatsapp:${fromNumber}`;
     const to = `whatsapp:${normalizedTo}`;
+    console.log("send-whatsapp attempt", JSON.stringify({
+      mode: assignedEmployeeId ? "webhook" : "legacy",
+      employee_id: assignedEmployeeId || null,
+      to,
+      from,
+    }));
 
     const formData = new URLSearchParams();
     formData.append("To", to);
@@ -173,11 +179,19 @@ serve(async (req) => {
     const result = await twilioResponse.json();
 
     if (!twilioResponse.ok) {
+      console.error("Twilio send failed", JSON.stringify({
+        status: twilioResponse.status,
+        code: result?.code ?? null,
+        message: result?.message ?? "Failed to send WhatsApp message",
+        more_info: result?.more_info ?? null,
+        to,
+      }));
       return new Response(
         JSON.stringify({ success: false, error: result.message || "Failed to send WhatsApp message", twilio: result }),
         { status: twilioResponse.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+    console.log("Twilio send success", JSON.stringify({ sid: result?.sid ?? null, to }));
 
     return new Response(
       JSON.stringify({
