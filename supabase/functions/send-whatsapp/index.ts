@@ -45,33 +45,28 @@ serve(async (req) => {
 
   try {
     const payload = await req.json();
-    const userAgent = String(req.headers.get("user-agent") || "").toLowerCase();
-    const clientInfo = String(req.headers.get("x-client-info") || "").toLowerCase();
-    const isLikelyFrontendInvocation =
-      userAgent.includes("mozilla") || clientInfo.includes("supabase-js-web");
-
-    const record = payload?.record ?? payload?.new ?? payload ?? null;
-    const fallbackBody = payload ?? {};
+    const record = payload?.record ?? payload?.new ?? null;
     const assignedEmployeeId =
       String(
         record?.assigned_to ||
           record?.assignedTo ||
           record?.assignee_id ||
           record?.assigneeId ||
-          fallbackBody?.assigned_to ||
-          fallbackBody?.assignedTo ||
           ""
       ).trim() || undefined;
-    const fallbackPhoneNumber = String(fallbackBody?.employeePhoneNumber || "").trim() || undefined;
-    const fallbackAssigneeName = String(fallbackBody?.assigneeName || "").trim() || "Team Member";
+    if (!assignedEmployeeId) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Missing assigned employee id in webhook payload record." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const taskDescription =
       String(
         record?.description ||
           record?.task_title ||
           record?.taskTitle ||
           record?.title ||
-          fallbackBody?.taskTitle ||
-          fallbackBody?.description ||
           ""
       ).trim() || "New task assigned";
 
@@ -93,42 +88,23 @@ serve(async (req) => {
       auth: { persistSession: false },
     });
 
-    let assigneeName = fallbackAssigneeName;
-    let destinationMobile = fallbackPhoneNumber;
+    const { data: employee, error: employeeError } = await adminClient
+      .from("employees")
+      .select("id, name, mobile")
+      .eq("id", assignedEmployeeId)
+      .maybeSingle();
 
-    // Primary mode: DB webhook payload with assigned_to employee id.
-    if (assignedEmployeeId) {
-      const { data: employee, error: employeeError } = await adminClient
-        .from("employees")
-        .select("id, name, mobile")
-        .eq("id", assignedEmployeeId)
-        .maybeSingle();
-
-      if (employeeError) {
-        throw new Error(`Failed to fetch employee mobile: ${employeeError.message}`);
-      }
-
-      assigneeName = employee?.name || assigneeName;
-      destinationMobile = employee?.mobile || destinationMobile;
+    if (employeeError) {
+      throw new Error(`Failed to fetch employee mobile: ${employeeError.message}`);
     }
 
-    // Temporary backward-compatibility: allow old frontend payload during rollout.
+    const assigneeName = employee?.name || "Team Member";
+    const destinationMobile = String(employee?.mobile || "").trim();
     if (!destinationMobile) {
-      if (isLikelyFrontendInvocation) {
-        return new Response(
-          JSON.stringify({
-            success: true,
-            skipped: true,
-            reason: "legacy_frontend_payload_without_destination_mobile",
-          }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
       return new Response(
         JSON.stringify({
           success: false,
-          error: "Missing destination mobile. Provide record.assigned_to (webhook) or employeePhoneNumber (legacy).",
+          error: "Assigned employee has no mobile number.",
         }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -153,8 +129,8 @@ serve(async (req) => {
     const from = fromNumber.startsWith('whatsapp:') ? fromNumber : `whatsapp:${fromNumber}`;
     const to = `whatsapp:${normalizedTo}`;
     console.log("send-whatsapp attempt", JSON.stringify({
-      mode: assignedEmployeeId ? "webhook" : "legacy",
-      employee_id: assignedEmployeeId || null,
+      mode: "webhook",
+      employee_id: assignedEmployeeId,
       to,
       from,
     }));
@@ -197,8 +173,8 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         messageId: result.sid,
-        employeeId: assignedEmployeeId || null,
-        payload_mode: assignedEmployeeId ? "webhook" : "legacy",
+        employeeId: assignedEmployeeId,
+        payload_mode: "webhook",
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
