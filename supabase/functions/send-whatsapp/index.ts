@@ -6,6 +6,37 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const normalizeToE164 = (raw: string): string | null => {
+  const value = String(raw || "").trim();
+  if (!value) return null;
+
+  if (value.startsWith("whatsapp:")) {
+    const nested = value.replace(/^whatsapp:/i, "");
+    return normalizeToE164(nested);
+  }
+
+  const cleaned = value.replace(/[^\d+]/g, "");
+  if (!cleaned) return null;
+
+  // Keep already-valid international style.
+  if (cleaned.startsWith("+") && cleaned.length >= 8) {
+    return cleaned;
+  }
+
+  // India local mobile (10 digits) -> +91XXXXXXXXXX
+  const digitsOnly = cleaned.replace(/\D/g, "");
+  if (digitsOnly.length === 10) {
+    return `+91${digitsOnly}`;
+  }
+
+  // India with leading country code but missing plus.
+  if (digitsOnly.length === 12 && digitsOnly.startsWith("91")) {
+    return `+${digitsOnly}`;
+  }
+
+  return null;
+};
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -103,12 +134,24 @@ serve(async (req) => {
       );
     }
 
+    const normalizedTo = normalizeToE164(destinationMobile);
+    if (!normalizedTo) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Invalid employee mobile format. Expected E.164 or India 10-digit number.",
+          mobile: destinationMobile,
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Construct the WhatsApp message
     const messageBody = `Hello ${assigneeName}, you have a new task: ${taskDescription}`;
 
     // Twilio WhatsApp API requires the 'whatsapp:' prefix
     const from = fromNumber.startsWith('whatsapp:') ? fromNumber : `whatsapp:${fromNumber}`;
-    const to = destinationMobile.startsWith('whatsapp:') ? destinationMobile : `whatsapp:${destinationMobile}`;
+    const to = `whatsapp:${normalizedTo}`;
 
     const formData = new URLSearchParams();
     formData.append("To", to);
