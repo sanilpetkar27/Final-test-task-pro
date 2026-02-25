@@ -1281,6 +1281,8 @@ const App: React.FC = () => {
         try {
           if (appTask.assignedTo) {
             const assignedEmployee = employees.find((employee) => employee.id === appTask.assignedTo);
+            
+            // Send Push Notification
             await sendTaskAssignmentNotification(
               appTask.description,
               assignedEmployee?.name || 'Team Member',
@@ -1288,6 +1290,24 @@ const App: React.FC = () => {
               appTask.assignedTo,
               appTask.company_id || currentUser.company_id || DEFAULT_COMPANY_ID
             );
+
+            // Send WhatsApp Notification via Edge Function
+            if (assignedEmployee?.mobile) {
+              try {
+                const { error: whatsappError } = await supabase.functions.invoke('send-whatsapp', {
+                  body: {
+                    taskTitle: appTask.description,
+                    assigneeName: assignedEmployee.name,
+                    employeePhoneNumber: assignedEmployee.mobile
+                  }
+                });
+                if (whatsappError) {
+                  console.error('WhatsApp Edge Function invocation failed:', whatsappError);
+                }
+              } catch (waError) {
+                console.error('Failed to trigger WhatsApp notification:', waError);
+              }
+            }
           }
         } catch (notiError) {
           console.error('Background notification dispatch failed:', notiError);
@@ -1725,6 +1745,18 @@ const App: React.FC = () => {
     }
   };
 
+  const toIndianE164 = (rawMobile: string): string => {
+    let digits = String(rawMobile || '').replace(/\D/g, '');
+    digits = digits.replace(/^0+/, '');
+    if (digits.startsWith('91') && digits.length > 10) {
+      digits = digits.slice(2);
+    }
+    if (digits.length > 10) {
+      digits = digits.slice(-10);
+    }
+    return `+91${digits}`;
+  };
+
   const addEmployee = async (
     name: string,
     mobile: string,
@@ -1733,13 +1765,20 @@ const App: React.FC = () => {
   ) => {
     if (!currentUser) return;
 
+    const formattedMobile = toIndianE164(mobile);
+    const mobileDigits = formattedMobile.replace(/^\+91/, '');
+    if (mobileDigits.length !== 10) {
+      toast.error('Please enter a valid 10-digit mobile number');
+      return;
+    }
+
     const newEmployee: Employee = {
       id: `emp-${Date.now()}`,
       name,
-      mobile,
+      mobile: formattedMobile,
       role,
       points: 0,
-      email: `${mobile}@taskpro.local`,
+      email: `${formattedMobile}@taskpro.local`,
       company_id: currentUser.company_id || DEFAULT_COMPANY_ID,
       manager_id:
         role === 'staff'

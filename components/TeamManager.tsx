@@ -93,6 +93,18 @@ const getRoleLabel = (role: UserRole): string => {
   return 'Staff';
 };
 
+const toIndianE164 = (rawMobile: string): string => {
+  let digits = String(rawMobile || '').replace(/\D/g, '');
+  digits = digits.replace(/^0+/, '');
+  if (digits.startsWith('91') && digits.length > 10) {
+    digits = digits.slice(2);
+  }
+  if (digits.length > 10) {
+    digits = digits.slice(-10);
+  }
+  return `+91${digits}`;
+};
+
 const TeamManager: React.FC<TeamManagerProps> = ({ 
   employees, 
   staffManagerLinks,
@@ -356,7 +368,8 @@ const TeamManager: React.FC<TeamManagerProps> = ({
     }
 
     // 2. Basic mobile validation
-    if (newMobile.length < 10) {
+    const mobileDigits = newMobile.replace(/\D/g, '');
+    if (mobileDigits.length !== 10) {
       toast.error('Please enter a valid 10-digit mobile number');
       return;
     }
@@ -366,6 +379,8 @@ const TeamManager: React.FC<TeamManagerProps> = ({
       return;
     }
 
+    const formattedMobile = toIndianE164(newMobile);
+
     try {
       setIsAdding(true);
       // 2. Call Server (RPC)
@@ -374,7 +389,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
         password: newPassword.trim(),
         name: newName.trim(),
         role: roleToCreate,
-        mobile: newMobile.trim(),
+        mobile: formattedMobile,
         company_id: currentUser.company_id
       });
 
@@ -389,7 +404,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
             password: newPassword.trim(),
             name: newName.trim(),
             role: roleToCreate,
-            mobile: newMobile.trim()
+            mobile: formattedMobile
           });
           data = retry.data;
           error = retry.error;
@@ -425,7 +440,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
         id: employeeId,
         company_id: currentUser.company_id,
         name: newName.trim(),
-        mobile: newMobile.trim(),
+        mobile: formattedMobile,
         role: roleToCreate,
         points: 0,
         updated_at: new Date().toISOString()
@@ -505,7 +520,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
         const mobileQuery = supabase
           .from('employees')
           .select('*')
-          .eq('mobile', newMobile.trim())
+          .eq('mobile', formattedMobile)
           .limit(1);
 
         const { data: byMobileRow, error: byMobileError } = scopeToCompany
@@ -571,7 +586,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
         let repairPayload: Record<string, any> = {
           company_id: currentUser.company_id,
           name: newName.trim(),
-          mobile: newMobile.trim(),
+          mobile: formattedMobile,
           role: roleToCreate,
           updated_at: new Date().toISOString(),
           ...(managerOwnerId ? { manager_id: managerOwnerId } : {}),
@@ -609,13 +624,13 @@ const TeamManager: React.FC<TeamManagerProps> = ({
             let identityRepairQuery = supabase
               .from('employees')
               .update(identityRepairPayload)
-              .eq('mobile', newMobile.trim());
+              .eq('mobile', formattedMobile);
 
             if (canLookupByEmail) {
               identityRepairQuery = supabase
                 .from('employees')
                 .update(identityRepairPayload)
-                .or(`mobile.eq.${newMobile.trim()},email.eq.${newEmail.trim()}`);
+                .or(`mobile.eq.${formattedMobile},email.eq.${newEmail.trim()}`);
             }
 
             const { error } = await identityRepairQuery;
@@ -656,8 +671,8 @@ const TeamManager: React.FC<TeamManagerProps> = ({
       const localCreatedEmployee: Employee = {
         id: String((persistedEmployee as any).id || resolvedEmployeeId),
         name: String((persistedEmployee as any).name || newName.trim()),
-        email: String((persistedEmployee as any).email || newEmail.trim() || `${newMobile.trim()}@taskpro.local`),
-        mobile: String((persistedEmployee as any).mobile || newMobile.trim()),
+        email: String((persistedEmployee as any).email || newEmail.trim() || `${formattedMobile}@taskpro.local`),
+        mobile: String((persistedEmployee as any).mobile || formattedMobile),
         role: ((persistedEmployee as any).role || roleToCreate) as UserRole,
         points: Number((persistedEmployee as any).points || 0),
         company_id: String((persistedEmployee as any).company_id || currentUser.company_id || '00000000-0000-0000-0000-000000000001'),
@@ -706,7 +721,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
             : [localCreatedEmployee, ...(teamMembers as Employee[])]);
         }
       } else {
-        onAddEmployee(newName.trim(), newMobile.trim(), roleToCreate, managerOwnerId);
+        onAddEmployee(newName.trim(), formattedMobile, roleToCreate, managerOwnerId);
       }
 
       // 5. Cleanup
@@ -1129,4 +1144,3 @@ const TeamManager: React.FC<TeamManagerProps> = ({
 };
 
 export default TeamManager;
-
