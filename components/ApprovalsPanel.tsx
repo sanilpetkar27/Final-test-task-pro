@@ -287,6 +287,23 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
     };
   }, [currentUser.id, selectedApprovalId, loadApprovals, loadThreads]);
 
+  useEffect(() => {
+    const refresh = () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+        return;
+      }
+      void loadApprovals();
+      if (selectedApprovalId) {
+        void loadThreads(selectedApprovalId);
+      }
+    };
+
+    const intervalId = window.setInterval(refresh, 4000);
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [loadApprovals, loadThreads, selectedApprovalId]);
+
   const handleCreateRequest = async (): Promise<void> => {
     const title = requestTitle.trim();
     const description = requestDescription.trim();
