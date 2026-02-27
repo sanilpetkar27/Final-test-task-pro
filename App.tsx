@@ -480,9 +480,71 @@ const upsertTaskInPlace = <T extends { id: string }>(items: T[], nextItem: T): T
   return updated;
 };
 
+const buildTaskScopeIds = (currentUser: Employee | null, employeeRows: Employee[] = []): string[] => {
+  if (!currentUser) {
+    return [];
+  }
+
+  const ids = new Set<string>();
+  const normalizedEmail = String(currentUser.email || '').trim().toLowerCase();
+  const normalizedMobile = normalizeMobile(currentUser.mobile || '');
+  const currentAuthUserId = String((currentUser as any).auth_user_id || '').trim();
+
+  const addId = (value: unknown) => {
+    const id = String(value || '').trim();
+    if (id) ids.add(id);
+  };
+
+  addId(currentUser.id);
+  addId(currentAuthUserId);
+
+  for (const employee of employeeRows || []) {
+    if (!employee) continue;
+
+    const employeeEmail = String(employee.email || '').trim().toLowerCase();
+    const employeeMobile = normalizeMobile(employee.mobile || '');
+    const employeeAuthUserId = String((employee as any).auth_user_id || '').trim();
+
+    const matchByAuth = currentAuthUserId && employeeAuthUserId && employeeAuthUserId === currentAuthUserId;
+    const matchByEmail = normalizedEmail && employeeEmail && employeeEmail === normalizedEmail;
+    const matchByMobile = normalizedMobile && employeeMobile && employeeMobile === normalizedMobile;
+
+    if (matchByAuth || matchByEmail || matchByMobile) {
+      addId(employee.id);
+      addId(employeeAuthUserId);
+    }
+  }
+
+  return Array.from(ids);
+};
+
+const applyTaskVisibilityFilter = (
+  query: any,
+  currentUser: Employee | null,
+  employeeRows: Employee[] = []
+) => {
+  if (!currentUser || currentUser.role === 'super_admin' || currentUser.role === 'owner') {
+    return query;
+  }
+
+  const scopeIds = buildTaskScopeIds(currentUser, employeeRows);
+  if (scopeIds.length === 0) {
+    return query;
+  }
+
+  if (scopeIds.length === 1) {
+    const id = scopeIds[0];
+    return query.or(`assignedTo.eq.${id},assignedBy.eq.${id}`);
+  }
+
+  const scopedIdCsv = scopeIds.join(',');
+  return query.or(`assignedTo.in.(${scopedIdCsv}),assignedBy.in.(${scopedIdCsv})`);
+};
+
 const isTaskVisibleToUser = (
   taskRow: Partial<DatabaseTask> | Record<string, unknown>,
-  currentUser: Employee | null
+  currentUser: Employee | null,
+  scopeIds: string[] = []
 ): boolean => {
   if (!currentUser) return false;
   if (currentUser.role === 'super_admin' || currentUser.role === 'owner') return true;
@@ -490,10 +552,7 @@ const isTaskVisibleToUser = (
   const row = taskRow as Record<string, unknown>;
   const assignedTo = String(row.assignedTo ?? row.assigned_to ?? '').trim();
   const assignedBy = String(row.assignedBy ?? row.assigned_by ?? '').trim();
-  const userId = String(currentUser.id || '').trim();
-  const authUserId = String((currentUser as any).auth_user_id || '').trim();
-
-  const candidateIds = [userId, authUserId].filter(Boolean);
+  const candidateIds = scopeIds.length > 0 ? scopeIds : buildTaskScopeIds(currentUser);
   return candidateIds.some((id) => id === assignedTo || id === assignedBy);
 };
 
@@ -627,6 +686,7 @@ const App: React.FC = () => {
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const hasShownPolicyErrorRef = useRef(false);
   const lastForegroundRefreshAtRef = useRef(0);
+  const lastRealtimeTasksRefetchAtRef = useRef(0);
 
   const unreadNotificationCount = userNotifications.filter((item) => !item.is_read).length;
 
@@ -745,19 +805,8 @@ const App: React.FC = () => {
         tasksQuery = tasksQuery.eq('company_id', activeCompanyId);
       }
       
-      // Apply role-based filtering using currentUser from state
-      if (
-        employeesData &&
-        employeesData.length > 0 &&
-        currentUser &&
-        currentUser.role !== 'super_admin' &&
-        currentUser.role !== 'owner'
-      ) {
-        // Filter for managers and staff: only their assigned or created tasks
-        // Database uses camelCase: assignedTo, assignedBy
-        tasksQuery = tasksQuery.or(`assignedTo.eq.${currentUser.id},assignedBy.eq.${currentUser.id}`);
-      }
-      // For super_admin, keep fetching all tasks (no filtering)
+      // Apply role-based filtering using all known IDs for the active user profile.
+      tasksQuery = applyTaskVisibilityFilter(tasksQuery, currentUser, (employeesData || []) as Employee[]);
       
       const { data: tasksData, error: tasksError } = await tasksQuery;
 
@@ -880,19 +929,8 @@ const App: React.FC = () => {
         tasksQuery = tasksQuery.eq('company_id', activeCompanyId);
       }
       
-      // Apply role-based filtering using currentUser from state
-      if (
-        employeesData &&
-        employeesData.length > 0 &&
-        currentUser &&
-        currentUser.role !== 'super_admin' &&
-        currentUser.role !== 'owner'
-      ) {
-        // Filter for managers and staff: only their assigned or created tasks
-        // Database uses camelCase: assignedTo, assignedBy
-        tasksQuery = tasksQuery.or(`assignedTo.eq.${currentUser.id},assignedBy.eq.${currentUser.id}`);
-      }
-      // For super_admin, keep fetching all tasks (no filtering)
+      // Apply role-based filtering using all known IDs for the active user profile.
+      tasksQuery = applyTaskVisibilityFilter(tasksQuery, currentUser, (employeesData || []) as Employee[]);
       
       const { data: tasksData, error: tasksError } = await tasksQuery;
       
@@ -999,6 +1037,18 @@ const App: React.FC = () => {
       table: 'tasks',
       ...(companyFilter ? { filter: companyFilter } : {}),
     };
+    const taskScopeIdsForRealtime = buildTaskScopeIds(currentUser, employees);
+    const triggerRealtimeTasksRefetch = () => {
+      const now = Date.now();
+      if (now - lastRealtimeTasksRefetchAtRef.current < 700) {
+        return;
+      }
+      lastRealtimeTasksRefetchAtRef.current = now;
+      const refetchTasks = fetchTasksRef.current as null | (() => Promise<void>);
+      if (refetchTasks) {
+        void refetchTasks();
+      }
+    };
 
     const taskListener = supabase
       .channel(`public:tasks:${currentUser.company_id || 'all'}:${currentUser.id}`)
@@ -1012,11 +1062,8 @@ const App: React.FC = () => {
           }
 
           const payloadRow = (payload.new || {}) as DatabaseTask;
-          if (!isTaskVisibleToUser(payloadRow, currentUser)) {
-            const refetchTasks = fetchTasksRef.current as null | (() => Promise<void>);
-            if (refetchTasks) {
-              void refetchTasks();
-            }
+          if (!isTaskVisibleToUser(payloadRow, currentUser, taskScopeIdsForRealtime)) {
+            triggerRealtimeTasksRefetch();
             return;
           }
 
@@ -1076,9 +1123,11 @@ const App: React.FC = () => {
 
           console.log('✅ Created rich task:', richTask);
           setTasks(prev => upsertTaskAtTop(prev, richTask as DealershipTask));
+          triggerRealtimeTasksRefetch();
 
         } catch (err) {
           console.error('🚨 Error in realtime INSERT handler:', err);
+          triggerRealtimeTasksRefetch();
         }
       })
       .on('postgres_changes', { event: 'UPDATE', ...taskChangeFilter }, async (payload) => {
@@ -1091,11 +1140,8 @@ const App: React.FC = () => {
           }
 
           const payloadRow = (payload.new || {}) as DatabaseTask;
-          if (!isTaskVisibleToUser(payloadRow, currentUser)) {
-            const refetchTasks = fetchTasksRef.current as null | (() => Promise<void>);
-            if (refetchTasks) {
-              void refetchTasks();
-            }
+          if (!isTaskVisibleToUser(payloadRow, currentUser, taskScopeIdsForRealtime)) {
+            triggerRealtimeTasksRefetch();
             return;
           }
 
@@ -1168,15 +1214,18 @@ const App: React.FC = () => {
 
           console.log('✅ Updated rich task:', richTask);
           setTasks(prev => upsertTaskInPlace(prev, richTask as DealershipTask));
+          triggerRealtimeTasksRefetch();
 
         } catch (err) {
           console.error('🚨 Error in realtime UPDATE handler:', err);
+          triggerRealtimeTasksRefetch();
         }
       })
       .on('postgres_changes', { event: 'DELETE', ...taskChangeFilter }, (payload) => {
         console.log('🔔 Realtime DELETE:', payload);
         const deletedTaskId = payload.old.id;
         setTasks(prev => prev.filter(task => task.id !== deletedTaskId));
+        triggerRealtimeTasksRefetch();
       })
       .subscribe();
 
@@ -1184,7 +1233,7 @@ const App: React.FC = () => {
     return () => {
       supabase.removeChannel(taskListener);
     };
-  }, [currentUser?.id, currentUser?.company_id]);
+  }, [currentUser?.id, currentUser?.company_id, currentUser?.role, currentUser?.auth_user_id, employees]);
 
   // --- APP RESUME LISTENERS FOR TASK SYNC ---
   useEffect(() => {
