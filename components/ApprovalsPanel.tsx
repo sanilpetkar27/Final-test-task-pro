@@ -309,7 +309,13 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         return;
       }
 
-      setSelectedApprovalId((prev) => (prev && mapped.some((a) => a.id === prev) ? prev : mapped[0].id));
+      setSelectedApprovalId((prev) => {
+        // Keep manual collapse state (null) across refresh/realtime updates.
+        if (!prev) {
+          return null;
+        }
+        return mapped.some((a) => a.id === prev) ? prev : null;
+      });
     } catch (loadErr: any) {
       if (!silent) {
         setError(loadErr?.message || 'Failed to load approvals.');
