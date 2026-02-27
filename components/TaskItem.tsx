@@ -198,8 +198,11 @@ const TaskItem: React.FC<TaskItemProps> = ({
     parseTimestamp((task as any).requested_due_date);
   const assignedEmployee =
     task.assignedTo ? employees.find((employee) => employee.id === task.assignedTo) : undefined;
+  const assignerEmployee =
+    task.assignedBy ? employees.find((employee) => employee.id === task.assignedBy) : undefined;
   const normalizedCurrentEmail = String(currentUser.email || '').trim().toLowerCase();
   const normalizedAssignedEmail = String(assignedEmployee?.email || '').trim().toLowerCase();
+  const normalizedAssignerEmail = String(assignerEmployee?.email || '').trim().toLowerCase();
   const isAssignedWorker =
     task.assignedTo === currentUser.id ||
     (typeof currentUser.auth_user_id === 'string' && task.assignedTo === currentUser.auth_user_id) ||
@@ -212,16 +215,29 @@ const TaskItem: React.FC<TaskItemProps> = ({
       normalizedAssignedEmail &&
       normalizedCurrentEmail === normalizedAssignedEmail
     );
-  const canRequestByRole =
-    currentUser.role === 'manager' ||
+  const isTaskAssigner =
+    task.assignedBy === currentUser.id ||
+    (typeof currentUser.auth_user_id === 'string' && task.assignedBy === currentUser.auth_user_id) ||
+    (typeof assignerEmployee?.auth_user_id === 'string' && assignerEmployee.auth_user_id === currentUser.id) ||
+    (typeof assignerEmployee?.auth_user_id === 'string' &&
+      typeof currentUser.auth_user_id === 'string' &&
+      assignerEmployee.auth_user_id === currentUser.auth_user_id) ||
+    Boolean(
+      normalizedCurrentEmail &&
+      normalizedAssignerEmail &&
+      normalizedCurrentEmail === normalizedAssignerEmail
+    );
+  const canApproveExtension =
     currentUser.role === 'owner' ||
-    currentUser.role === 'super_admin';
+    currentUser.role === 'super_admin' ||
+    isTaskAssigner;
   const canRequestExtension =
-    (isAssignedWorker || canRequestByRole) &&
+    isAssignedWorker &&
     task.status === 'in-progress' &&
     extensionStatus !== 'REQUESTED';
   const canReviewExtensionRequest =
-    isManager &&
+    canApproveExtension &&
+    !isAssignedWorker &&
     task.status === 'in-progress' &&
     extensionStatus === 'REQUESTED' &&
     Boolean(requestedDueDate);
