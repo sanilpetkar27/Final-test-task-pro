@@ -240,20 +240,6 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
     () => approvals.find((item) => item.id === selectedApprovalId) || null,
     [approvals, selectedApprovalId]
   );
-  const selectedApprovalParsed = useMemo(() => {
-    if (!selectedApproval) {
-      return { description: '', attachments: [] as ApprovalAttachment[] };
-    }
-    return extractApprovalAttachments(selectedApproval.description);
-  }, [selectedApproval]);
-
-  const canTakeAction = useMemo(() => {
-    if (!selectedApproval) return false;
-    return (
-      selectedApproval.approver_id === currentUser.id &&
-      !LOCKED_STATUSES.includes(selectedApproval.status)
-    );
-  }, [selectedApproval, currentUser.id]);
 
   const loadApprovers = useCallback(async () => {
     setLoadingApprovers(true);
@@ -913,150 +899,162 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         ) : approvals.length === 0 ? (
           <div className="text-sm text-slate-500">No approvals found for this view.</div>
         ) : (
-          approvals.map((approval) => (
-            <button
-              key={approval.id}
-              onClick={() => setSelectedApprovalId(approval.id)}
-              className={`w-full text-left rounded-2xl border p-3 transition-all ${
-                selectedApprovalId === approval.id
-                  ? 'border-indigo-300 bg-indigo-50'
-                  : 'border-slate-200 bg-white hover:bg-slate-50'
-              }`}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-bold text-slate-900 truncate">{approval.title || 'Untitled'}</p>
-                <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full ${getStatusClasses(approval.status)}`}>
-                  {approval.status}
-                </span>
+          approvals.map((approval) => {
+            const isSelected = selectedApprovalId === approval.id;
+            const parsedApproval = extractApprovalAttachments(approval.description);
+            const canTakeActionOnApproval =
+              isSelected &&
+              approval.approver_id === currentUser.id &&
+              !LOCKED_STATUSES.includes(approval.status);
+
+            return (
+              <div
+                key={approval.id}
+                className={`w-full rounded-2xl border p-3 transition-all ${
+                  isSelected
+                    ? 'border-indigo-300 bg-indigo-50'
+                    : 'border-slate-200 bg-white'
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => setSelectedApprovalId((prev) => (prev === approval.id ? null : approval.id))}
+                  className="w-full text-left"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-bold text-slate-900 truncate">{approval.title || 'Untitled'}</p>
+                    <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full ${getStatusClasses(approval.status)}`}>
+                      {approval.status}
+                    </span>
+                  </div>
+                  <p className="text-sm font-bold text-indigo-700 mt-1">{formatAmount(approval.amount)}</p>
+                  <p className="text-xs text-slate-500 mt-1 line-clamp-2">
+                    {parsedApproval.description || 'No description'}
+                  </p>
+                </button>
+
+                {isSelected && (
+                  <div className="mt-4 border-t border-slate-200 pt-4">
+                    <p className="text-xs text-slate-500">{parsedApproval.description || 'No description'}</p>
+
+                    {parsedApproval.attachments.length > 0 && (
+                      <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-2.5">
+                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Attached Documents</p>
+                        <div className="mt-2 space-y-1.5">
+                          {parsedApproval.attachments.map((attachment, index) => (
+                            <a
+                              key={`${attachment.url}_${index}`}
+                              href={attachment.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1.5 hover:bg-slate-50"
+                            >
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold text-slate-700 truncate">{attachment.name}</p>
+                                <p className="text-[10px] text-slate-500">
+                                  {attachment.contentType || 'File'}
+                                  {attachment.size ? ` - ${formatAttachmentSize(attachment.size)}` : ''}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-1 text-slate-500 shrink-0">
+                                <Link2 className="w-3.5 h-3.5" />
+                                <Download className="w-3.5 h-3.5" />
+                              </div>
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {canTakeActionOnApproval && (
+                      <div className="mt-4 grid grid-cols-3 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void updateStatus('APPROVED')}
+                          disabled={updatingStatus}
+                          className="flex items-center justify-center gap-1 px-2 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold disabled:opacity-60"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                          Approve
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void updateStatus('REJECTED')}
+                          disabled={updatingStatus}
+                          className="flex items-center justify-center gap-1 px-2 py-2 rounded-xl bg-rose-600 text-white text-xs font-bold disabled:opacity-60"
+                        >
+                          <XCircle className="w-4 h-4" />
+                          Reject
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleAskForReview()}
+                          disabled={updatingStatus}
+                          className="flex items-center justify-center gap-1 px-2 py-2 rounded-xl bg-amber-500 text-white text-xs font-bold disabled:opacity-60"
+                        >
+                          <MessageSquare className="w-4 h-4" />
+                          Review
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="mt-4">
+                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-500">Discussion</h4>
+                      <div className="mt-2 max-h-72 overflow-y-auto space-y-2 pr-1">
+                        {loadingThreads ? (
+                          <p className="text-xs text-slate-500">Loading messages...</p>
+                        ) : threads.length === 0 ? (
+                          <p className="text-xs text-slate-500">No messages yet.</p>
+                        ) : (
+                          threads.map((thread) => {
+                            const mine = thread.sender_id === currentUser.id;
+                            return (
+                              <div key={thread.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                                <div
+                                  className={`max-w-[85%] rounded-2xl px-3 py-2 border ${
+                                    mine
+                                      ? 'bg-indigo-50 border-indigo-200'
+                                      : 'bg-white border-slate-200'
+                                  }`}
+                                >
+                                  <p className="text-[10px] font-bold text-slate-500">{thread.sender_name}</p>
+                                  <p className="text-xs text-slate-900 mt-1">{thread.message_text}</p>
+                                  <p className="text-[10px] text-slate-400 mt-1">
+                                    {formatDateTime(thread.created_at)}
+                                    {thread.optimistic ? ' (sending...)' : ''}
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+
+                      <div className="mt-3 flex items-center gap-2">
+                        <input
+                          value={draftMessage}
+                          onChange={(event) => setDraftMessage(event.target.value)}
+                          placeholder="Type a message..."
+                          className="flex-1 h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void handleSendMessage()}
+                          className="h-11 w-11 rounded-xl bg-indigo-900 text-white flex items-center justify-center"
+                          title="Send message"
+                        >
+                          <Send className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-              <p className="text-sm font-bold text-indigo-700 mt-1">{formatAmount(approval.amount)}</p>
-              <p className="text-xs text-slate-500 mt-1 line-clamp-2">
-                {extractApprovalAttachments(approval.description).description || 'No description'}
-              </p>
-            </button>
-          ))
+            );
+          })
         )}
       </div>
 
-      {selectedApproval && (
-        <div className="mt-5 border-t border-slate-200 pt-4">
-          <div className="flex items-center justify-between gap-3">
-            <h3 className="text-sm font-black text-slate-900">Memo</h3>
-            <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full ${getStatusClasses(selectedApproval.status)}`}>
-              {selectedApproval.status}
-            </span>
-          </div>
-          <p className="text-sm font-bold text-slate-900 mt-2">{selectedApproval.title || 'Untitled'}</p>
-          <p className="text-sm font-bold text-indigo-700 mt-1">{formatAmount(selectedApproval.amount)}</p>
-          <p className="text-xs text-slate-500 mt-2">{selectedApprovalParsed.description || 'No description'}</p>
-          {selectedApprovalParsed.attachments.length > 0 && (
-            <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-2.5">
-              <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Attached Documents</p>
-              <div className="mt-2 space-y-1.5">
-                {selectedApprovalParsed.attachments.map((attachment, index) => (
-                  <a
-                    key={`${attachment.url}_${index}`}
-                    href={attachment.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1.5 hover:bg-slate-50"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold text-slate-700 truncate">{attachment.name}</p>
-                      <p className="text-[10px] text-slate-500">
-                        {attachment.contentType || 'File'}
-                        {attachment.size ? ` • ${formatAttachmentSize(attachment.size)}` : ''}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1 text-slate-500 shrink-0">
-                      <Link2 className="w-3.5 h-3.5" />
-                      <Download className="w-3.5 h-3.5" />
-                    </div>
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {canTakeAction && (
-            <div className="mt-4 grid grid-cols-3 gap-2">
-              <button
-                onClick={() => void updateStatus('APPROVED')}
-                disabled={updatingStatus}
-                className="flex items-center justify-center gap-1 px-2 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold disabled:opacity-60"
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                Approve
-              </button>
-              <button
-                onClick={() => void updateStatus('REJECTED')}
-                disabled={updatingStatus}
-                className="flex items-center justify-center gap-1 px-2 py-2 rounded-xl bg-rose-600 text-white text-xs font-bold disabled:opacity-60"
-              >
-                <XCircle className="w-4 h-4" />
-                Reject
-              </button>
-              <button
-                onClick={() => void handleAskForReview()}
-                disabled={updatingStatus}
-                className="flex items-center justify-center gap-1 px-2 py-2 rounded-xl bg-amber-500 text-white text-xs font-bold disabled:opacity-60"
-              >
-                <MessageSquare className="w-4 h-4" />
-                Review
-              </button>
-            </div>
-          )}
-
-          <div className="mt-4">
-            <h4 className="text-xs font-black uppercase tracking-wider text-slate-500">Discussion</h4>
-            <div className="mt-2 max-h-72 overflow-y-auto space-y-2 pr-1">
-              {loadingThreads ? (
-                <p className="text-xs text-slate-500">Loading messages...</p>
-              ) : threads.length === 0 ? (
-                <p className="text-xs text-slate-500">No messages yet.</p>
-              ) : (
-                threads.map((thread) => {
-                  const mine = thread.sender_id === currentUser.id;
-                  return (
-                    <div key={thread.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                      <div
-                        className={`max-w-[85%] rounded-2xl px-3 py-2 border ${
-                          mine
-                            ? 'bg-indigo-50 border-indigo-200'
-                            : 'bg-white border-slate-200'
-                        }`}
-                      >
-                        <p className="text-[10px] font-bold text-slate-500">{thread.sender_name}</p>
-                        <p className="text-xs text-slate-900 mt-1">{thread.message_text}</p>
-                        <p className="text-[10px] text-slate-400 mt-1">
-                          {formatDateTime(thread.created_at)}
-                          {thread.optimistic ? ' (sending...)' : ''}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            <div className="mt-3 flex items-center gap-2">
-              <input
-                value={draftMessage}
-                onChange={(event) => setDraftMessage(event.target.value)}
-                placeholder="Type a message..."
-                className="flex-1 h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
-              />
-              <button
-                onClick={() => void handleSendMessage()}
-                className="h-11 w-11 rounded-xl bg-indigo-900 text-white flex items-center justify-center"
-                title="Send message"
-              >
-                <Send className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </section>
   );
 };
