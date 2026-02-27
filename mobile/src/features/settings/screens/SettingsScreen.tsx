@@ -1,12 +1,17 @@
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { AppButton, AppCard, AppScreen } from '../../../components/ui';
+import type { AppTabParamList } from '../../../app/navigation/AppTabs';
 import { useAuthStore } from '../../../state/authStore';
 import { lumina, spacing, typography } from '../../../theme';
+import { BellIcon } from '../../notifications/components/BellIcon';
 
 export function SettingsScreen() {
   const profile = useAuthStore((state) => state.profile);
   const signOut = useAuthStore((state) => state.signOut);
+  const navigation = useNavigation<BottomTabNavigationProp<AppTabParamList>>();
 
   const details = useMemo(
     () => [
@@ -20,8 +25,15 @@ export function SettingsScreen() {
 
   return (
     <AppScreen scroll>
-      <AppCard>
+      <View style={styles.header}>
         <Text style={styles.title}>Settings</Text>
+        <BellIcon
+          userId={profile?.id}
+          onPress={() => navigation.navigate('Notifications')}
+        />
+      </View>
+
+      <AppCard>
         <Text style={styles.body}>Account and workspace details from Supabase profile.</Text>
       </AppCard>
 
@@ -40,6 +52,12 @@ export function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+  },
   title: {
     color: lumina.text.primary,
     fontSize: typography.size.xl,
@@ -69,4 +87,3 @@ const styles = StyleSheet.create({
     fontWeight: typography.weight.medium,
   },
 });
-

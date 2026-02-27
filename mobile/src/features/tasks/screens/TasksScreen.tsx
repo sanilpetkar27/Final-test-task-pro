@@ -1,14 +1,19 @@
 import React from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { AppButton, AppCard, AppScreen } from '../../../components/ui';
+import type { AppTabParamList } from '../../../app/navigation/AppTabs';
 import { useAuthStore } from '../../../state/authStore';
 import { lumina, spacing, typography } from '../../../theme';
 import { canAssignTasks } from '../../../utils/roleGuards';
 import { useTasks } from '../hooks/useTasks';
 import { TaskTile } from '../components/TaskTile';
+import { BellIcon } from '../../notifications/components/BellIcon';
 
 export function TasksScreen() {
   const profile = useAuthStore((state) => state.profile);
+  const navigation = useNavigation<BottomTabNavigationProp<AppTabParamList>>();
   const companyId = profile?.companyId;
   const canCreate = profile ? canAssignTasks(profile.role) : false;
 
@@ -32,13 +37,19 @@ export function TasksScreen() {
           <Text style={styles.title}>Tasks</Text>
           <Text style={styles.body}>Realtime task updates for your company workspace.</Text>
         </View>
-        <AppButton
-          label="Create"
-          onPress={() => {}}
-          disabled={!canCreate}
-          variant={canCreate ? 'primary' : 'secondary'}
-          style={styles.createButton}
-        />
+        <View style={styles.headerActions}>
+          <BellIcon
+            userId={profile.id}
+            onPress={() => navigation.navigate('Notifications')}
+          />
+          <AppButton
+            label="Create"
+            onPress={() => {}}
+            disabled={!canCreate}
+            variant={canCreate ? 'primary' : 'secondary'}
+            style={styles.createButton}
+          />
+        </View>
       </View>
 
       {isLoading ? (
@@ -101,6 +112,11 @@ const styles = StyleSheet.create({
   },
   createButton: {
     minWidth: 100,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
   centered: {
     flex: 1,

@@ -1,13 +1,18 @@
 import React from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { AppButton, AppCard, AppScreen, Avatar, Badge } from '../../../components/ui';
+import type { AppTabParamList } from '../../../app/navigation/AppTabs';
 import { useAuthStore } from '../../../state/authStore';
 import { lumina, spacing, typography } from '../../../theme';
 import { canManageTeam } from '../../../utils/roleGuards';
 import { useTeam } from '../hooks/useTeam';
+import { BellIcon } from '../../notifications/components/BellIcon';
 
 export function TeamScreen() {
   const profile = useAuthStore((state) => state.profile);
+  const navigation = useNavigation<BottomTabNavigationProp<AppTabParamList>>();
   const companyId = profile?.companyId;
   const canManage = profile ? canManageTeam(profile.role) : false;
   const { data: members = [], isLoading, error, refetch, isFetching } = useTeam(companyId);
@@ -19,13 +24,19 @@ export function TeamScreen() {
           <Text style={styles.title}>Team</Text>
           <Text style={styles.body}>Members from your company workspace.</Text>
         </View>
-        <AppButton
-          label="Add Member"
-          onPress={() => {}}
-          disabled={!canManage}
-          variant={canManage ? 'primary' : 'secondary'}
-          style={styles.addButton}
-        />
+        <View style={styles.headerActions}>
+          <BellIcon
+            userId={profile?.id}
+            onPress={() => navigation.navigate('Notifications')}
+          />
+          <AppButton
+            label="Add Member"
+            onPress={() => {}}
+            disabled={!canManage}
+            variant={canManage ? 'primary' : 'secondary'}
+            style={styles.addButton}
+          />
+        </View>
       </View>
 
       {isLoading ? (
@@ -94,6 +105,11 @@ const styles = StyleSheet.create({
   },
   addButton: {
     minWidth: 112,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
   centered: {
     flex: 1,
