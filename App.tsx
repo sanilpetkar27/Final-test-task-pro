@@ -1013,6 +1013,10 @@ const App: React.FC = () => {
 
           const payloadRow = (payload.new || {}) as DatabaseTask;
           if (!isTaskVisibleToUser(payloadRow, currentUser)) {
+            const refetchTasks = fetchTasksRef.current as null | (() => Promise<void>);
+            if (refetchTasks) {
+              void refetchTasks();
+            }
             return;
           }
 
@@ -1088,7 +1092,10 @@ const App: React.FC = () => {
 
           const payloadRow = (payload.new || {}) as DatabaseTask;
           if (!isTaskVisibleToUser(payloadRow, currentUser)) {
-            setTasks((prev) => prev.filter((task) => task.id !== payloadTaskId));
+            const refetchTasks = fetchTasksRef.current as null | (() => Promise<void>);
+            if (refetchTasks) {
+              void refetchTasks();
+            }
             return;
           }
 
