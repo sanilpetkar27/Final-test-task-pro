@@ -1250,7 +1250,9 @@ const App: React.FC = () => {
 
       lastForegroundRefreshAtRef.current = now;
       console.log(reason === 'focus' ? '🎯 App gained focus, refreshing tasks...' : '📱 App became visible, refreshing tasks...');
-      loadInitialData(false).then(data => {
+      // Keep foreground refresh silent so transient focus changes (e.g. file picker) do not
+      // remount the app and wipe in-progress form state.
+      loadInitialData(true).then(data => {
         if (data) {
           setEmployees(data.employees);
           setStaffManagerLinks(data.staffManagerLinks || []);
