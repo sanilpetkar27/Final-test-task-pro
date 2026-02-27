@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, MessageSquare, Send, XCircle } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CheckCircle2, Download, Link2, MessageSquare, Paperclip, Send, X, XCircle } from 'lucide-react';
 import { supabase } from '../src/lib/supabase';
 import { Employee } from '../types';
 
@@ -35,7 +35,16 @@ type ApproverOption = {
   role: string;
 };
 
+type ApprovalAttachment = {
+  name: string;
+  url: string;
+  contentType: string;
+  size: number;
+};
+
 const LOCKED_STATUSES: ApprovalStatus[] = ['APPROVED', 'REJECTED'];
+const ATTACHMENT_LINE_PREFIX = '__ATTACHMENT__|';
+const APPROVAL_ATTACHMENT_BUCKET = 'task-proofs';
 
 const normalizeStatus = (value: unknown): ApprovalStatus => {
   if (value === 'PENDING' || value === 'NEEDS_REVIEW' || value === 'APPROVED' || value === 'REJECTED') {
@@ -72,6 +81,62 @@ const formatDateTime = (value: string): string => {
   if (!Number.isFinite(parsed)) return value;
   return new Date(parsed).toLocaleString();
 };
+
+const extractApprovalAttachments = (rawDescription: string): { description: string; attachments: ApprovalAttachment[] } => {
+  const lines = String(rawDescription || '').split('\n');
+  const attachments: ApprovalAttachment[] = [];
+  const textLines: string[] = [];
+
+  for (const line of lines) {
+    if (!line.startsWith(ATTACHMENT_LINE_PREFIX)) {
+      textLines.push(line);
+      continue;
+    }
+
+    const payload = line.slice(ATTACHMENT_LINE_PREFIX.length);
+    const [encodedName, encodedUrl, encodedType, rawSize] = payload.split('|');
+    const name = decodeURIComponent(encodedName || '').trim();
+    const url = decodeURIComponent(encodedUrl || '').trim();
+    const contentType = decodeURIComponent(encodedType || '').trim();
+    const size = Number(rawSize || 0);
+
+    if (!name || !url) continue;
+    attachments.push({
+      name,
+      url,
+      contentType,
+      size: Number.isFinite(size) ? size : 0,
+    });
+  }
+
+  return {
+    description: textLines.join('\n').trim(),
+    attachments,
+  };
+};
+
+const appendAttachmentsToDescription = (description: string, attachments: ApprovalAttachment[]): string => {
+  if (!attachments.length) return description;
+
+  const attachmentLines = attachments.map((item) => {
+    const encodedName = encodeURIComponent(item.name);
+    const encodedUrl = encodeURIComponent(item.url);
+    const encodedType = encodeURIComponent(item.contentType || '');
+    const encodedSize = String(Number.isFinite(item.size) ? item.size : 0);
+    return `${ATTACHMENT_LINE_PREFIX}${encodedName}|${encodedUrl}|${encodedType}|${encodedSize}`;
+  });
+
+  return [description, ...attachmentLines].filter(Boolean).join('\n');
+};
+
+const formatAttachmentSize = (size: number): string => {
+  if (!size || size <= 0) return '';
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const sanitizeFileName = (name: string): string => String(name || 'file').replace(/[^a-zA-Z0-9._-]/g, '_');
 
 const approvalsAreEqual = (left: ApprovalItem[], right: ApprovalItem[]): boolean => {
   if (left.length !== right.length) return false;
@@ -128,17 +193,25 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
   const [requestAmount, setRequestAmount] = useState('');
   const [requestApproverId, setRequestApproverId] = useState('');
   const [requestInitialNote, setRequestInitialNote] = useState('');
+  const [requestAttachments, setRequestAttachments] = useState<File[]>([]);
   const [threads, setThreads] = useState<ApprovalThreadView[]>([]);
   const [loadingApprovals, setLoadingApprovals] = useState(false);
   const [loadingThreads, setLoadingThreads] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [draftMessage, setDraftMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const attachmentsInputRef = useRef<HTMLInputElement | null>(null);
 
   const selectedApproval = useMemo(
     () => approvals.find((item) => item.id === selectedApprovalId) || null,
     [approvals, selectedApprovalId]
   );
+  const selectedApprovalParsed = useMemo(() => {
+    if (!selectedApproval) {
+      return { description: '', attachments: [] as ApprovalAttachment[] };
+    }
+    return extractApprovalAttachments(selectedApproval.description);
+  }, [selectedApproval]);
 
   const canTakeAction = useMemo(() => {
     if (!selectedApproval) return false;
@@ -385,13 +458,52 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
     setError(null);
 
     try {
+      let uploadedAttachments: ApprovalAttachment[] = [];
+      if (requestAttachments.length > 0) {
+        const uploadResults = await Promise.all(
+          requestAttachments.map(async (file) => {
+            const safeName = sanitizeFileName(file.name);
+            const storagePath = `approval-attachments/${currentUser.company_id}/${currentUser.id}/${Date.now()}-${Math.random()
+              .toString(36)
+              .slice(2, 9)}-${safeName}`;
+
+            const { error: uploadError } = await supabase.storage
+              .from(APPROVAL_ATTACHMENT_BUCKET)
+              .upload(storagePath, file, {
+                contentType: file.type || 'application/octet-stream',
+                upsert: false,
+              });
+
+            if (uploadError) {
+              throw new Error(
+                `Failed to upload "${file.name}". Ensure Storage bucket "${APPROVAL_ATTACHMENT_BUCKET}" allows uploads.`
+              );
+            }
+
+            const { data: publicData } = supabase.storage
+              .from(APPROVAL_ATTACHMENT_BUCKET)
+              .getPublicUrl(storagePath);
+
+            return {
+              name: file.name,
+              url: String(publicData?.publicUrl || '').trim(),
+              contentType: file.type || '',
+              size: file.size || 0,
+            } as ApprovalAttachment;
+          })
+        );
+
+        uploadedAttachments = uploadResults.filter((item) => Boolean(item.url));
+      }
+
+      const descriptionWithAttachments = appendAttachmentsToDescription(description, uploadedAttachments);
       const { data: created, error: createError } = await supabase
         .from('approvals')
         .insert({
           requester_id: currentUser.id,
           approver_id: approverId,
           title,
-          description,
+          description: descriptionWithAttachments,
           amount: amountValue,
           status: 'PENDING',
         })
@@ -404,7 +516,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         requester_id: String(created.requester_id || currentUser.id),
         approver_id: String(created.approver_id || approverId),
         title: String(created.title || title),
-        description: String(created.description || description),
+        description: String(created.description || descriptionWithAttachments),
         amount: created.amount === null || created.amount === undefined
           ? amountValue
           : Number(created.amount),
@@ -428,6 +540,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
       setRequestDescription('');
       setRequestAmount('');
       setRequestInitialNote('');
+      setRequestAttachments([]);
       setView('my_requests');
       await loadThreads(createdApproval.id);
     } catch (createErr: any) {
@@ -606,6 +719,64 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
             placeholder="Description"
             className="min-h-[70px] px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-900/20 resize-none"
           />
+          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-semibold text-slate-600">Attachments (PDF, Excel, Images)</p>
+              <button
+                type="button"
+                onClick={() => attachmentsInputRef.current?.click()}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 hover:bg-slate-100"
+                title="Attach files"
+              >
+                <Paperclip className="w-3.5 h-3.5" />
+                Attach
+              </button>
+              <input
+                ref={attachmentsInputRef}
+                type="file"
+                multiple
+                accept=".pdf,.xls,.xlsx,.csv,image/*"
+                className="hidden"
+                onChange={(event) => {
+                  const files = Array.from(event.target.files || []);
+                  if (!files.length) return;
+                  setRequestAttachments((prev) => {
+                    const existing = new Set(prev.map((item) => `${item.name}_${item.size}`));
+                    const next = [...prev];
+                    for (const file of files) {
+                      const key = `${file.name}_${file.size}`;
+                      if (!existing.has(key)) {
+                        next.push(file);
+                        existing.add(key);
+                      }
+                    }
+                    return next;
+                  });
+                  event.currentTarget.value = '';
+                }}
+              />
+            </div>
+            {requestAttachments.length > 0 && (
+              <div className="mt-2 space-y-1.5">
+                {requestAttachments.map((file, index) => (
+                  <div key={`${file.name}_${file.size}_${index}`} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
+                    <p className="text-xs text-slate-700 truncate">
+                      {file.name}
+                      {file.size ? ` (${formatAttachmentSize(file.size)})` : ''}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setRequestAttachments((prev) => prev.filter((_, i) => i !== index))}
+                      className="p-1 rounded-md text-slate-500 hover:bg-slate-200"
+                      title="Remove attachment"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-2">
             <input
               value={requestAmount}
@@ -678,7 +849,9 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                 </span>
               </div>
               <p className="text-sm font-bold text-indigo-700 mt-1">{formatAmount(approval.amount)}</p>
-              <p className="text-xs text-slate-500 mt-1 line-clamp-2">{approval.description || 'No description'}</p>
+              <p className="text-xs text-slate-500 mt-1 line-clamp-2">
+                {extractApprovalAttachments(approval.description).description || 'No description'}
+              </p>
             </button>
           ))
         )}
@@ -694,7 +867,35 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
           </div>
           <p className="text-sm font-bold text-slate-900 mt-2">{selectedApproval.title || 'Untitled'}</p>
           <p className="text-sm font-bold text-indigo-700 mt-1">{formatAmount(selectedApproval.amount)}</p>
-          <p className="text-xs text-slate-500 mt-2">{selectedApproval.description || 'No description'}</p>
+          <p className="text-xs text-slate-500 mt-2">{selectedApprovalParsed.description || 'No description'}</p>
+          {selectedApprovalParsed.attachments.length > 0 && (
+            <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-2.5">
+              <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Attached Documents</p>
+              <div className="mt-2 space-y-1.5">
+                {selectedApprovalParsed.attachments.map((attachment, index) => (
+                  <a
+                    key={`${attachment.url}_${index}`}
+                    href={attachment.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1.5 hover:bg-slate-50"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-slate-700 truncate">{attachment.name}</p>
+                      <p className="text-[10px] text-slate-500">
+                        {attachment.contentType || 'File'}
+                        {attachment.size ? ` • ${formatAttachmentSize(attachment.size)}` : ''}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 text-slate-500 shrink-0">
+                      <Link2 className="w-3.5 h-3.5" />
+                      <Download className="w-3.5 h-3.5" />
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
 
           {canTakeAction && (
             <div className="mt-4 grid grid-cols-3 gap-2">
