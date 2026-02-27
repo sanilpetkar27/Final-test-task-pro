@@ -2132,57 +2132,19 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <button
-              onClick={() => setShowNotificationsPanel((prev) => !prev)}
-              className="p-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600 transition-all border border-slate-200 relative"
-              title="Notifications"
-            >
-              <Bell className="w-4 h-4" />
-              {unreadNotificationCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center border border-white">
-                  {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
-                </span>
-              )}
-            </button>
-            {showNotificationsPanel && (
-              <div className="absolute right-0 mt-2 w-[300px] max-h-[360px] overflow-y-auto bg-white border border-slate-200 rounded-2xl shadow-[0_8px_24px_rgba(15,23,42,0.10)] z-50 p-2">
-                <div className="flex items-center justify-between px-2 py-1 border-b border-slate-100 mb-1">
-                  <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">Notifications</p>
-                  <button
-                    onClick={() => setShowNotificationsPanel(false)}
-                    className="text-slate-400 hover:text-slate-600"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-                {notificationsLoading ? (
-                  <div className="px-3 py-4 text-xs text-slate-500">Loading...</div>
-                ) : userNotifications.length === 0 ? (
-                  <div className="px-3 py-4 text-xs text-slate-500">No notifications yet.</div>
-                ) : (
-                  <div className="space-y-1">
-                    {userNotifications.map((item) => (
-                      <button
-                        key={item.id}
-                        onClick={() => void markNotificationAsRead(item.id)}
-                        className={`w-full text-left px-3 py-2 rounded-xl border transition-colors ${
-                          item.is_read
-                            ? 'bg-white border-slate-100'
-                            : 'bg-indigo-50 border-indigo-100'
-                        }`}
-                      >
-                        <p className={`text-xs font-bold ${item.is_read ? 'text-slate-700' : 'text-slate-900'}`}>{item.title}</p>
-                        <p className={`text-xs mt-0.5 ${item.is_read ? 'text-slate-500' : 'text-slate-700'}`}>{item.body}</p>
-                        <p className="text-[10px] text-slate-400 mt-1">{formatNotificationTimeAgo(item.created_at)}</p>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+        <div className="relative flex items-center gap-2">
+          <button
+            onClick={() => setShowNotificationsPanel((prev) => !prev)}
+            className="p-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600 transition-all border border-slate-200 relative"
+            title="Notifications"
+          >
+            <Bell className="w-4 h-4" />
+            {unreadNotificationCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center border border-white">
+                {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
+              </span>
             )}
-          </div>
+          </button>
           <div className="text-right">
             <p className="text-[10px] font-black leading-none text-slate-900">{currentUser.name}</p>
             <p className="text-[8px] text-indigo-700 uppercase font-black tracking-widest mt-0.5">{getRoleLabel(currentUser.role)}</p>
@@ -2193,6 +2155,42 @@ const App: React.FC = () => {
           >
             <LogOut className="w-4 h-4" />
           </button>
+          {showNotificationsPanel && (
+            <div className="absolute right-0 top-full mt-2 w-[300px] max-w-[calc(100vw-1rem)] max-h-[360px] overflow-y-auto bg-white border border-slate-200 rounded-2xl shadow-[0_8px_24px_rgba(15,23,42,0.10)] z-50 p-2">
+              <div className="flex items-center justify-between px-2 py-1 border-b border-slate-100 mb-1">
+                <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">Notifications</p>
+                <button
+                  onClick={() => setShowNotificationsPanel(false)}
+                  className="text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              {notificationsLoading ? (
+                <div className="px-3 py-4 text-xs text-slate-500">Loading...</div>
+              ) : userNotifications.length === 0 ? (
+                <div className="px-3 py-4 text-xs text-slate-500">No notifications yet.</div>
+              ) : (
+                <div className="space-y-1">
+                  {userNotifications.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => void markNotificationAsRead(item.id)}
+                      className={`w-full text-left px-3 py-2 rounded-xl border transition-colors ${
+                        item.is_read
+                          ? 'bg-white border-slate-100'
+                          : 'bg-indigo-50 border-indigo-100'
+                      }`}
+                    >
+                      <p className={`text-xs font-bold ${item.is_read ? 'text-slate-700' : 'text-slate-900'}`}>{item.title}</p>
+                      <p className={`text-xs mt-0.5 ${item.is_read ? 'text-slate-500' : 'text-slate-700'}`}>{item.body}</p>
+                      <p className="text-[10px] text-slate-400 mt-1">{formatNotificationTimeAgo(item.created_at)}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </header>
 
