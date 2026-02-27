@@ -14,6 +14,8 @@ type ApprovalItem = {
   description: string;
   amount: number | null;
   status: ApprovalStatus;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 type ApprovalThread = {
@@ -152,6 +154,21 @@ const formatAttachmentSize = (size: number): string => {
 
 const sanitizeFileName = (name: string): string => String(name || 'file').replace(/[^a-zA-Z0-9._-]/g, '_');
 
+const parseDateTimeMs = (value?: string | null): number => {
+  const parsed = Date.parse(String(value || ''));
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const approvalActivityMs = (item: ApprovalItem): number =>
+  Math.max(parseDateTimeMs(item.updated_at), parseDateTimeMs(item.created_at));
+
+const sortApprovalsByRecency = (items: ApprovalItem[]): ApprovalItem[] =>
+  [...items].sort((a, b) => {
+    const diff = approvalActivityMs(b) - approvalActivityMs(a);
+    if (diff !== 0) return diff;
+    return String(b.id).localeCompare(String(a.id));
+  });
+
 const approvalsAreEqual = (left: ApprovalItem[], right: ApprovalItem[]): boolean => {
   if (left.length !== right.length) return false;
   for (let i = 0; i < left.length; i += 1) {
@@ -164,7 +181,9 @@ const approvalsAreEqual = (left: ApprovalItem[], right: ApprovalItem[]): boolean
       a.title !== b.title ||
       a.description !== b.description ||
       a.status !== b.status ||
-      a.amount !== b.amount
+      a.amount !== b.amount ||
+      a.created_at !== b.created_at ||
+      a.updated_at !== b.updated_at
     ) {
       return false;
     }
@@ -274,7 +293,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
     try {
       let query = supabase
         .from('approvals')
-        .select('id, requester_id, approver_id, title, description, amount, status');
+        .select('id, requester_id, approver_id, title, description, amount, status, created_at, updated_at');
 
       if (view === 'my_requests') {
         query = query.eq('requester_id', currentUser.id);
@@ -285,7 +304,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
       const { data, error: loadError } = await query.order('id', { ascending: false });
       if (loadError) throw loadError;
 
-      const mapped = (data || []).map((row: any) => ({
+      const mapped = sortApprovalsByRecency((data || []).map((row: any) => ({
         id: String(row.id),
         requester_id: String(row.requester_id || ''),
         approver_id: String(row.approver_id || ''),
@@ -293,7 +312,9 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         description: String(row.description || ''),
         amount: row.amount === null || row.amount === undefined ? null : Number(row.amount),
         status: normalizeStatus(row.status),
-      }));
+        created_at: row.created_at ? String(row.created_at) : null,
+        updated_at: row.updated_at ? String(row.updated_at) : null,
+      })));
 
       setApprovals((prev) => (approvalsAreEqual(prev, mapped) ? prev : mapped));
       if (!mapped.length) {
@@ -527,7 +548,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
           amount: amountValue,
           status: 'PENDING',
         })
-        .select('id, requester_id, approver_id, title, description, amount, status')
+        .select('id, requester_id, approver_id, title, description, amount, status, created_at, updated_at')
         .single();
       if (createError) throw createError;
 
@@ -541,6 +562,8 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
           ? amountValue
           : Number(created.amount),
         status: normalizeStatus(created.status),
+        created_at: created.created_at ? String(created.created_at) : new Date().toISOString(),
+        updated_at: created.updated_at ? String(created.updated_at) : null,
       };
 
       if (initialNote) {
@@ -554,7 +577,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         if (initialMessageError) throw initialMessageError;
       }
 
-      setApprovals((prev) => [createdApproval, ...prev]);
+      setApprovals((prev) => sortApprovalsByRecency([createdApproval, ...prev]));
       setSelectedApprovalId(createdApproval.id);
       setRequestTitle('');
       setRequestDescription('');
@@ -583,7 +606,13 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
       if (updateError) throw updateError;
 
       setApprovals((prev) =>
-        prev.map((item) => (item.id === selectedApproval.id ? { ...item, status } : item))
+        sortApprovalsByRecency(
+          prev.map((item) =>
+            item.id === selectedApproval.id
+              ? { ...item, status, updated_at: new Date().toISOString() }
+              : item
+          )
+        )
       );
     } catch (updateErr: any) {
       setError(updateErr?.message || 'Failed to update approval status.');
@@ -674,8 +703,12 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
       if (statusError) throw statusError;
 
       setApprovals((prev) =>
-        prev.map((item) =>
-          item.id === selectedApproval.id ? { ...item, status: 'NEEDS_REVIEW' } : item
+        sortApprovalsByRecency(
+          prev.map((item) =>
+            item.id === selectedApproval.id
+              ? { ...item, status: 'NEEDS_REVIEW', updated_at: new Date().toISOString() }
+              : item
+          )
         )
       );
       setDraftMessage('');
