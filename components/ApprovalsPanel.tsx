@@ -240,6 +240,53 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
     void loadThreads(selectedApprovalId);
   }, [selectedApprovalId, loadThreads]);
 
+  useEffect(() => {
+    const isRowRelevantToCurrentUser = (row: any): boolean => {
+      const requesterId = String(row?.requester_id || '');
+      const approverId = String(row?.approver_id || '');
+      return requesterId === currentUser.id || approverId === currentUser.id;
+    };
+
+    const channel = supabase
+      .channel(`approvals-live-${currentUser.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'approvals' },
+        (payload: any) => {
+          const newRow = payload?.new || {};
+          const oldRow = payload?.old || {};
+          const newId = String(newRow?.id || '');
+          const oldId = String(oldRow?.id || '');
+          const selectedChanged =
+            !!selectedApprovalId &&
+            (selectedApprovalId === newId || selectedApprovalId === oldId);
+          const userRelated =
+            isRowRelevantToCurrentUser(newRow) || isRowRelevantToCurrentUser(oldRow);
+
+          if (selectedChanged || userRelated) {
+            void loadApprovals();
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'approval_threads' },
+        (payload: any) => {
+          if (!selectedApprovalId) return;
+          const newApprovalId = String(payload?.new?.approval_id || '');
+          const oldApprovalId = String(payload?.old?.approval_id || '');
+          if (newApprovalId === selectedApprovalId || oldApprovalId === selectedApprovalId) {
+            void loadThreads(selectedApprovalId);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [currentUser.id, selectedApprovalId, loadApprovals, loadThreads]);
+
   const handleCreateRequest = async (): Promise<void> => {
     const title = requestTitle.trim();
     const description = requestDescription.trim();
