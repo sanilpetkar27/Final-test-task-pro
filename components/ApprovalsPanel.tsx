@@ -12,7 +12,7 @@ type ApprovalItem = {
   approver_id: string;
   title: string;
   description: string;
-  amount: number;
+  amount: number | null;
   status: ApprovalStatus;
 };
 
@@ -51,7 +51,11 @@ const getStatusClasses = (status: ApprovalStatus): string => {
   return 'bg-indigo-50 text-indigo-700 border border-indigo-200';
 };
 
-const formatAmount = (value: number): string => {
+const formatAmount = (value: number | null): string => {
+  if (value === null || value === undefined) {
+    return 'Non-monetary';
+  }
+
   try {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
@@ -157,7 +161,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         approver_id: String(row.approver_id || ''),
         title: String(row.title || ''),
         description: String(row.description || ''),
-        amount: Number(row.amount || 0),
+        amount: row.amount === null || row.amount === undefined ? null : Number(row.amount),
         status: normalizeStatus(row.status),
       }));
 
@@ -239,7 +243,11 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
   const handleCreateRequest = async (): Promise<void> => {
     const title = requestTitle.trim();
     const description = requestDescription.trim();
-    const amount = Number(requestAmount || 0);
+    const rawAmount = requestAmount.trim();
+    const amountValue =
+      rawAmount === ''
+        ? null
+        : Number(rawAmount);
     const approverId = requestApproverId.trim();
     const initialNote = requestInitialNote.trim();
 
@@ -251,8 +259,8 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
       setError('Please choose an approver to tag.');
       return;
     }
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setError('Amount must be greater than zero.');
+    if (amountValue !== null && (!Number.isFinite(amountValue) || amountValue < 0)) {
+      setError('Amount must be a valid non-negative number when provided.');
       return;
     }
 
@@ -267,7 +275,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
           approver_id: approverId,
           title,
           description,
-          amount,
+          amount: amountValue,
           status: 'PENDING',
         })
         .select('id, requester_id, approver_id, title, description, amount, status')
@@ -280,7 +288,9 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         approver_id: String(created.approver_id || approverId),
         title: String(created.title || title),
         description: String(created.description || description),
-        amount: Number(created.amount || amount),
+        amount: created.amount === null || created.amount === undefined
+          ? amountValue
+          : Number(created.amount),
         status: normalizeStatus(created.status),
       };
 
