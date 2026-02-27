@@ -4,12 +4,14 @@ import { TasksScreen } from '../../features/tasks/screens/TasksScreen';
 import { TeamScreen } from '../../features/teams/screens/TeamScreen';
 import { SettingsScreen } from '../../features/settings/screens/SettingsScreen';
 import { NotificationsScreen } from '../../features/notifications/screens/NotificationsScreen';
+import { ApprovalsStack } from '../../features/approvals/navigation/ApprovalsStack';
 import { useAuthStore } from '../../state/authStore';
 import { canManageTeam } from '../../utils/roleGuards';
 import { lumina } from '../../theme';
 
 export type AppTabParamList = {
   Tasks: undefined;
+  Approvals: undefined;
   Team: undefined;
   Settings: undefined;
   Notifications: undefined;
@@ -34,6 +36,7 @@ export function AppTabs() {
       }}
     >
       <Tab.Screen name="Tasks" component={TasksScreen} />
+      <Tab.Screen name="Approvals" component={ApprovalsStack} />
       {showTeam && <Tab.Screen name="Team" component={TeamScreen} />}
       <Tab.Screen name="Settings" component={SettingsScreen} />
       <Tab.Screen
