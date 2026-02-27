@@ -11,6 +11,7 @@ import { sendTaskAssignmentNotification } from './src/utils/pushNotifications';
 import { Toaster, toast } from 'sonner';
 import {
   ClipboardList,
+  CheckCircle2,
   Users,
   LayoutDashboard,
   LogOut,
@@ -2222,6 +2223,16 @@ const App: React.FC = () => {
           />
         )}
 
+        {activeTab === AppTab.APPROVALS && (
+          <section className="bg-white border border-slate-200 rounded-3xl p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
+            <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">Approvals</p>
+            <h2 className="text-lg font-black text-slate-900 mt-2">Approvals panel is active</h2>
+            <p className="text-sm text-slate-500 mt-2">
+              This center tab is now wired in the web bottom navigation between Tasks and Team.
+            </p>
+          </section>
+        )}
+
         {isManager && activeTab === AppTab.TEAM && (
           <TeamManager
             employees={scopedEmployees}
@@ -2263,6 +2274,13 @@ const App: React.FC = () => {
             onClick={() => setActiveTab(AppTab.TASKS)}
             icon={<ClipboardList className="w-6 h-6" />}
             label="Tasks"
+          />
+
+          <NavBtn
+            active={activeTab === AppTab.APPROVALS}
+            onClick={() => setActiveTab(AppTab.APPROVALS)}
+            icon={<CheckCircle2 className="w-6 h-6" />}
+            label="Approvals"
           />
 
           {isManager && (

@@ -106,6 +106,7 @@ export interface ChatMessage {
 export enum AppTab {
   DASHBOARD = 'dashboard',
   TASKS = 'tasks',
+  APPROVALS = 'approvals',
   TEAM = 'team',
   FINANCE = 'finance',
   RECEIVABLES = 'receivables',
