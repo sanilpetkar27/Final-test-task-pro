@@ -73,6 +73,45 @@ const formatDateTime = (value: string): string => {
   return new Date(parsed).toLocaleString();
 };
 
+const approvalsAreEqual = (left: ApprovalItem[], right: ApprovalItem[]): boolean => {
+  if (left.length !== right.length) return false;
+  for (let i = 0; i < left.length; i += 1) {
+    const a = left[i];
+    const b = right[i];
+    if (
+      a.id !== b.id ||
+      a.requester_id !== b.requester_id ||
+      a.approver_id !== b.approver_id ||
+      a.title !== b.title ||
+      a.description !== b.description ||
+      a.status !== b.status ||
+      a.amount !== b.amount
+    ) {
+      return false;
+    }
+  }
+  return true;
+};
+
+const threadsAreEqual = (left: ApprovalThreadView[], right: ApprovalThreadView[]): boolean => {
+  if (left.length !== right.length) return false;
+  for (let i = 0; i < left.length; i += 1) {
+    const a = left[i];
+    const b = right[i];
+    if (
+      a.id !== b.id ||
+      a.approval_id !== b.approval_id ||
+      a.sender_id !== b.sender_id ||
+      a.sender_name !== b.sender_name ||
+      a.message_text !== b.message_text ||
+      a.created_at !== b.created_at
+    ) {
+      return false;
+    }
+  }
+  return true;
+};
+
 interface ApprovalsPanelProps {
   currentUser: Employee;
 }
@@ -138,9 +177,12 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
     }
   }, [currentUser.company_id, requestApproverId]);
 
-  const loadApprovals = useCallback(async () => {
-    setLoadingApprovals(true);
-    setError(null);
+  const loadApprovals = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false;
+    if (!silent) {
+      setLoadingApprovals(true);
+      setError(null);
+    }
     try {
       let query = supabase
         .from('approvals')
@@ -165,7 +207,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         status: normalizeStatus(row.status),
       }));
 
-      setApprovals(mapped);
+      setApprovals((prev) => (approvalsAreEqual(prev, mapped) ? prev : mapped));
       if (!mapped.length) {
         setSelectedApprovalId(null);
         setThreads([]);
@@ -174,14 +216,21 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
 
       setSelectedApprovalId((prev) => (prev && mapped.some((a) => a.id === prev) ? prev : mapped[0].id));
     } catch (loadErr: any) {
-      setError(loadErr?.message || 'Failed to load approvals.');
+      if (!silent) {
+        setError(loadErr?.message || 'Failed to load approvals.');
+      }
     } finally {
-      setLoadingApprovals(false);
+      if (!silent) {
+        setLoadingApprovals(false);
+      }
     }
   }, [currentUser.id, view]);
 
-  const loadThreads = useCallback(async (approvalId: string) => {
-    setLoadingThreads(true);
+  const loadThreads = useCallback(async (approvalId: string, options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false;
+    if (!silent) {
+      setLoadingThreads(true);
+    }
     try {
       const { data, error: threadError } = await supabase
         .from('approval_threads')
@@ -214,16 +263,20 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         }, {});
       }
 
-      setThreads(
-        rows.map((row) => ({
-          ...row,
-          sender_name: senderMap[row.sender_id] || 'Unknown',
-        }))
-      );
+      const normalized = rows.map((row) => ({
+        ...row,
+        sender_name: senderMap[row.sender_id] || 'Unknown',
+      }));
+
+      setThreads((prev) => (threadsAreEqual(prev, normalized) ? prev : normalized));
     } catch (threadErr: any) {
-      setError(threadErr?.message || 'Failed to load discussion thread.');
+      if (!silent) {
+        setError(threadErr?.message || 'Failed to load discussion thread.');
+      }
     } finally {
-      setLoadingThreads(false);
+      if (!silent) {
+        setLoadingThreads(false);
+      }
     }
   }, []);
 
@@ -264,7 +317,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
             isRowRelevantToCurrentUser(newRow) || isRowRelevantToCurrentUser(oldRow);
 
           if (selectedChanged || userRelated) {
-            void loadApprovals();
+            void loadApprovals({ silent: true });
           }
         }
       )
@@ -276,7 +329,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
           const newApprovalId = String(payload?.new?.approval_id || '');
           const oldApprovalId = String(payload?.old?.approval_id || '');
           if (newApprovalId === selectedApprovalId || oldApprovalId === selectedApprovalId) {
-            void loadThreads(selectedApprovalId);
+            void loadThreads(selectedApprovalId, { silent: true });
           }
         }
       )
@@ -292,9 +345,9 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
       if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
         return;
       }
-      void loadApprovals();
+      void loadApprovals({ silent: true });
       if (selectedApprovalId) {
-        void loadThreads(selectedApprovalId);
+        void loadThreads(selectedApprovalId, { silent: true });
       }
     };
 
