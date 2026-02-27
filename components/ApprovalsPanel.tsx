@@ -29,6 +29,12 @@ type ApprovalThreadView = ApprovalThread & {
   optimistic?: boolean;
 };
 
+type ApproverOption = {
+  id: string;
+  name: string;
+  role: string;
+};
+
 const LOCKED_STATUSES: ApprovalStatus[] = ['APPROVED', 'REJECTED'];
 
 const normalizeStatus = (value: unknown): ApprovalStatus => {
@@ -71,6 +77,14 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
   const [view, setView] = useState<ApprovalView>('my_requests');
   const [approvals, setApprovals] = useState<ApprovalItem[]>([]);
   const [selectedApprovalId, setSelectedApprovalId] = useState<string | null>(null);
+  const [approvers, setApprovers] = useState<ApproverOption[]>([]);
+  const [loadingApprovers, setLoadingApprovers] = useState(false);
+  const [creatingApproval, setCreatingApproval] = useState(false);
+  const [requestTitle, setRequestTitle] = useState('');
+  const [requestDescription, setRequestDescription] = useState('');
+  const [requestAmount, setRequestAmount] = useState('');
+  const [requestApproverId, setRequestApproverId] = useState('');
+  const [requestInitialNote, setRequestInitialNote] = useState('');
   const [threads, setThreads] = useState<ApprovalThreadView[]>([]);
   const [loadingApprovals, setLoadingApprovals] = useState(false);
   const [loadingThreads, setLoadingThreads] = useState(false);
@@ -90,6 +104,35 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
       !LOCKED_STATUSES.includes(selectedApproval.status)
     );
   }, [selectedApproval, currentUser.id]);
+
+  const loadApprovers = useCallback(async () => {
+    setLoadingApprovers(true);
+    try {
+      const { data, error: approverError } = await supabase
+        .from('employees')
+        .select('id, name, role')
+        .eq('company_id', currentUser.company_id);
+      if (approverError) throw approverError;
+
+      const candidates = (data || [])
+        .map((row: any) => ({
+          id: String(row.id || ''),
+          name: String(row.name || 'Unknown'),
+          role: String(row.role || 'staff'),
+        }))
+        .filter((item) => item.id && item.role !== 'staff')
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      setApprovers(candidates);
+      if (!requestApproverId && candidates.length) {
+        setRequestApproverId(candidates[0].id);
+      }
+    } catch (loadApproverErr: any) {
+      setError(loadApproverErr?.message || 'Failed to load approvers.');
+    } finally {
+      setLoadingApprovers(false);
+    }
+  }, [currentUser.company_id, requestApproverId]);
 
   const loadApprovals = useCallback(async () => {
     setLoadingApprovals(true);
@@ -185,9 +228,87 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
   }, [loadApprovals]);
 
   useEffect(() => {
+    void loadApprovers();
+  }, [loadApprovers]);
+
+  useEffect(() => {
     if (!selectedApprovalId) return;
     void loadThreads(selectedApprovalId);
   }, [selectedApprovalId, loadThreads]);
+
+  const handleCreateRequest = async (): Promise<void> => {
+    const title = requestTitle.trim();
+    const description = requestDescription.trim();
+    const amount = Number(requestAmount || 0);
+    const approverId = requestApproverId.trim();
+    const initialNote = requestInitialNote.trim();
+
+    if (!title) {
+      setError('Approval title is required.');
+      return;
+    }
+    if (!approverId) {
+      setError('Please choose an approver to tag.');
+      return;
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setError('Amount must be greater than zero.');
+      return;
+    }
+
+    setCreatingApproval(true);
+    setError(null);
+
+    try {
+      const { data: created, error: createError } = await supabase
+        .from('approvals')
+        .insert({
+          requester_id: currentUser.id,
+          approver_id: approverId,
+          title,
+          description,
+          amount,
+          status: 'PENDING',
+        })
+        .select('id, requester_id, approver_id, title, description, amount, status')
+        .single();
+      if (createError) throw createError;
+
+      const createdApproval: ApprovalItem = {
+        id: String(created.id),
+        requester_id: String(created.requester_id || currentUser.id),
+        approver_id: String(created.approver_id || approverId),
+        title: String(created.title || title),
+        description: String(created.description || description),
+        amount: Number(created.amount || amount),
+        status: normalizeStatus(created.status),
+      };
+
+      if (initialNote) {
+        const { error: initialMessageError } = await supabase
+          .from('approval_threads')
+          .insert({
+            approval_id: createdApproval.id,
+            sender_id: currentUser.id,
+            message_text: initialNote,
+          });
+        if (initialMessageError) throw initialMessageError;
+      }
+
+      setApprovals((prev) => [createdApproval, ...prev]);
+      setSelectedApprovalId(createdApproval.id);
+      setRequestTitle('');
+      setRequestDescription('');
+      setRequestAmount('');
+      setRequestInitialNote('');
+      setView('my_requests');
+      await loadThreads(createdApproval.id);
+    } catch (createErr: any) {
+      setError(createErr?.message || 'Failed to create approval request.');
+    } finally {
+      setCreatingApproval(false);
+    }
+  };
 
   const updateStatus = async (status: ApprovalStatus): Promise<void> => {
     if (!selectedApproval) return;
@@ -341,6 +462,64 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         >
           Needs My Approval
         </button>
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+        <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">Create Request</p>
+        <div className="mt-2 grid grid-cols-1 gap-2">
+          <input
+            value={requestTitle}
+            onChange={(event) => setRequestTitle(event.target.value)}
+            placeholder="Request title"
+            className="h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
+          />
+          <textarea
+            value={requestDescription}
+            onChange={(event) => setRequestDescription(event.target.value)}
+            placeholder="Description"
+            className="min-h-[70px] px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-900/20 resize-none"
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              value={requestAmount}
+              onChange={(event) => setRequestAmount(event.target.value)}
+              placeholder="Amount (INR)"
+              type="number"
+              min="0"
+              className="h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
+            />
+            <select
+              value={requestApproverId}
+              onChange={(event) => setRequestApproverId(event.target.value)}
+              className="h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
+            >
+              {loadingApprovers ? (
+                <option value="">Loading approvers...</option>
+              ) : approvers.length === 0 ? (
+                <option value="">No approver available</option>
+              ) : (
+                approvers.map((approver) => (
+                  <option key={approver.id} value={approver.id}>
+                    {approver.name} ({approver.role})
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+          <input
+            value={requestInitialNote}
+            onChange={(event) => setRequestInitialNote(event.target.value)}
+            placeholder="Optional note to tagged approver"
+            className="h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
+          />
+          <button
+            onClick={() => void handleCreateRequest()}
+            disabled={creatingApproval}
+            className="h-11 rounded-xl bg-indigo-900 text-white text-sm font-bold disabled:opacity-60"
+          >
+            {creatingApproval ? 'Creating...' : 'Create & Tag Approver'}
+          </button>
+        </div>
       </div>
 
       {error && (
