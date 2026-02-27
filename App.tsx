@@ -3,6 +3,7 @@ import { AppTab, DealershipTask, Employee, UserRole, TaskStatus, RewardConfig, T
 import Dashboard from './components/Dashboard';
 import StatsScreen from './components/StatsScreen';
 import TeamManager from './components/TeamManager';
+import ApprovalsPanel from './components/ApprovalsPanel';
 import LoginScreen from './components/LoginScreen';
 import { supabase, supabaseAuth } from './src/lib/supabase';
 import { useNotificationSetup } from './src/hooks/useNotificationSetup';
@@ -2224,13 +2225,7 @@ const App: React.FC = () => {
         )}
 
         {activeTab === AppTab.APPROVALS && (
-          <section className="bg-white border border-slate-200 rounded-3xl p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
-            <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">Approvals</p>
-            <h2 className="text-lg font-black text-slate-900 mt-2">Approvals panel is active</h2>
-            <p className="text-sm text-slate-500 mt-2">
-              This center tab is now wired in the web bottom navigation between Tasks and Team.
-            </p>
-          </section>
+          <ApprovalsPanel currentUser={currentUser} />
         )}
 
         {isManager && activeTab === AppTab.TEAM && (
