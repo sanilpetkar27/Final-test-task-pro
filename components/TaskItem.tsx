@@ -467,16 +467,17 @@ const TaskItem: React.FC<TaskItemProps> = ({
       alert('Please select a valid extension date and time.');
       return;
     }
+    const requestedDueDateIso = new Date(requestedTs).toISOString();
 
     setIsExtensionUpdating(true);
     const error = await updateTaskExtensionFields(
       {
         extension_status: 'REQUESTED',
-        requested_due_date: requestedTs
+        requested_due_date: requestedDueDateIso
       },
       {
         extensionStatus: 'REQUESTED',
-        requestedDueDate: requestedTs
+        requestedDueDate: requestedDueDateIso
       }
     );
     setIsExtensionUpdating(false);
