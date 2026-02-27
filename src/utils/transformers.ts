@@ -1,4 +1,4 @@
-import { DealershipTask, TaskType, RecurrenceFrequency } from '../types';
+import { DealershipTask, TaskType, RecurrenceFrequency, TaskExtensionStatus } from '../types';
 
 // Database task interface (camelCase from Supabase)
 export interface DatabaseTask {
@@ -16,6 +16,10 @@ export interface DatabaseTask {
   created_at?: number;
   next_recurrence_notification_at?: number | null;
   nextRecurrenceNotificationAt?: number | null;
+  extension_status?: TaskExtensionStatus;
+  extensionStatus?: TaskExtensionStatus;
+  requested_due_date?: number | null;
+  requestedDueDate?: number | null;
   deadline?: number;
   completedAt?: number;
   completed_at?: number;
@@ -51,6 +55,13 @@ export const transformTaskToApp = (dbTask: DatabaseTask): DealershipTask => {
     (rawRecurrenceFrequency === 'daily' || rawRecurrenceFrequency === 'weekly' || rawRecurrenceFrequency === 'monthly')
       ? rawRecurrenceFrequency
       : null;
+  const rawExtensionStatus = String(dbTask.extension_status ?? dbTask.extensionStatus ?? 'NONE').toUpperCase();
+  const normalizedExtensionStatus: TaskExtensionStatus =
+    rawExtensionStatus === 'REQUESTED' ||
+    rawExtensionStatus === 'APPROVED' ||
+    rawExtensionStatus === 'REJECTED'
+      ? (rawExtensionStatus as TaskExtensionStatus)
+      : 'NONE';
 
   return {
     id: dbTask.id,
@@ -60,6 +71,8 @@ export const transformTaskToApp = (dbTask: DatabaseTask): DealershipTask => {
     recurrenceFrequency: normalizedRecurrenceFrequency,
     nextRecurrenceNotificationAt:
       dbTask.next_recurrence_notification_at ?? dbTask.nextRecurrenceNotificationAt ?? null,
+    extensionStatus: normalizedExtensionStatus,
+    requestedDueDate: dbTask.requested_due_date ?? dbTask.requestedDueDate ?? null,
     createdAt: Number(dbTask.createdAt ?? dbTask.created_at ?? Date.now()),
     deadline: dbTask.deadline,
     completedAt: dbTask.completedAt ?? dbTask.completed_at,
@@ -102,6 +115,8 @@ export const transformTaskToDB = (appTask: DealershipTask): DatabaseTask => {
     recurrence_frequency: recurrenceFrequency,
     next_recurrence_notification_at:
       taskType === 'recurring' ? (appTask.nextRecurrenceNotificationAt ?? null) : null,
+    extension_status: appTask.extensionStatus || 'NONE',
+    requested_due_date: appTask.requestedDueDate ?? null,
     createdAt: appTask.createdAt,
     deadline: appTask.deadline,
     completedAt: appTask.completedAt,

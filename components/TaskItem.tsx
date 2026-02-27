@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { DealershipTask, Employee, TaskRemark, TaskType, RecurrenceFrequency } from '../types';
+import { DealershipTask, Employee, TaskRemark, TaskType, RecurrenceFrequency, TaskExtensionStatus } from '../types';
 import { Check, Camera, Maximize2, User, UserCheck, GitFork, ChevronDown, ChevronRight, Layers, Trash2, AlertTriangle, Clock, ArrowRight, Play, RotateCcw, CheckCircle, UserPlus, X, Edit, MessageSquarePlus, Send } from 'lucide-react';
 import { supabase } from '../src/lib/supabase';
 
@@ -78,6 +78,23 @@ const formatRemarkDateTime = (timestamp: number): string => {
   return `${day} ${month} ${year}, ${time}`;
 };
 
+const parseTimestamp = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const numericCandidate = Number(value);
+    if (Number.isFinite(numericCandidate)) {
+      return numericCandidate;
+    }
+    const parsedDate = Date.parse(value);
+    if (Number.isFinite(parsedDate)) {
+      return parsedDate;
+    }
+  }
+  return null;
+};
+
 const TaskItem: React.FC<TaskItemProps> = ({ 
   task, 
   subTasks = [], 
@@ -111,9 +128,15 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const [editRequirePhoto, setEditRequirePhoto] = useState(Boolean(task.requirePhoto));
   const [editTaskType, setEditTaskType] = useState<TaskType>('one_time');
   const [editRecurrenceFrequency, setEditRecurrenceFrequency] = useState<RecurrenceFrequency | ''>('');
+  const [showExtensionRequestInput, setShowExtensionRequestInput] = useState(false);
+  const [extensionRequestDate, setExtensionRequestDate] = useState('');
+  const [isExtensionUpdating, setIsExtensionUpdating] = useState(false);
   const remarksScrollRef = useRef<HTMLDivElement | null>(null);
 
-  const isManager = currentUser.role === 'manager' || currentUser.role === 'super_admin';
+  const isManager =
+    currentUser.role === 'manager' ||
+    currentUser.role === 'super_admin' ||
+    currentUser.role === 'owner';
   const canDelete = currentUser.id === task.assignedBy || isManager;
   const canEdit = currentUser.id === task.assignedBy || isManager;
   
@@ -161,6 +184,47 @@ const TaskItem: React.FC<TaskItemProps> = ({
     : normalizedTaskType === 'recurring'
     ? 'Recurring'
     : null;
+  const rawExtensionStatus = String(
+    (task as any).extensionStatus ?? (task as any).extension_status ?? 'NONE'
+  ).toUpperCase();
+  const extensionStatus: TaskExtensionStatus =
+    rawExtensionStatus === 'REQUESTED' ||
+    rawExtensionStatus === 'APPROVED' ||
+    rawExtensionStatus === 'REJECTED'
+      ? (rawExtensionStatus as TaskExtensionStatus)
+      : 'NONE';
+  const requestedDueDate =
+    parseTimestamp((task as any).requestedDueDate) ??
+    parseTimestamp((task as any).requested_due_date);
+  const assignedEmployee =
+    task.assignedTo ? employees.find((employee) => employee.id === task.assignedTo) : undefined;
+  const normalizedCurrentEmail = String(currentUser.email || '').trim().toLowerCase();
+  const normalizedAssignedEmail = String(assignedEmployee?.email || '').trim().toLowerCase();
+  const isAssignedWorker =
+    task.assignedTo === currentUser.id ||
+    (typeof currentUser.auth_user_id === 'string' && task.assignedTo === currentUser.auth_user_id) ||
+    (typeof assignedEmployee?.auth_user_id === 'string' && assignedEmployee.auth_user_id === currentUser.id) ||
+    (typeof assignedEmployee?.auth_user_id === 'string' &&
+      typeof currentUser.auth_user_id === 'string' &&
+      assignedEmployee.auth_user_id === currentUser.auth_user_id) ||
+    Boolean(
+      normalizedCurrentEmail &&
+      normalizedAssignedEmail &&
+      normalizedCurrentEmail === normalizedAssignedEmail
+    );
+  const canRequestByRole =
+    currentUser.role === 'manager' ||
+    currentUser.role === 'owner' ||
+    currentUser.role === 'super_admin';
+  const canRequestExtension =
+    (isAssignedWorker || canRequestByRole) &&
+    task.status === 'in-progress' &&
+    extensionStatus !== 'REQUESTED';
+  const canReviewExtensionRequest =
+    isManager &&
+    task.status === 'in-progress' &&
+    extensionStatus === 'REQUESTED' &&
+    Boolean(requestedDueDate);
 
   const normalizedRemarks = useMemo(() => {
     const rawRemarks = Array.isArray(task.remarks) ? task.remarks : [];
@@ -365,6 +429,92 @@ const TaskItem: React.FC<TaskItemProps> = ({
     }
   };
 
+  const updateTaskExtensionFields = async (
+    snakePayload: Record<string, unknown>,
+    camelPayload?: Record<string, unknown>
+  ) => {
+    let { error } = await supabase
+      .from('tasks')
+      .update(snakePayload)
+      .eq('id', task.id);
+
+    if (!error) {
+      return null;
+    }
+
+    const errorMessage = String(error?.message || '').toLowerCase();
+    const missingColumn =
+      errorMessage.includes('column') && errorMessage.includes('does not exist');
+
+    if (missingColumn && camelPayload) {
+      const retry = await supabase
+        .from('tasks')
+        .update(camelPayload)
+        .eq('id', task.id);
+      error = retry.error;
+    }
+
+    return error || null;
+  };
+
+  const handleRequestExtension = async () => {
+    if (!extensionRequestDate || isExtensionUpdating) {
+      return;
+    }
+
+    const requestedTs = new Date(extensionRequestDate).getTime();
+    if (!Number.isFinite(requestedTs)) {
+      alert('Please select a valid extension date and time.');
+      return;
+    }
+
+    setIsExtensionUpdating(true);
+    const error = await updateTaskExtensionFields(
+      {
+        extension_status: 'REQUESTED',
+        requested_due_date: requestedTs
+      },
+      {
+        extensionStatus: 'REQUESTED',
+        requestedDueDate: requestedTs
+      }
+    );
+    setIsExtensionUpdating(false);
+
+    if (error) {
+      alert(`Failed to request extension: ${error.message}`);
+      return;
+    }
+
+    setShowExtensionRequestInput(false);
+  };
+
+  const handleManagerExtensionDecision = async (decision: 'APPROVED' | 'REJECTED') => {
+    if (isExtensionUpdating || !requestedDueDate) {
+      return;
+    }
+
+    setIsExtensionUpdating(true);
+    const snakePayload: Record<string, unknown> = {
+      extension_status: decision
+    };
+    const camelPayload: Record<string, unknown> = {
+      extensionStatus: decision
+    };
+
+    if (decision === 'APPROVED') {
+      snakePayload.deadline = requestedDueDate;
+      camelPayload.deadline = requestedDueDate;
+    }
+
+    const error = await updateTaskExtensionFields(snakePayload, camelPayload);
+    setIsExtensionUpdating(false);
+
+    if (error) {
+      alert(`Failed to update extension request: ${error.message}`);
+    }
+  };
+
   useEffect(() => {
     if (!showRemarkInput || !remarksScrollRef.current) {
       return;
@@ -373,6 +523,11 @@ const TaskItem: React.FC<TaskItemProps> = ({
     const remarksContainer = remarksScrollRef.current;
     remarksContainer.scrollTop = remarksContainer.scrollHeight;
   }, [groupedRemarks, showRemarkInput]);
+
+  useEffect(() => {
+    setShowExtensionRequestInput(false);
+    setExtensionRequestDate(formatDateTimeForInput(requestedDueDate ?? task.deadline));
+  }, [task.id, requestedDueDate, task.deadline]);
 
   return (
     <div className="space-y-2">
@@ -550,6 +705,21 @@ const TaskItem: React.FC<TaskItemProps> = ({
                      Due: {new Date(task.deadline).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'})}
                    </span>
                 )}
+                {extensionStatus !== 'NONE' && (
+                  <span
+                    className={`flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest ${
+                      extensionStatus === 'APPROVED'
+                        ? 'text-emerald-600'
+                        : extensionStatus === 'REJECTED'
+                        ? 'text-red-600'
+                        : 'text-amber-600'
+                    }`}
+                  >
+                    <Clock className="w-3 h-3" />
+                    Extension: {extensionStatus.toLowerCase()}
+                    {requestedDueDate ? ` (${new Date(requestedDueDate).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })})` : ''}
+                  </span>
+                )}
 
                 {task.status === 'completed' && task.completedAt && (
                   <div className="flex items-center gap-1">
@@ -687,6 +857,25 @@ const TaskItem: React.FC<TaskItemProps> = ({
                 <MessageSquarePlus className="w-5 h-5 mb-0.5" />
                 <span className="text-[10px] font-black uppercase">Update</span>
               </button>
+
+              {canRequestExtension && (
+                <button
+                  onClick={() => setShowExtensionRequestInput((prev) => !prev)}
+                  className="bg-amber-50 text-amber-700 px-4 py-3 rounded-xl font-bold text-sm shadow-sm active:scale-95 transition-all flex flex-col items-center justify-center min-w-[80px]"
+                  title="Request deadline extension"
+                >
+                  <Clock className="w-5 h-5 mb-0.5" />
+                  <span className="text-[10px] font-black uppercase">
+                    {showExtensionRequestInput ? 'Cancel' : 'Extend'}
+                  </span>
+                </button>
+              )}
+
+              {isAssignedWorker && extensionStatus === 'REQUESTED' && (
+                <div className="bg-amber-50 text-amber-700 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wide text-center border border-amber-200">
+                  Extension requested
+                </div>
+              )}
             </>
           )}
 
@@ -733,6 +922,66 @@ const TaskItem: React.FC<TaskItemProps> = ({
             </>
           )}
         </div>
+
+        {canRequestExtension && showExtensionRequestInput && (
+          <div className="w-full pl-14">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-amber-700">
+                Request deadline extension
+              </p>
+              <input
+                type="datetime-local"
+                value={extensionRequestDate}
+                onChange={(e) => setExtensionRequestDate(e.target.value)}
+                className="w-full border border-amber-200 rounded-xl px-3 py-2 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800"
+              />
+              <button
+                type="button"
+                onClick={handleRequestExtension}
+                disabled={!extensionRequestDate || isExtensionUpdating}
+                className="w-full bg-amber-600 hover:bg-amber-700 text-white rounded-xl py-2.5 text-sm font-bold disabled:opacity-50"
+              >
+                {isExtensionUpdating ? 'Sending...' : 'Send Extension Request'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {canReviewExtensionRequest && (
+          <div className="w-full pl-14">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-amber-700">
+                Extension requested for{' '}
+                {requestedDueDate
+                  ? new Date(requestedDueDate).toLocaleString([], {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })
+                  : 'selected date'}
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleManagerExtensionDecision('APPROVED')}
+                  disabled={isExtensionUpdating}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl py-2.5 text-sm font-bold disabled:opacity-50"
+                >
+                  {isExtensionUpdating ? 'Updating...' : 'Approve Extension'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleManagerExtensionDecision('REJECTED')}
+                  disabled={isExtensionUpdating}
+                  className="bg-red-600 hover:bg-red-700 text-white rounded-xl py-2.5 text-sm font-bold disabled:opacity-50"
+                >
+                  {isExtensionUpdating ? 'Updating...' : 'Reject'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* In-Tile Progress Update Chat */}
         {(task.status === 'in-progress' && showRemarkInput) && (

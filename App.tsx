@@ -264,7 +264,15 @@ const scopeEmployeesForCurrentUser = (
   }
 
   if (currentUser.role === 'manager') {
+    const visibleAssignerIds = new Set<string>([currentUser.id]);
+    for (const task of taskRows || []) {
+      if (task.assignedTo === currentUser.id && task.assignedBy) {
+        visibleAssignerIds.add(task.assignedBy);
+      }
+    }
+
     return mergedEmployees.filter((employee) => {
+      if (visibleAssignerIds.has(employee.id)) return true;
       if (employee.id === currentUser.id) return true;
       if (employee.role !== 'staff') return false;
       const managerIds = getManagerIdsForStaff(
@@ -470,6 +478,23 @@ const upsertTaskInPlace = <T extends { id: string }>(items: T[], nextItem: T): T
   const updated = [...items];
   updated[index] = { ...updated[index], ...nextItem };
   return updated;
+};
+
+const isTaskVisibleToUser = (
+  taskRow: Partial<DatabaseTask> | Record<string, unknown>,
+  currentUser: Employee | null
+): boolean => {
+  if (!currentUser) return false;
+  if (currentUser.role === 'super_admin' || currentUser.role === 'owner') return true;
+
+  const row = taskRow as Record<string, unknown>;
+  const assignedTo = String(row.assignedTo ?? row.assigned_to ?? '').trim();
+  const assignedBy = String(row.assignedBy ?? row.assigned_by ?? '').trim();
+  const userId = String(currentUser.id || '').trim();
+  const authUserId = String((currentUser as any).auth_user_id || '').trim();
+
+  const candidateIds = [userId, authUserId].filter(Boolean);
+  return candidateIds.some((id) => id === assignedTo || id === assignedBy);
 };
 
 const toTimestampNumber = (value: unknown): number => {
@@ -986,6 +1011,15 @@ const App: React.FC = () => {
             return;
           }
 
+          const payloadRow = (payload.new || {}) as DatabaseTask;
+          if (!isTaskVisibleToUser(payloadRow, currentUser)) {
+            return;
+          }
+
+          // Apply realtime row immediately so UI updates without waiting for refetch.
+          const optimisticTask = transformTaskToApp(payloadRow);
+          setTasks(prev => upsertTaskAtTop(prev, optimisticTask as DealershipTask));
+
           // Step 1: Fetch the raw task
           const { data: task, error: taskError } = await supabase
             .from('tasks')
@@ -994,7 +1028,7 @@ const App: React.FC = () => {
             .single();
           
           if (taskError || !task) {
-            console.error('❌ Failed to fetch task:', taskError);
+            console.warn('Realtime INSERT: using payload fallback; failed to refetch full task row.', taskError);
             return;
           }
 
@@ -1051,6 +1085,16 @@ const App: React.FC = () => {
             console.warn('Realtime UPDATE payload missing task id:', payload);
             return;
           }
+
+          const payloadRow = (payload.new || {}) as DatabaseTask;
+          if (!isTaskVisibleToUser(payloadRow, currentUser)) {
+            setTasks((prev) => prev.filter((task) => task.id !== payloadTaskId));
+            return;
+          }
+
+          // Apply realtime row immediately; later refetch enriches employee lookups.
+          const optimisticTask = transformTaskToApp(payloadRow);
+          setTasks(prev => upsertTaskInPlace(prev, optimisticTask as DealershipTask));
 
           if (payloadTaskId) {
             const payloadRemarks = normalizeRealtimeRemarks((payload.new as any)?.remarks, payloadTaskId);
