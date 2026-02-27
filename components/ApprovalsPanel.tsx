@@ -42,6 +42,13 @@ type ApprovalAttachment = {
   size: number;
 };
 
+type PendingAttachment = {
+  id: string;
+  name: string;
+  contentType: string;
+  size: number;
+};
+
 const LOCKED_STATUSES: ApprovalStatus[] = ['APPROVED', 'REJECTED'];
 const ATTACHMENT_LINE_PREFIX = '__ATTACHMENT__|';
 const APPROVAL_ATTACHMENT_BUCKET = 'task-proofs';
@@ -95,9 +102,16 @@ const extractApprovalAttachments = (rawDescription: string): { description: stri
 
     const payload = line.slice(ATTACHMENT_LINE_PREFIX.length);
     const [encodedName, encodedUrl, encodedType, rawSize] = payload.split('|');
-    const name = decodeURIComponent(encodedName || '').trim();
-    const url = decodeURIComponent(encodedUrl || '').trim();
-    const contentType = decodeURIComponent(encodedType || '').trim();
+    const safeDecode = (value: string): string => {
+      try {
+        return decodeURIComponent(value);
+      } catch {
+        return value;
+      }
+    };
+    const name = safeDecode(encodedName || '').trim();
+    const url = safeDecode(encodedUrl || '').trim();
+    const contentType = safeDecode(encodedType || '').trim();
     const size = Number(rawSize || 0);
 
     if (!name || !url) continue;
@@ -193,7 +207,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
   const [requestAmount, setRequestAmount] = useState('');
   const [requestApproverId, setRequestApproverId] = useState('');
   const [requestInitialNote, setRequestInitialNote] = useState('');
-  const [requestAttachments, setRequestAttachments] = useState<File[]>([]);
+  const [requestAttachments, setRequestAttachments] = useState<PendingAttachment[]>([]);
   const [threads, setThreads] = useState<ApprovalThreadView[]>([]);
   const [loadingApprovals, setLoadingApprovals] = useState(false);
   const [loadingThreads, setLoadingThreads] = useState(false);
@@ -201,6 +215,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
   const [draftMessage, setDraftMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
   const attachmentsInputRef = useRef<HTMLInputElement | null>(null);
+  const attachmentFilesRef = useRef<Record<string, File>>({});
 
   const selectedApproval = useMemo(
     () => approvals.find((item) => item.id === selectedApprovalId) || null,
@@ -461,8 +476,13 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
       let uploadedAttachments: ApprovalAttachment[] = [];
       if (requestAttachments.length > 0) {
         const uploadResults = await Promise.all(
-          requestAttachments.map(async (file) => {
-            const safeName = sanitizeFileName(file.name);
+          requestAttachments.map(async (attachment) => {
+            const file = attachmentFilesRef.current[attachment.id];
+            if (!file) {
+              throw new Error(`Attachment "${attachment.name}" is missing. Please re-attach and try again.`);
+            }
+
+            const safeName = sanitizeFileName(attachment.name);
             const storagePath = `approval-attachments/${currentUser.company_id}/${currentUser.id}/${Date.now()}-${Math.random()
               .toString(36)
               .slice(2, 9)}-${safeName}`;
@@ -485,10 +505,10 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
               .getPublicUrl(storagePath);
 
             return {
-              name: file.name,
+              name: attachment.name,
               url: String(publicData?.publicUrl || '').trim(),
-              contentType: file.type || '',
-              size: file.size || 0,
+              contentType: file.type || attachment.contentType || '',
+              size: file.size || attachment.size || 0,
             } as ApprovalAttachment;
           })
         );
@@ -541,6 +561,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
       setRequestAmount('');
       setRequestInitialNote('');
       setRequestAttachments([]);
+      attachmentFilesRef.current = {};
       setView('my_requests');
       await loadThreads(createdApproval.id);
     } catch (createErr: any) {
@@ -724,7 +745,10 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
               <p className="text-xs font-semibold text-slate-600">Attachments (PDF, Excel, Images)</p>
               <button
                 type="button"
-                onClick={() => attachmentsInputRef.current?.click()}
+                onClick={(event) => {
+                  event.preventDefault();
+                  attachmentsInputRef.current?.click();
+                }}
                 className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 hover:bg-slate-100"
                 title="Attach files"
               >
@@ -738,21 +762,36 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                 accept=".pdf,.xls,.xlsx,.csv,image/*"
                 className="hidden"
                 onChange={(event) => {
-                  const files = Array.from(event.target.files || []);
-                  if (!files.length) return;
-                  setRequestAttachments((prev) => {
-                    const existing = new Set(prev.map((item) => `${item.name}_${item.size}`));
-                    const next = [...prev];
-                    for (const file of files) {
-                      const key = `${file.name}_${file.size}`;
-                      if (!existing.has(key)) {
-                        next.push(file);
+                  try {
+                    const files = Array.from(event.target.files || []);
+                    if (!files.length) return;
+
+                    setRequestAttachments((prev) => {
+                      const existing = new Set(prev.map((item) => `${item.name}_${item.size}`));
+                      const next = [...prev];
+
+                      for (const file of files) {
+                        const key = `${file.name}_${file.size}`;
+                        if (existing.has(key)) continue;
+
+                        const id = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+                        attachmentFilesRef.current[id] = file;
+                        next.push({
+                          id,
+                          name: file.name,
+                          contentType: file.type || '',
+                          size: file.size || 0,
+                        });
                         existing.add(key);
                       }
-                    }
-                    return next;
-                  });
-                  event.currentTarget.value = '';
+
+                      return next;
+                    });
+                  } catch (attachError: any) {
+                    setError(attachError?.message || 'Failed to attach selected files.');
+                  } finally {
+                    event.currentTarget.value = '';
+                  }
                 }}
               />
             </div>
@@ -766,7 +805,15 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                     </p>
                     <button
                       type="button"
-                      onClick={() => setRequestAttachments((prev) => prev.filter((_, i) => i !== index))}
+                      onClick={() =>
+                        setRequestAttachments((prev) => {
+                          const toRemove = prev[index];
+                          if (toRemove?.id) {
+                            delete attachmentFilesRef.current[toRemove.id];
+                          }
+                          return prev.filter((_, i) => i !== index);
+                        })
+                      }
                       className="p-1 rounded-md text-slate-500 hover:bg-slate-200"
                       title="Remove attachment"
                     >
@@ -811,6 +858,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
             className="h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
           />
           <button
+            type="button"
             onClick={() => void handleCreateRequest()}
             disabled={creatingApproval}
             className="h-11 rounded-xl bg-indigo-900 text-white text-sm font-bold disabled:opacity-60"
