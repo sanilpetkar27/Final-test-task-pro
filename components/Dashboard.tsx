@@ -3,6 +3,7 @@ import { DealershipTask, Employee, UserRole, TaskStatus, TaskType, RecurrenceFre
 import { supabase } from '../src/lib/supabase';
 import { sendTaskCompletionNotification } from '../src/utils/pushNotifications';
 import TaskItem from './TaskItem';
+import TaskDetailsScreen from './TaskDetailsScreen';
 import CompletionModal from './CompletionModal';
 import DelegationModal from './DelegationModal';
 import ReassignModal from './ReassignModal';
