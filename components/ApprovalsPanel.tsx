@@ -1267,6 +1267,20 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                             <p className="text-xs text-slate-500 mt-1 line-clamp-2">
                               {parsedApproval.description || 'No description'}
                             </p>
+                            
+                            {/* Date Information */}
+                            <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
+                              <div className="flex items-center gap-1">
+                                <span className="font-medium">Created:</span>
+                                <span>{approval.created_at ? formatDateTime(approval.created_at).split(',')[0] : 'N/A'}</span>
+                              </div>
+                              {(approval.status === 'APPROVED' || approval.status === 'REJECTED') && approval.updated_at && (
+                                <div className="flex items-center gap-1">
+                                  <span className="font-medium">{approval.status === 'APPROVED' ? 'Approved:' : 'Rejected:'}</span>
+                                  <span>{formatDateTime(approval.updated_at).split(',')[0]}</span>
+                                </div>
+                              )}
+                            </div>
                           </button>
 
                           {isSelected && (
@@ -1413,6 +1427,20 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                       <p className="text-xs text-slate-500 mt-1 line-clamp-2">
                         {parsedApproval.description || 'No description'}
                       </p>
+                      
+                      {/* Date Information */}
+                      <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
+                        <div className="flex items-center gap-1">
+                          <span className="font-medium">Created:</span>
+                          <span>{approval.created_at ? formatDateTime(approval.created_at).split(',')[0] : 'N/A'}</span>
+                        </div>
+                        {(approval.status === 'APPROVED' || approval.status === 'REJECTED') && approval.updated_at && (
+                          <div className="flex items-center gap-1">
+                            <span className="font-medium">{approval.status === 'APPROVED' ? 'Approved:' : 'Rejected:'}</span>
+                            <span>{formatDateTime(approval.updated_at).split(',')[0]}</span>
+                          </div>
+                        )}
+                      </div>
                     </button>
 
                     {isSelected && (
