@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, Download, Link2, MessageSquare, Paperclip, Plus, Send, X, XCircle } from 'lucide-react';
+import { CheckCircle2, Download, Filter, Link2, MessageSquare, Paperclip, Plus, Send, X, XCircle } from 'lucide-react';
 import { supabase } from '../src/lib/supabase';
 import { Employee } from '../types';
 
@@ -282,7 +282,16 @@ interface ApprovalsPanelProps {
 const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
   const [view, setView] = useState<ApprovalView>(currentUser.role === 'owner' || currentUser.role === 'super_admin' ? 'needs_my_approval' : 'my_requests');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed'>('all');
-  const [monthFilter, setMonthFilter] = useState<string>('all');
+  // Set default month filter to current month
+  const getCurrentMonth = () => {
+    const now = new Date();
+    return now.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long' 
+    });
+  };
+  const [monthFilter, setMonthFilter] = useState<string>(getCurrentMonth());
+  const [showMonthDropdown, setShowMonthDropdown] = useState(false);
   const [approvals, setApprovals] = useState<ApprovalItem[]>([]);
   const [selectedApprovalId, setSelectedApprovalId] = useState<string | null>(null);
   const [approvers, setApprovers] = useState<ApproverOption[]>([]);
@@ -821,7 +830,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
 
       {/* Status Filter Pills - Only show for My Requests */}
       {view === 'my_requests' && (
-        <div className="mt-3 space-y-3">
+        <div className="mt-3 flex items-center justify-between">
           <div className="flex gap-2">
             {[
               { key: 'all' as const, label: 'All' },
@@ -842,23 +851,48 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
             ))}
           </div>
           
-          {/* Month Filter Dropdown - Only show for My Requests */}
+          {/* Month Filter Icon */}
           <div className="relative">
-            <select
-              value={monthFilter}
-              onChange={(e) => setMonthFilter(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900/20 appearance-none cursor-pointer"
+            <button
+              onClick={() => setShowMonthDropdown(!showMonthDropdown)}
+              className="p-2 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 transition-colors"
+              title="Filter by month"
             >
-              <option value="all">All Months</option>
-              {getAvailableMonths(approvals).map(month => (
-                <option key={month} value={month}>{month}</option>
-              ))}
-            </select>
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-              <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </div>
+              <Filter className="w-4 h-4" />
+            </button>
+            
+            {/* Month Dropdown */}
+            {showMonthDropdown && (
+              <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-slate-200 rounded-lg shadow-lg z-10">
+                <div className="max-h-60 overflow-y-auto">
+                  <button
+                    onClick={() => {
+                      setMonthFilter('all');
+                      setShowMonthDropdown(false);
+                    }}
+                    className={`w-full px-3 py-2 text-left text-sm hover:bg-slate-50 transition-colors ${
+                      monthFilter === 'all' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700'
+                    }`}
+                  >
+                    All Months
+                  </button>
+                  {getAvailableMonths(approvals).map(month => (
+                    <button
+                      key={month}
+                      onClick={() => {
+                        setMonthFilter(month);
+                        setShowMonthDropdown(false);
+                      }}
+                      className={`w-full px-3 py-2 text-left text-sm hover:bg-slate-50 transition-colors ${
+                        monthFilter === month ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700'
+                      }`}
+                    >
+                      {month}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
