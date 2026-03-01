@@ -94,7 +94,7 @@ const createMockClient = () => {
 // Use a single real client instance to avoid multiple GoTrueClient warnings and session races.
 const realClient = hasRealCredentials()
   ? createClient(
-      import.meta.env.VITE_SUPABASE_URL!,
+      'https://taskpro-proxy.sanilpetkar99.workers.dev',
       import.meta.env.VITE_SUPABASE_ANON_KEY!
     )
   : null;

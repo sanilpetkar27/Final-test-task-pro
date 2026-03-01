@@ -1,11 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const supabaseUrl = 'https://taskpro-proxy.sanilpetkar99.workers.dev';
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing EXPO_PUBLIC_SUPABASE_URL or EXPO_PUBLIC_SUPABASE_ANON_KEY.');
+if (!supabaseAnonKey) {
+  throw new Error('Missing EXPO_PUBLIC_SUPABASE_ANON_KEY.');
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
