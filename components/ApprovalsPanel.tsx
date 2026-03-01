@@ -722,10 +722,11 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
           <h2 className="text-lg font-black text-slate-900 mt-1">Requests & Decisions</h2>
         </div>
         <button
-          onClick={() => void loadApprovals()}
-          className="px-3 py-2 rounded-xl border border-slate-200 bg-slate-100 text-xs font-bold text-slate-700 hover:bg-slate-200"
+          onClick={() => setIsApprovalModalOpen(true)}
+          className="bg-indigo-900 hover:bg-indigo-800 text-white rounded-full px-4 py-2.5 shadow-md shadow-indigo-900/20 flex items-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95"
         >
-          Refresh
+          <Plus className="w-5 h-5" />
+          <span className="font-semibold">Approval</span>
         </button>
       </div>
 
@@ -749,17 +750,6 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
           }`}
         >
           Needs My Approval
-        </button>
-      </div>
-
-      {/* Approval Button */}
-      <div className="mt-4 flex justify-end">
-        <button
-          onClick={() => setIsApprovalModalOpen(true)}
-          className="bg-indigo-900 hover:bg-indigo-800 text-white rounded-full px-4 py-2.5 shadow-md shadow-indigo-900/20 flex items-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95"
-        >
-          <Plus className="w-5 h-5" />
-          <span className="font-semibold">Approval</span>
         </button>
       </div>
 

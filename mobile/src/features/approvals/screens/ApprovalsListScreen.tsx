@@ -73,7 +73,12 @@ export function ApprovalsListScreen() {
           <Text style={styles.title}>Approvals</Text>
           <Text style={styles.subtitle}>{headerSubtitle}</Text>
         </View>
-        <BellIcon userId={profile.id} onPress={() => navigation.navigate('Notifications')} />
+        <AppButton
+          label="Approval +"
+          onPress={() => navigation.navigate('CreateApproval')}
+          variant="primary"
+          style={styles.headerApprovalButton}
+        />
       </View>
 
       <View style={styles.switcher}>
@@ -106,16 +111,6 @@ export function ApprovalsListScreen() {
             Needs My Approval
           </Text>
         </Pressable>
-      </View>
-
-      {/* Approval Button */}
-      <View style={styles.approvalButtonContainer}>
-        <AppButton
-          label="Approval +"
-          onPress={() => navigation.navigate('CreateApproval')}
-          variant="primary"
-          style={styles.approvalButton}
-        />
       </View>
 
       {isLoading ? (
@@ -185,6 +180,9 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: spacing.xs,
   },
+  headerApprovalButton: {
+    minWidth: 100,
+  },
   title: {
     color: lumina.text.primary,
     fontSize: typography.size.xl,
@@ -223,14 +221,6 @@ const styles = StyleSheet.create({
   },
   switchLabelActive: {
     color: lumina.text.inverse,
-  },
-  approvalButtonContainer: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginBottom: spacing.md,
-  },
-  approvalButton: {
-    minWidth: 120,
   },
   centered: {
     flex: 1,
