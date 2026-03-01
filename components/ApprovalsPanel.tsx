@@ -752,15 +752,14 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         </button>
       </div>
 
-      <div className="mt-4 flex justify-end">
-        <button
-          onClick={() => setIsApprovalModalOpen(true)}
-          className="bg-indigo-900 hover:bg-indigo-800 text-white rounded-full px-4 py-2.5 shadow-md shadow-indigo-900/20 flex items-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95"
-        >
-          <Plus className="w-5 h-5" />
-          <span className="font-semibold">Approvals</span>
-        </button>
-      </div>
+      {/* Floating Approval Button */}
+      <button
+        onClick={() => setIsApprovalModalOpen(true)}
+        className="fixed bottom-6 right-6 bg-indigo-900 hover:bg-indigo-800 text-white rounded-full w-14 h-14 shadow-lg shadow-indigo-900/30 flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 z-40"
+        title="Create Approval Request"
+      >
+        <Plus className="w-6 h-6" />
+      </button>
 
       {/* Approval Creation Modal */}
       {isApprovalModalOpen && (
