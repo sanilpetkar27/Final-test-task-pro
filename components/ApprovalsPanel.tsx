@@ -226,7 +226,6 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
   const [requestDescription, setRequestDescription] = useState('');
   const [requestAmount, setRequestAmount] = useState('');
   const [requestApproverId, setRequestApproverId] = useState('');
-  const [requestInitialNote, setRequestInitialNote] = useState('');
   const [requestAttachments, setRequestAttachments] = useState<PendingAttachment[]>([]);
   const [threads, setThreads] = useState<ApprovalThreadView[]>([]);
   const [loadingApprovals, setLoadingApprovals] = useState(false);
@@ -468,7 +467,6 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         ? null
         : Number(rawAmount);
     const approverId = requestApproverId.trim();
-    const initialNote = requestInitialNote.trim();
 
     if (!title) {
       setError('Approval title is required.');
@@ -559,23 +557,12 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         updated_at: created.updated_at ? String(created.updated_at) : null,
       };
 
-      if (initialNote) {
-        const { error: initialMessageError } = await supabase
-          .from('approval_threads')
-          .insert({
-            approval_id: createdApproval.id,
-            sender_id: currentUser.id,
-            message_text: initialNote,
-          });
-        if (initialMessageError) throw initialMessageError;
-      }
 
       setApprovals((prev) => sortApprovalsByRecency([createdApproval, ...prev]));
       setSelectedApprovalId(createdApproval.id);
       setRequestTitle('');
       setRequestDescription('');
       setRequestAmount('');
-      setRequestInitialNote('');
       setRequestAttachments([]);
       attachmentFilesRef.current = {};
       setView('my_requests');
@@ -795,96 +782,92 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                   className="h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
                   autoFocus
                 />
-                <textarea
-                  value={requestDescription}
-                  onChange={(event) => setRequestDescription(event.target.value)}
-                  placeholder="Description"
-                  className="min-h-[70px] px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-900/20 resize-none"
-                />
-                <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-semibold text-slate-600">Attachments (PDF, Excel, Images)</p>
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        attachmentsInputRef.current?.click();
-                      }}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 hover:bg-slate-100"
-                      title="Attach files"
-                    >
-                      <Paperclip className="w-3.5 h-3.5" />
-                      Attach
-                    </button>
-                    <input
-                      ref={attachmentsInputRef}
-                      type="file"
-                      multiple
-                      accept=".pdf,.xls,.xlsx,.csv,image/*"
-                      className="hidden"
-                      onChange={(event) => {
-                        try {
-                          const files = Array.from(event.target.files || []);
-                          if (!files.length) return;
+                <div className="relative">
+                  <textarea
+                    value={requestDescription}
+                    onChange={(event) => setRequestDescription(event.target.value)}
+                    placeholder="Description"
+                    className="min-h-[70px] w-full px-3 py-2 pb-10 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-900/20 resize-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      attachmentsInputRef.current?.click();
+                    }}
+                    className="absolute bottom-2 right-2 p-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 transition-colors"
+                    title="Attach files"
+                  >
+                    <Paperclip className="w-4 h-4" />
+                  </button>
+                  <input
+                    ref={attachmentsInputRef}
+                    type="file"
+                    multiple
+                    accept=".pdf,.xls,.xlsx,.csv,image/*"
+                    className="hidden"
+                    onChange={(event) => {
+                      try {
+                        const files = Array.from(event.target.files || []);
+                        if (!files.length) return;
 
-                          setRequestAttachments((prev) => {
-                            const existing = new Set(prev.map((item) => `${item.name}_${item.size}`));
-                            const next = [...prev];
+                        setRequestAttachments((prev) => {
+                          const existing = new Set(prev.map((item) => `${item.name}_${item.size}`));
+                          const next = [...prev];
 
-                            for (const file of files) {
-                              const key = `${file.name}_${file.size}`;
-                              if (existing.has(key)) continue;
+                          for (const file of files) {
+                            const key = `${file.name}_${file.size}`;
+                            if (existing.has(key)) continue;
 
-                              const id = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-                              attachmentFilesRef.current[id] = file;
-                              next.push({
-                                id,
-                                name: file.name,
-                                contentType: file.type || '',
-                                size: file.size || 0,
-                              });
-                              existing.add(key);
-                            }
+                            const id = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+                            attachmentFilesRef.current[id] = file;
+                            next.push({
+                              id,
+                              name: file.name,
+                              contentType: file.type || '',
+                              size: file.size || 0,
+                            });
+                            existing.add(key);
+                          }
 
-                            return next;
-                          });
-                        } catch (attachError: any) {
-                          setError(attachError?.message || 'Failed to attach selected files.');
-                        } finally {
-                          event.currentTarget.value = '';
-                        }
-                      }}
-                    />
-                  </div>
-                  {requestAttachments.length > 0 && (
-                    <div className="mt-2 space-y-1.5">
-                      {requestAttachments.map((file, index) => (
-                        <div key={`${file.name}_${file.size}_${index}`} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
-                          <p className="text-xs text-slate-700 truncate">
-                            {file.name}
-                            {file.size ? ` (${formatAttachmentSize(file.size)})` : ''}
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setRequestAttachments((prev) => {
-                                const toRemove = prev[index];
-                                if (toRemove?.id) {
-                                  delete attachmentFilesRef.current[toRemove.id];
-                                }
-                                return prev.filter((_, i) => i !== index);
-                              })
-                            }
-                            className="p-1 rounded-md text-slate-500 hover:bg-slate-200"
-                            title="Remove attachment"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                          return next;
+                        });
+                      } catch (attachError: any) {
+                        setError(attachError?.message || 'Failed to attach selected files.');
+                      } finally {
+                        event.currentTarget.value = '';
+                      }
+                    }}
+                  />
                 </div>
+                {requestAttachments.length > 0 && (
+                  <div className="mt-2 space-y-1.5">
+                    {requestAttachments.map((file, index) => (
+                      <div key={`${file.name}_${file.size}_${index}`} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
+                        <p className="text-xs text-slate-700 truncate">
+                          {file.name}
+                          {file.size ? ` (${formatAttachmentSize(file.size)})` : ''}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setRequestAttachments((prev) => {
+                              const toRemove = prev[index];
+                              if (toRemove?.id) {
+                                delete attachmentFilesRef.current[toRemove.id];
+                              }
+                              return prev.filter((_, i) => i !== index);
+                            })
+                          }
+                          className="p-1 rounded-md text-slate-500 hover:bg-slate-200"
+                          title="Remove attachment"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-2">
                   <input
                     value={requestAmount}
@@ -912,12 +895,6 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                     )}
                   </select>
                 </div>
-                <input
-                  value={requestInitialNote}
-                  onChange={(event) => setRequestInitialNote(event.target.value)}
-                  placeholder="Optional note to tagged approver"
-                  className="h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
-                />
                 
                 <div className="flex gap-2 pt-2">
                   <button
