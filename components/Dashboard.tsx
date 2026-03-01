@@ -894,49 +894,6 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   const inProgressTasks = tasks.filter(t => t.status === 'in-progress');
   const completedTasks = tasks.filter(t => t.status === 'completed');
 
-  // --- DEADLINE FILTERING LOGIC ---
-  const getDeadlineFilteredTasks = (tasks: DealershipTask[]) => {
-    if (deadlineView === 'all') return tasks;
-    
-    const now = Date.now();
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Start of today
-    const todayEnd = new Date();
-    todayEnd.setHours(23, 59, 59, 999); // End of today
-    const nextWeek = new Date(today);
-    nextWeek.setDate(nextWeek.getDate() + 7);
-    nextWeek.setHours(23, 59, 59, 999); // End of next 7 days
-
-    const incompleteTasks = tasks.filter(t => t.status !== 'completed');
-
-    switch (deadlineView) {
-      case 'overdue':
-        return incompleteTasks.filter(t => {
-          if (!t.deadline) return false;
-          const deadlineDate = new Date(t.deadline);
-          deadlineDate.setHours(0, 0, 0, 0); // Ignore time for overdue check
-          return deadlineDate < today;
-        });
-      
-      case 'today':
-        return incompleteTasks.filter(t => {
-          if (!t.deadline) return false;
-          const deadlineDate = new Date(t.deadline);
-          return deadlineDate >= today && deadlineDate <= todayEnd;
-        });
-      
-      case 'upcoming':
-        return incompleteTasks.filter(t => {
-          if (!t.deadline) return false;
-          const deadlineDate = new Date(t.deadline);
-          return deadlineDate > todayEnd && deadlineDate <= nextWeek;
-        });
-      
-      default:
-        return tasks;
-    }
-  };
-
   // Person Filter Logic
   // Get filter options based on user role
   const getFilterOptions = () => {
