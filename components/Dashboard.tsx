@@ -79,6 +79,7 @@ const getRecurrenceIntervalMs = (frequency: RecurrenceFrequency | null | undefin
 
 const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, onAddTask, onStartTask, onReopenTask, onCompleteTask, onCompleteTaskWithoutPhoto, onReassignTask, onDeleteTask, onUpdateTaskRemarks }) => {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [assigneeSearch, setAssigneeSearch] = useState('');
   
   // Voice recognition state
   const [isListening, setIsListening] = useState(false);
