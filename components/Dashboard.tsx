@@ -155,6 +155,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   };
   // Dashboard uses employees from props, no local state needed
   const [selectedPersonFilter, setSelectedPersonFilter] = useState('ALL');
+  const [assigneeNameFilter, setAssigneeNameFilter] = useState('');
   
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
   const [delegatingTaskId, setDelegatingTaskId] = useState<string | null>(null);
@@ -978,25 +979,37 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
 
   // Apply person filter to tasks
   const getFilteredTasks = (tasks: DealershipTask[]) => {
+    let filtered = tasks;
+    
+    // Apply assignee name filter
+    if (assigneeNameFilter.trim()) {
+      const searchTerm = assigneeNameFilter.toLowerCase().trim();
+      filtered = filtered.filter(task => {
+        const assignee = employees.find(e => e.id === task.assignedTo);
+        const assigneeName = assignee?.name?.toLowerCase() || '';
+        return assigneeName.includes(searchTerm);
+      });
+    }
+    
     if (selectedPersonFilter === 'ALL') {
       if (isSuperAdmin) {
         // Super admin sees all tasks when 'ALL' is selected
-        return tasks;
+        return filtered;
       } else {
         // Managers/staff see only their relevant tasks
-        return tasks.filter(task => task.assignedTo === currentUser.id || task.assignedBy === currentUser.id);
+        return filtered.filter(task => task.assignedTo === currentUser.id || task.assignedBy === currentUser.id);
       }
     }
     
     if (isSuperAdmin) {
       // Super admin can filter by any manager
-      return tasks.filter(task => task.assignedBy === selectedPersonFilter);
+      return filtered.filter(task => task.assignedBy === selectedPersonFilter);
     } else if (isManager) {
       // Manager filters by assignee
-      return tasks.filter(task => task.assignedTo === selectedPersonFilter);
+      return filtered.filter(task => task.assignedTo === selectedPersonFilter);
     } else {
       // Staff filters by assigner (manager)
-      return tasks.filter(task => task.assignedBy === selectedPersonFilter);
+      return filtered.filter(task => task.assignedBy === selectedPersonFilter);
     }
   };
 
@@ -1307,6 +1320,28 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
           </div>
         </div>
       )}
+
+      {/* Assignee Name Filter */}
+      <div className="relative">
+        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+          <Filter className="w-4 h-4" />
+        </div>
+        <input
+          type="text"
+          value={assigneeNameFilter}
+          onChange={(e) => setAssigneeNameFilter(e.target.value)}
+          placeholder="Filter by assignee name..."
+          className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900 transition-all placeholder:text-slate-400"
+        />
+        {assigneeNameFilter && (
+          <button
+            onClick={() => setAssigneeNameFilter('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
 
       {/* Unified Task List */}
       <div className="space-y-3 pb-8 min-h-[500px]">
