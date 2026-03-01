@@ -159,6 +159,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   const [delegatingTaskId, setDelegatingTaskId] = useState<string | null>(null);
   const [reassigningTaskId, setReassigningTaskId] = useState<string | null>(null);
   const [isCreatingTask, setIsCreatingTask] = useState(false);
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const lastTaskSubmitRef = useRef<{ signature: string; timestamp: number } | null>(null);
   const [statusBumpTimestamps, setStatusBumpTimestamps] = useState<Record<string, number>>({});
   const previousTaskStatusRef = useRef<Record<string, TaskStatus>>({});
@@ -640,8 +641,11 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
       // Auto-reset filter to show new task
       setSelectedPersonFilter('ALL');
 
-      // Reset form and clear localStorage
+      // Reset form and clear sessionStorage
       clearForm();
+      
+      // Close the modal
+      setIsTaskModalOpen(false);
     } catch (err) {
       console.error('Unexpected error creating task:', err);
       alert('Unexpected Error: ' + (err instanceof Error ? err.message : 'Unknown error'));
@@ -1070,155 +1074,200 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   const tasksToShow = view === 'pending' ? filteredPendingTasks : view === 'in-progress' ? filteredInProgressTasks : filteredCompletedTasks;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative min-h-screen pb-24">
+      {/* Floating New Task Button - Bottom Right */}
       {canAssignTasks && (
-        <section className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 animate-in fade-in slide-in-from-top-4">
-          <h2 className="text-xs font-black text-slate-500 mb-3 uppercase tracking-widest flex items-center gap-2">
-            <Plus className="w-3 h-3" />
-            Assign New Operation
-          </h2>
-          <form onSubmit={handleAddTask} className="space-y-3">
-            <div className="relative">
-              <input 
-                type="text" 
-                value={newTaskDesc}
-                onChange={(e) => setNewTaskDesc(e.target.value)}
-                placeholder="What needs to be done?"
-                className={`w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 transition-all placeholder:text-slate-400 pr-12 ${
-                  isListening ? 'ring-2 ring-red-500 border-red-300' : ''
-                }`}
-              />
-              <button
-                type="button"
-                onClick={toggleListening}
-                disabled={!isVoiceSupported || isPreparingMicPermission}
-                className={`absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-all ${
-                  isListening 
-                    ? 'bg-red-500 text-white hover:bg-red-600 animate-pulse' 
-                    : isPreparingMicPermission
-                    ? 'bg-slate-200 text-slate-500 cursor-wait'
-                    : isVoiceSupported
-                    ? 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-900'
-                    : 'bg-slate-100 text-slate-300 cursor-not-allowed'
-                }`}
-                title={
-                  !isVoiceSupported
-                    ? 'Voice input is not supported on this browser'
-                    : isPreparingMicPermission
-                    ? 'Preparing microphone permission...'
-                    : isListening
-                    ? 'Stop recording'
-                    : 'Start voice input'
-                }
-              >
-                {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-              </button>
-            </div>
+        <button
+          onClick={() => setIsTaskModalOpen(true)}
+          className="fixed bottom-6 right-6 z-50 bg-indigo-900 hover:bg-indigo-800 text-white rounded-full p-4 shadow-lg shadow-indigo-900/30 flex items-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95"
+        >
+          <Plus className="w-6 h-6" />
+          <span className="font-semibold pr-1">New</span>
+        </button>
+      )}
 
-            {isPreparingMicPermission && (
-              <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-100 px-3 py-2 rounded-lg">
-                <div className="w-2 h-2 bg-slate-500 rounded-full animate-pulse"></div>
-                <span>Preparing microphone...</span>
-              </div>
-            )}
-            
-            {isListening && (
-              <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">
-                <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-                <span>Listening... Speak your task description</span>
-              </div>
-            )}
-
-            <div className="flex gap-2">
-              <div className="flex-1 relative">
-                <select 
-                  value={assigneeId}
-                  onChange={(e) => setAssigneeId(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 appearance-none transition-all pr-10"
+      {/* Task Creation Modal */}
+      {isTaskModalOpen && canAssignTasks && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
+            onClick={() => !isCreatingTask && setIsTaskModalOpen(false)}
+          />
+          
+          {/* Modal Content */}
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95">
+            {/* Header */}
+            <div className="sticky top-0 bg-white border-b border-slate-200 p-4 flex items-center justify-between z-10">
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <Plus className="w-5 h-5 text-indigo-900" />
+                Create New Task
+              </h2>
+              {!isCreatingTask && (
+                <button
+                  onClick={() => setIsTaskModalOpen(false)}
+                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-500"
                 >
-                  <option value="none" className="text-slate-900">Anyone / Unassigned</option>
-                  {employees.map(emp => (
-                      <option key={emp.id} value={emp.id} className="text-slate-900">
-                        {emp.name} ({emp.role === 'super_admin' || emp.role === 'owner' ? 'Owner' : emp.role === 'manager' ? 'Manager' : 'Staff'})
-                      </option>
-                    ))}
-                </select>
-                <UserPlus className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
-              
-              <div className="relative w-1/3 flex-shrink-0">
-                <input 
-                  type="datetime-local" 
-                  value={deadline}
-                  onChange={(e) => setDeadline(e.target.value)}
-                  onClick={(e) => openDateTimePicker(e.currentTarget)}
-                  className="w-full border rounded-xl px-3 py-3 bg-white border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-800 transition-all cursor-pointer"
-                />
-                <CalendarClock className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              <div className="relative">
-                <select
-                  value={taskType}
-                  onChange={(e) => setTaskType(e.target.value as TaskType)}
-                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 appearance-none transition-all pr-10"
-                >
-                  <option value="one_time" className="text-slate-900">One-time Task</option>
-                  <option value="recurring" className="text-slate-900">Recurring Task</option>
-                </select>
-                <Clock className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
-
-              {taskType === 'recurring' && (
-                <div className="relative">
-                  <select
-                    value={recurrenceFrequency}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setRecurrenceFrequency(
-                        value === '' ? '' : (value as RecurrenceFrequency)
-                      );
-                    }}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 appearance-none transition-all pr-10"
-                    required
-                  >
-                    <option value="" className="text-slate-900">Select Frequency</option>
-                    <option value="daily" className="text-slate-900">Daily</option>
-                    <option value="weekly" className="text-slate-900">Weekly</option>
-                    <option value="monthly" className="text-slate-900">Monthly</option>
-                  </select>
-                  <Calendar className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
-                </div>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               )}
             </div>
 
-            <div className="flex items-center gap-2">
-              <input 
-                type="checkbox" 
-                id="requirePhoto"
-                checked={requirePhoto}
-                onChange={(e) => setRequirePhoto(e.target.checked)}
-                className="w-4 h-4 text-indigo-900 rounded focus:ring-slate-800 border-slate-300"
-              />
-              <label htmlFor="requirePhoto" className="text-sm text-slate-700">
-                Require photo proof
-              </label>
-            </div>
-            
-            <div className="flex gap-2">
-            <button 
-              type="submit"
-              disabled={isCreatingTask}
-              className="flex-1 bg-indigo-900 hover:bg-indigo-800 text-white py-3 rounded-xl font-bold active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 shadow-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)] disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              <Plus className="w-5 h-5" />
-              {isCreatingTask ? 'Assigning...' : 'Assign Task'}
-            </button>
+            {/* Form */}
+            <form onSubmit={handleAddTask} className="p-4 space-y-4">
+              <div className="relative">
+                <input 
+                  type="text" 
+                  value={newTaskDesc}
+                  onChange={(e) => setNewTaskDesc(e.target.value)}
+                  placeholder="What needs to be done?"
+                  className={`w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900 transition-all placeholder:text-slate-400 pr-12 ${
+                    isListening ? 'ring-2 ring-red-500 border-red-300' : ''
+                  }`}
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={toggleListening}
+                  disabled={!isVoiceSupported || isPreparingMicPermission}
+                  className={`absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-all ${
+                    isListening 
+                      ? 'bg-red-500 text-white hover:bg-red-600 animate-pulse' 
+                      : isPreparingMicPermission
+                      ? 'bg-slate-200 text-slate-500 cursor-wait'
+                      : isVoiceSupported
+                      ? 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-900'
+                      : 'bg-slate-100 text-slate-300 cursor-not-allowed'
+                  }`}
+                  title={
+                    !isVoiceSupported
+                      ? 'Voice input is not supported on this browser'
+                      : isPreparingMicPermission
+                      ? 'Preparing microphone permission...'
+                      : isListening
+                      ? 'Stop recording'
+                      : 'Start voice input'
+                  }
+                >
+                  {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                </button>
+              </div>
+
+              {isPreparingMicPermission && (
+                <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-100 px-3 py-2 rounded-lg">
+                  <div className="w-2 h-2 bg-slate-500 rounded-full animate-pulse"></div>
+                  <span>Preparing microphone...</span>
+                </div>
+              )}
+              
+              {isListening && (
+                <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">
+                  <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                  <span>Listening... Speak your task description</span>
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <div className="flex-1 relative">
+                  <select 
+                    value={assigneeId}
+                    onChange={(e) => setAssigneeId(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900 appearance-none transition-all pr-10"
+                  >
+                    <option value="none" className="text-slate-900">Anyone / Unassigned</option>
+                    {employees.map(emp => (
+                        <option key={emp.id} value={emp.id} className="text-slate-900">
+                          {emp.name} ({emp.role === 'super_admin' || emp.role === 'owner' ? 'Owner' : emp.role === 'manager' ? 'Manager' : 'Staff'})
+                        </option>
+                      ))}
+                  </select>
+                  <UserPlus className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+                
+                <div className="relative w-1/3 flex-shrink-0">
+                  <input 
+                    type="datetime-local" 
+                    value={deadline}
+                    onChange={(e) => setDeadline(e.target.value)}
+                    onClick={(e) => openDateTimePicker(e.currentTarget)}
+                    className="w-full border rounded-xl px-3 py-3 bg-white border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-900 transition-all cursor-pointer"
+                  />
+                  <CalendarClock className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <div className="relative">
+                  <select
+                    value={taskType}
+                    onChange={(e) => setTaskType(e.target.value as TaskType)}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900 appearance-none transition-all pr-10"
+                  >
+                    <option value="one_time" className="text-slate-900">One-time Task</option>
+                    <option value="recurring" className="text-slate-900">Recurring Task</option>
+                  </select>
+                  <Clock className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+
+                {taskType === 'recurring' && (
+                  <div className="relative">
+                    <select
+                      value={recurrenceFrequency}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setRecurrenceFrequency(
+                          value === '' ? '' : (value as RecurrenceFrequency)
+                        );
+                      }}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900 appearance-none transition-all pr-10"
+                      required
+                    >
+                      <option value="" className="text-slate-900">Select Frequency</option>
+                      <option value="daily" className="text-slate-900">Daily</option>
+                      <option value="weekly" className="text-slate-900">Weekly</option>
+                      <option value="monthly" className="text-slate-900">Monthly</option>
+                    </select>
+                    <Calendar className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input 
+                  type="checkbox" 
+                  id="requirePhoto"
+                  checked={requirePhoto}
+                  onChange={(e) => setRequirePhoto(e.target.checked)}
+                  className="w-4 h-4 text-indigo-900 rounded focus:ring-indigo-900 border-slate-300"
+                />
+                <label htmlFor="requirePhoto" className="text-sm text-slate-700">
+                  Require photo proof
+                </label>
+              </div>
+              
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsTaskModalOpen(false)}
+                  disabled={isCreatingTask}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-xl font-semibold transition-all duration-200 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit"
+                  disabled={isCreatingTask}
+                  className="flex-1 bg-indigo-900 hover:bg-indigo-800 text-white py-3 rounded-xl font-bold active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 shadow-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)] disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  <Plus className="w-5 h-5" />
+                  {isCreatingTask ? 'Creating...' : 'Create Task'}
+                </button>
+              </div>
+            </form>
           </div>
-          </form>
-        </section>
+        </div>
       )}
 
       {/* Person Filter */}
