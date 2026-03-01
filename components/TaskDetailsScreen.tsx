@@ -323,15 +323,19 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
     onBack();
   };
 
+  // Auto-start task when opened and status is pending
+  useEffect(() => {
+    if (task.status === 'pending' && onStartTask) {
+      onStartTask();
+    }
+  }, [task.id]); // Only run when task ID changes (component mounts with new task)
+
   // --- Build Quick Actions ---
   type QuickAction = { label: string; icon: React.ReactNode; onClick: () => void; className: string };
   const actions: QuickAction[] = [];
 
   if (task.status === 'pending') {
-    actions.push({
-      label: 'Start Task', icon: <Play className="w-5 h-5" />, onClick: onStartTask,
-      className: 'bg-indigo-900 text-white hover:bg-indigo-800'
-    });
+    // Start Task button removed - task auto-starts when opened
     if (isManager) {
       actions.push({
         label: 'Delegate', icon: <GitFork className="w-5 h-5" />, onClick: onDelegate,
