@@ -1021,7 +1021,13 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   const sortTasksByRecentActivity = (taskRows: DealershipTask[]): DealershipTask[] =>
     [...taskRows].sort((left, right) => getTaskActivityTimestamp(right) - getTaskActivityTimestamp(left));
 
-  const allFilteredTasks = sortTasksByRecentActivity(getFilteredTasks(tasks));
+  const allFilteredTasks = sortTasksByRecentActivity(
+    getFilteredTasks(tasks).filter(task => {
+      if (!assigneeSearch.trim()) return true;
+      const employee = employees.find(e => e.id === task.assignedTo);
+      return employee?.name?.toLowerCase().includes(assigneeSearch.trim().toLowerCase()) ?? false;
+    })
+  );
 
   // Auto-navigate back if selected task was deleted
   useEffect(() => {
