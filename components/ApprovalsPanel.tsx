@@ -860,6 +860,11 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
               </svg>
             </div>
           </div>
+          
+          {/* Debug: Show current state */}
+          <div className="text-xs text-slate-500 mt-2">
+            Debug: View={view}, Approvals={approvals.length}, Available Months={getAvailableMonths(approvals).length}
+          </div>
         </div>
       )}
 
