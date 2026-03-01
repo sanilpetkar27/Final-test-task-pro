@@ -136,8 +136,6 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   const assignerName = getEmployeeName(task.assignedBy);
 
   const isManager = currentUser.role === 'manager' || currentUser.role === 'super_admin' || currentUser.role === 'owner';
-  const canDelete = currentUser.id === task.assignedBy || isManager;
-  const canEdit = currentUser.id === task.assignedBy || isManager;
 
   const rawTaskType = String((task as any).taskType ?? (task as any).task_type ?? '').toLowerCase();
   const rawRecurrence = String((task as any).recurrenceFrequency ?? (task as any).recurrence_frequency ?? '').toLowerCase();
@@ -169,6 +167,10 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
     (typeof assignerEmployee?.auth_user_id === 'string' && assignerEmployee.auth_user_id === currentUser.id) ||
     (typeof assignerEmployee?.auth_user_id === 'string' && typeof currentUser.auth_user_id === 'string' && assignerEmployee.auth_user_id === currentUser.auth_user_id) ||
     Boolean(normalizedCurrentEmail && normalizedAssignerEmail && normalizedCurrentEmail === normalizedAssignerEmail);
+
+  // Only the task assigner can edit or delete the task
+  const canDelete = isTaskAssigner;
+  const canEdit = isTaskAssigner;
 
   const canApproveExtension = currentUser.role === 'owner' || currentUser.role === 'super_admin' || isTaskAssigner;
   const canRequestExtension = isAssignedWorker && task.status === 'in-progress' && extensionStatus !== 'REQUESTED';
