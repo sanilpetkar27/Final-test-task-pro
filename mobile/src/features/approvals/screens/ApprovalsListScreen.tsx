@@ -38,7 +38,7 @@ const formatAmount = (amount: number): string => {
 export function ApprovalsListScreen() {
   const profile = useAuthStore((state) => state.profile);
   const navigation = useNavigation<any>();
-  const [activeView, setActiveView] = useState<ApprovalsView>(profile?.role === 'owner' ? 'needs_my_approval' : 'my_requests');
+  const [activeView, setActiveView] = useState<ApprovalsView>(profile?.role === 'owner' || profile?.role === 'super_admin' ? 'needs_my_approval' : 'my_requests');
   const {
     data: approvals = [],
     isLoading,
@@ -73,7 +73,7 @@ export function ApprovalsListScreen() {
           <Text style={styles.title}>Approvals</Text>
           <Text style={styles.subtitle}>{headerSubtitle}</Text>
         </View>
-        {profile?.role !== 'owner' && (
+        {profile?.role !== 'owner' && profile?.role !== 'super_admin' && (
           <AppButton
             label="Approval +"
             onPress={() => navigation.navigate('CreateApproval')}
@@ -84,7 +84,7 @@ export function ApprovalsListScreen() {
       </View>
 
       <View style={styles.switcher}>
-        {profile?.role !== 'owner' && (
+        {profile?.role !== 'owner' && profile?.role !== 'super_admin' && (
           <Pressable
             onPress={() => setActiveView('my_requests')}
             style={({ pressed }) => [
@@ -104,7 +104,7 @@ export function ApprovalsListScreen() {
             styles.switchOption,
             activeView === 'needs_my_approval' && styles.switchOptionActive,
             pressed && styles.pressed,
-            profile?.role === 'owner' ? styles.switchOptionFull : styles.switchOption,
+            profile?.role === 'owner' || profile?.role === 'super_admin' ? styles.switchOptionFull : styles.switchOption,
           ]}
         >
           <Text
