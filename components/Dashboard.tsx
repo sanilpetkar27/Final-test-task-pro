@@ -1074,17 +1074,25 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   const tasksToShow = view === 'pending' ? filteredPendingTasks : view === 'in-progress' ? filteredInProgressTasks : filteredCompletedTasks;
 
   return (
-    <div className="space-y-6 relative min-h-screen pb-24">
-      {/* Floating New Task Button - Top Right */}
-      {canAssignTasks && (
-        <button
-          onClick={() => setIsTaskModalOpen(true)}
-          className="fixed top-6 right-6 z-50 bg-indigo-900 hover:bg-indigo-800 text-white rounded-full p-4 shadow-lg shadow-indigo-900/30 flex items-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95"
-        >
-          <Plus className="w-6 h-6" />
-          <span className="font-semibold pr-1">New</span>
-        </button>
-      )}
+    <div className="space-y-6 relative min-h-screen">
+      {/* Header with Title and New Button */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <h1 className="text-xl font-bold text-slate-900">Tasks</h1>
+          <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-sm font-medium">
+            {tasks.length} total
+          </span>
+        </div>
+        {canAssignTasks && (
+          <button
+            onClick={() => setIsTaskModalOpen(true)}
+            className="bg-indigo-900 hover:bg-indigo-800 text-white rounded-full px-4 py-2.5 shadow-md shadow-indigo-900/20 flex items-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95"
+          >
+            <Plus className="w-5 h-5" />
+            <span className="font-semibold">New</span>
+          </button>
+        )}
+      </div>
 
       {/* Task Creation Modal */}
       {isTaskModalOpen && canAssignTasks && (
