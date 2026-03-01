@@ -658,6 +658,8 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         status: normalizeStatus(created.status),
         created_at: created.created_at ? String(created.created_at) : new Date().toISOString(),
         updated_at: created.updated_at ? String(created.updated_at) : null,
+        isEscalated: false,
+        adminEscalationStatus: 'NONE',
       };
 
 
