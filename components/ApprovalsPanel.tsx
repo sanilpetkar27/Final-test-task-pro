@@ -215,7 +215,7 @@ interface ApprovalsPanelProps {
 }
 
 const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
-  const [view, setView] = useState<ApprovalView>('my_requests');
+  const [view, setView] = useState<ApprovalView>(currentUser.role === 'owner' ? 'needs_my_approval' : 'my_requests');
   const [approvals, setApprovals] = useState<ApprovalItem[]>([]);
   const [selectedApprovalId, setSelectedApprovalId] = useState<string | null>(null);
   const [approvers, setApprovers] = useState<ApproverOption[]>([]);
@@ -721,26 +721,30 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
           <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">Approvals</p>
           <h2 className="text-lg font-black text-slate-900 mt-1">Requests & Decisions</h2>
         </div>
-        <button
-          onClick={() => setIsApprovalModalOpen(true)}
-          className="bg-indigo-900 hover:bg-indigo-800 text-white rounded-full px-4 py-2.5 shadow-md shadow-indigo-900/20 flex items-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95"
-        >
-          <Plus className="w-5 h-5" />
-          <span className="font-semibold">Approval</span>
-        </button>
+        {currentUser.role !== 'owner' && (
+          <button
+            onClick={() => setIsApprovalModalOpen(true)}
+            className="bg-indigo-900 hover:bg-indigo-800 text-white rounded-full px-4 py-2.5 shadow-md shadow-indigo-900/20 flex items-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95"
+          >
+            <Plus className="w-5 h-5" />
+            <span className="font-semibold">Approval</span>
+          </button>
+        )}
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        <button
-          onClick={() => setView('my_requests')}
-          className={`px-3 py-2 rounded-xl text-xs font-bold border ${
-            view === 'my_requests'
-              ? 'bg-indigo-900 text-white border-indigo-900'
-              : 'bg-white text-slate-700 border-slate-200'
-          }`}
-        >
-          My Requests
-        </button>
+      <div className={`mt-4 gap-2 ${currentUser.role === 'owner' ? '' : 'grid grid-cols-2'}`}>
+        {currentUser.role !== 'owner' && (
+          <button
+            onClick={() => setView('my_requests')}
+            className={`px-3 py-2 rounded-xl text-xs font-bold border ${
+              view === 'my_requests'
+                ? 'bg-indigo-900 text-white border-indigo-900'
+                : 'bg-white text-slate-700 border-slate-200'
+            }`}
+          >
+            My Requests
+          </button>
+        )}
         <button
           onClick={() => setView('needs_my_approval')}
           className={`px-3 py-2 rounded-xl text-xs font-bold border ${

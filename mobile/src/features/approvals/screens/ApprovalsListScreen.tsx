@@ -38,7 +38,7 @@ const formatAmount = (amount: number): string => {
 export function ApprovalsListScreen() {
   const profile = useAuthStore((state) => state.profile);
   const navigation = useNavigation<any>();
-  const [activeView, setActiveView] = useState<ApprovalsView>('my_requests');
+  const [activeView, setActiveView] = useState<ApprovalsView>(profile?.role === 'owner' ? 'needs_my_approval' : 'my_requests');
   const {
     data: approvals = [],
     isLoading,
@@ -73,33 +73,38 @@ export function ApprovalsListScreen() {
           <Text style={styles.title}>Approvals</Text>
           <Text style={styles.subtitle}>{headerSubtitle}</Text>
         </View>
-        <AppButton
-          label="Approval +"
-          onPress={() => navigation.navigate('CreateApproval')}
-          variant="primary"
-          style={styles.headerApprovalButton}
-        />
+        {profile?.role !== 'owner' && (
+          <AppButton
+            label="Approval +"
+            onPress={() => navigation.navigate('CreateApproval')}
+            variant="primary"
+            style={styles.headerApprovalButton}
+          />
+        )}
       </View>
 
       <View style={styles.switcher}>
-        <Pressable
-          onPress={() => setActiveView('my_requests')}
-          style={({ pressed }) => [
-            styles.switchOption,
-            activeView === 'my_requests' && styles.switchOptionActive,
-            pressed && styles.pressed,
-          ]}
-        >
-          <Text style={[styles.switchLabel, activeView === 'my_requests' && styles.switchLabelActive]}>
-            My Requests
-          </Text>
-        </Pressable>
+        {profile?.role !== 'owner' && (
+          <Pressable
+            onPress={() => setActiveView('my_requests')}
+            style={({ pressed }) => [
+              styles.switchOption,
+              activeView === 'my_requests' && styles.switchOptionActive,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Text style={[styles.switchLabel, activeView === 'my_requests' && styles.switchLabelActive]}>
+              My Requests
+            </Text>
+          </Pressable>
+        )}
         <Pressable
           onPress={() => setActiveView('needs_my_approval')}
           style={({ pressed }) => [
             styles.switchOption,
             activeView === 'needs_my_approval' && styles.switchOptionActive,
             pressed && styles.pressed,
+            profile?.role === 'owner' ? styles.switchOptionFull : styles.switchOption,
           ]}
         >
           <Text
@@ -210,6 +215,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  switchOptionFull: {
+    flex: 1,
+    borderRadius: radii.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
   },
   switchOptionActive: {
     backgroundColor: lumina.action.primary,
