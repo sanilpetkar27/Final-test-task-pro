@@ -778,6 +778,11 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
 
   return (
     <section className="bg-white border border-slate-200 rounded-3xl p-4 shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
+      {/* Debug: Always visible debug info */}
+      <div className="text-xs text-red-500 mb-4 p-2 bg-red-50 rounded">
+        DEBUG INFO: Role={currentUser.role}, View={view}, ShowMyRequests={currentUser.role !== 'owner' && currentUser.role !== 'super_admin'}
+      </div>
+      
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">Approvals</p>
