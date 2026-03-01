@@ -108,6 +108,16 @@ export function ApprovalsListScreen() {
         </Pressable>
       </View>
 
+      {/* Approval Button */}
+      <View style={styles.approvalButtonContainer}>
+        <AppButton
+          label="Approval +"
+          onPress={() => navigation.navigate('CreateApproval')}
+          variant="primary"
+          style={styles.approvalButton}
+        />
+      </View>
+
       {isLoading ? (
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={lumina.action.primary} />
@@ -213,6 +223,14 @@ const styles = StyleSheet.create({
   },
   switchLabelActive: {
     color: lumina.text.inverse,
+  },
+  approvalButtonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginBottom: spacing.md,
+  },
+  approvalButton: {
+    minWidth: 120,
   },
   centered: {
     flex: 1,
