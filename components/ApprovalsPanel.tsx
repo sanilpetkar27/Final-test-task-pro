@@ -244,6 +244,37 @@ const groupApprovalsByMonth = (approvals: ApprovalItem[]): Record<string, Approv
   }, {} as Record<string, ApprovalItem[]>);
 };
 
+// Helper function to get available months from approvals
+const getAvailableMonths = (approvals: ApprovalItem[]): string[] => {
+  const months = new Set<string>();
+  approvals.forEach(approval => {
+    if (approval.created_at) {
+      const date = new Date(approval.created_at);
+      const monthYear = date.toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long' 
+      });
+      months.add(monthYear);
+    }
+  });
+  return Array.from(months).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+};
+
+// Helper function to filter approvals by month
+const filterApprovalsByMonth = (approvals: ApprovalItem[], monthFilter: string): ApprovalItem[] => {
+  if (monthFilter === 'all') return approvals;
+  
+  return approvals.filter(approval => {
+    if (!approval.created_at) return false;
+    const date = new Date(approval.created_at);
+    const monthYear = date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long' 
+    });
+    return monthYear === monthFilter;
+  });
+};
+
 interface ApprovalsPanelProps {
   currentUser: Employee;
 }
@@ -251,6 +282,7 @@ interface ApprovalsPanelProps {
 const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
   const [view, setView] = useState<ApprovalView>(currentUser.role === 'owner' || currentUser.role === 'super_admin' ? 'needs_my_approval' : 'my_requests');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed'>('all');
+  const [monthFilter, setMonthFilter] = useState<string>('all');
   const [approvals, setApprovals] = useState<ApprovalItem[]>([]);
   const [selectedApprovalId, setSelectedApprovalId] = useState<string | null>(null);
   const [approvers, setApprovers] = useState<ApproverOption[]>([]);
@@ -789,53 +821,47 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
 
       {/* Status Filter Pills - Only show for My Requests */}
       {view === 'my_requests' && (
-        <div className="mt-3 flex gap-2">
-          {[
-            { key: 'all' as const, label: 'All' },
-            { key: 'pending' as const, label: 'Pending' },
-            { key: 'completed' as const, label: 'Completed' }
-          ].map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => setStatusFilter(key)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                statusFilter === key
-                  ? 'bg-indigo-900 text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
+        <div className="mt-3 space-y-3">
+          <div className="flex gap-2">
+            {[
+              { key: 'all' as const, label: 'All' },
+              { key: 'pending' as const, label: 'Pending' },
+              { key: 'completed' as const, label: 'Completed' }
+            ].map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setStatusFilter(key)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                  statusFilter === key
+                    ? 'bg-indigo-900 text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          
+          {/* Month Filter Dropdown - Only show for My Requests */}
+          <div className="relative">
+            <select
+              value={monthFilter}
+              onChange={(e) => setMonthFilter(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900/20 appearance-none cursor-pointer"
             >
-              {label}
-            </button>
-          ))}
+              <option value="all">All Months</option>
+              {getAvailableMonths(approvals).map(month => (
+                <option key={month} value={month}>{month}</option>
+              ))}
+            </select>
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+              <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </div>
         </div>
       )}
-
-      {/* Approval Creation Modal */}
-      {isApprovalModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          {/* Backdrop */}
-          <div 
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
-            onClick={() => !creatingApproval && setIsApprovalModalOpen(false)}
-          />
-          
-          {/* Modal Content */}
-          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95">
-            {/* Header */}
-            <div className="sticky top-0 bg-white border-b border-slate-200 p-4 flex items-center justify-between z-10">
-              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <Plus className="w-5 h-5 text-indigo-900" />
-                Create Approval Request
-              </h2>
-              {!creatingApproval && (
-                <button
-                  onClick={() => setIsApprovalModalOpen(false)}
-                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-500"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              )}
-            </div>
 
             {/* Form */}
             <div className="p-4 space-y-3">
@@ -998,9 +1024,14 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         ) : (
           (() => {
             // Filter approvals based on status filter (only for My Requests)
-            const filteredApprovals = view === 'my_requests' 
+            let filteredApprovals = view === 'my_requests' 
               ? filterApprovalsByStatus(approvals, statusFilter)
               : approvals;
+
+            // Apply month filter for My Requests view
+            if (view === 'my_requests') {
+              filteredApprovals = filterApprovalsByMonth(filteredApprovals, monthFilter);
+            }
 
             if (filteredApprovals.length === 0) {
               return (
@@ -1010,6 +1041,8 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                       ? 'No pending requests found.'
                       : statusFilter === 'completed'
                       ? 'No completed requests found.'
+                      : monthFilter !== 'all'
+                      ? `No requests found for ${monthFilter}.`
                       : 'No requests found.'
                     : 'No approvals found for this view.'
                   }
