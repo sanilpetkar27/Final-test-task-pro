@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, Download, Filter, Link2, MessageSquare, Paperclip, Plus, Send, X, XCircle } from 'lucide-react';
+import { CheckCircle2, Download, Filter, Link2, MessageSquare, Paperclip, Plus, Send, X, XCircle, Calendar } from 'lucide-react';
 import { supabase } from '../src/lib/supabase';
 import { Employee } from '../types';
 
@@ -275,6 +275,20 @@ const filterApprovalsByMonth = (approvals: ApprovalItem[], monthFilter: string):
   });
 };
 
+// Helper function to filter approvals by date range
+const filterApprovalsByDateRange = (approvals: ApprovalItem[], startDate: string, endDate: string): ApprovalItem[] => {
+  if (!startDate && !endDate) return approvals;
+  
+  return approvals.filter(approval => {
+    if (!approval.created_at) return false;
+    const approvalDate = new Date(approval.created_at);
+    const start = startDate ? new Date(startDate) : new Date('1970-01-01');
+    const end = endDate ? new Date(endDate + 'T23:59:59') : new Date();
+    
+    return approvalDate >= start && approvalDate <= end;
+  });
+};
+
 interface ApprovalsPanelProps {
   currentUser: Employee;
 }
@@ -292,6 +306,11 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
   };
   const [monthFilter, setMonthFilter] = useState<string>(getCurrentMonth());
   const [showMonthDropdown, setShowMonthDropdown] = useState(false);
+  // Date range filter state
+  const [dateRangeFilter, setDateRangeFilter] = useState<'all' | 'custom'>('all');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [approvals, setApprovals] = useState<ApprovalItem[]>([]);
   const [selectedApprovalId, setSelectedApprovalId] = useState<string | null>(null);
   const [approvers, setApprovers] = useState<ApproverOption[]>([]);
@@ -856,40 +875,122 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
             <button
               onClick={() => setShowMonthDropdown(!showMonthDropdown)}
               className="p-2 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 transition-colors"
-              title="Filter by month"
+              title="Filter by month or date range"
             >
               <Filter className="w-4 h-4" />
             </button>
             
             {/* Month Dropdown */}
             {showMonthDropdown && (
-              <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-slate-200 rounded-lg shadow-lg z-10">
+              <div className="absolute right-0 top-full mt-1 w-56 bg-white border border-slate-200 rounded-lg shadow-lg z-10">
                 <div className="max-h-60 overflow-y-auto">
                   <button
                     onClick={() => {
                       setMonthFilter('all');
+                      setDateRangeFilter('all');
+                      setStartDate('');
+                      setEndDate('');
                       setShowMonthDropdown(false);
                     }}
                     className={`w-full px-3 py-2 text-left text-sm hover:bg-slate-50 transition-colors ${
-                      monthFilter === 'all' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700'
+                      monthFilter === 'all' && dateRangeFilter === 'all' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700'
                     }`}
                   >
-                    All Months
+                    All Time
                   </button>
                   {getAvailableMonths(approvals).map(month => (
                     <button
                       key={month}
                       onClick={() => {
                         setMonthFilter(month);
+                        setDateRangeFilter('all');
+                        setStartDate('');
+                        setEndDate('');
                         setShowMonthDropdown(false);
                       }}
                       className={`w-full px-3 py-2 text-left text-sm hover:bg-slate-50 transition-colors ${
-                        monthFilter === month ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700'
+                        monthFilter === month && dateRangeFilter === 'all' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700'
                       }`}
                     >
                       {month}
                     </button>
                   ))}
+                  
+                  {/* Divider */}
+                  <div className="border-t border-slate-200 my-1"></div>
+                  
+                  {/* Calendar Option */}
+                  <button
+                    onClick={() => {
+                      setShowDatePicker(true);
+                      setShowMonthDropdown(false);
+                    }}
+                    className={`w-full px-3 py-2 text-left text-sm hover:bg-slate-50 transition-colors flex items-center gap-2 ${
+                      dateRangeFilter === 'custom' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700'
+                    }`}
+                  >
+                    <Calendar className="w-4 h-4" />
+                    Custom Date Range
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            {/* Date Range Picker Modal */}
+            {showDatePicker && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+                <div className="bg-white rounded-lg p-6 w-full max-w-md">
+                  <h3 className="text-lg font-semibold text-slate-900 mb-4">Select Date Range</h3>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Start Date</label>
+                      <input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">End Date</label>
+                      <input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-2 mt-6">
+                    <button
+                      onClick={() => {
+                        setShowDatePicker(false);
+                        setStartDate('');
+                        setEndDate('');
+                        setDateRangeFilter('all');
+                        setMonthFilter(getCurrentMonth());
+                      }}
+                      className="flex-1 px-4 py-2 border border-slate-200 rounded-lg text-sm text-slate-700 hover:bg-slate-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (startDate || endDate) {
+                          setDateRangeFilter('custom');
+                          setMonthFilter('all');
+                          setShowDatePicker(false);
+                        }
+                      }}
+                      disabled={!startDate && !endDate}
+                      className="flex-1 px-4 py-2 bg-indigo-900 text-white rounded-lg text-sm hover:bg-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Apply
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -1091,7 +1192,11 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
 
             // Apply month filter for My Requests view
             if (view === 'my_requests') {
-              filteredApprovals = filterApprovalsByMonth(filteredApprovals, monthFilter);
+              if (dateRangeFilter === 'custom') {
+                filteredApprovals = filterApprovalsByDateRange(filteredApprovals, startDate, endDate);
+              } else {
+                filteredApprovals = filterApprovalsByMonth(filteredApprovals, monthFilter);
+              }
             }
 
             if (filteredApprovals.length === 0) {
@@ -1102,6 +1207,8 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                       ? 'No pending requests found.'
                       : statusFilter === 'completed'
                       ? 'No completed requests found.'
+                      : dateRangeFilter === 'custom'
+                      ? `No requests found in selected date range.`
                       : monthFilter !== 'all'
                       ? `No requests found for ${monthFilter}.`
                       : 'No requests found.'
