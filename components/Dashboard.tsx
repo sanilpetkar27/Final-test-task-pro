@@ -890,10 +890,6 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   };
 
   // Tasks are already filtered by role in App.tsx, no need to filter again here
-  const pendingTasks = tasks.filter(t => t.status === 'pending');
-  const inProgressTasks = tasks.filter(t => t.status === 'in-progress');
-  const completedTasks = tasks.filter(t => t.status === 'completed');
-
   // Person Filter Logic
   // Get filter options based on user role
   const getFilterOptions = () => {
