@@ -7,7 +7,7 @@ import TaskDetailsScreen from './TaskDetailsScreen';
 import CompletionModal from './CompletionModal';
 import DelegationModal from './DelegationModal';
 import ReassignModal from './ReassignModal';
-import { Plus, Clock, CheckCircle2, UserPlus, ClipboardList as ClipboardIcon, CalendarClock, Timer, Camera, Bug, User, AlertTriangle, Calendar, Mic, MicOff } from 'lucide-react';
+import { Plus, Clock, CheckCircle2, UserPlus, ClipboardList as ClipboardIcon, CalendarClock, Timer, Camera, Bug, User, AlertTriangle, Calendar, Mic, MicOff, Filter, X } from 'lucide-react';
 
 interface DashboardProps {
   tasks: DealershipTask[];
@@ -79,6 +79,7 @@ const getRecurrenceIntervalMs = (frequency: RecurrenceFrequency | null | undefin
 
 const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, onAddTask, onStartTask, onReopenTask, onCompleteTask, onCompleteTaskWithoutPhoto, onReassignTask, onDeleteTask, onUpdateTaskRemarks }) => {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [assigneeSearch, setAssigneeSearch] = useState('');
   
   // Voice recognition state
   const [isListening, setIsListening] = useState(false);
@@ -1020,7 +1021,13 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   const sortTasksByRecentActivity = (taskRows: DealershipTask[]): DealershipTask[] =>
     [...taskRows].sort((left, right) => getTaskActivityTimestamp(right) - getTaskActivityTimestamp(left));
 
-  const allFilteredTasks = sortTasksByRecentActivity(getFilteredTasks(tasks));
+  const allFilteredTasks = sortTasksByRecentActivity(
+    getFilteredTasks(tasks).filter(task => {
+      if (!assigneeSearch.trim()) return true;
+      const employee = employees.find(e => e.id === task.assignedTo);
+      return employee?.name?.toLowerCase().includes(assigneeSearch.trim().toLowerCase()) ?? false;
+    })
+  );
 
   // Auto-navigate back if selected task was deleted
   useEffect(() => {
@@ -1092,6 +1099,27 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
           >
             <Plus className="w-5 h-5" />
             <span className="font-semibold">New</span>
+          </button>
+        )}
+      </div>
+
+      {/* Assignee Search Filter */}
+      <div className="relative">
+        <Filter className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+        <input
+          type="text"
+          value={assigneeSearch}
+          onChange={(e) => setAssigneeSearch(e.target.value)}
+          placeholder="Search by assignee name..."
+          className="w-full bg-white border border-slate-200 rounded-xl pl-11 pr-10 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300 shadow-sm transition-all"
+        />
+        {assigneeSearch && (
+          <button
+            type="button"
+            onClick={() => setAssigneeSearch('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-lg hover:bg-slate-100 transition-colors text-slate-400 hover:text-slate-600"
+          >
+            <X className="w-4 h-4" />
           </button>
         )}
       </div>
