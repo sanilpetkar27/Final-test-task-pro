@@ -289,6 +289,12 @@ const filterApprovalsByDateRange = (approvals: ApprovalItem[], startDate: string
   });
 };
 
+// Helper function to get approver name by ID
+const getApproverName = (approverId: string, approvers: ApproverOption[]): string => {
+  const approver = approvers.find(a => a.id === approverId);
+  return approver ? approver.name : 'Unknown';
+};
+
 interface ApprovalsPanelProps {
   currentUser: Employee;
 }
@@ -1275,9 +1281,15 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                                 <span>{approval.created_at ? formatDateTime(approval.created_at).split(',')[0] : 'N/A'}</span>
                               </div>
                               {(approval.status === 'APPROVED' || approval.status === 'REJECTED') && approval.updated_at && (
-                                <div className="flex items-center gap-1">
-                                  <span className="font-medium">{approval.status === 'APPROVED' ? 'Approved:' : 'Rejected:'}</span>
-                                  <span>{formatDateTime(approval.updated_at).split(',')[0]}</span>
+                                <div className="flex flex-col items-end gap-1">
+                                  <div className="flex items-center gap-1">
+                                    <span className="font-medium">{approval.status === 'APPROVED' ? 'Approved:' : 'Rejected:'}</span>
+                                    <span>{formatDateTime(approval.updated_at).split(',')[0]}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <span className="font-medium">by:</span>
+                                    <span>{getApproverName(approval.approver_id, approvers)}</span>
+                                  </div>
                                 </div>
                               )}
                             </div>
@@ -1435,9 +1447,15 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                           <span>{approval.created_at ? formatDateTime(approval.created_at).split(',')[0] : 'N/A'}</span>
                         </div>
                         {(approval.status === 'APPROVED' || approval.status === 'REJECTED') && approval.updated_at && (
-                          <div className="flex items-center gap-1">
-                            <span className="font-medium">{approval.status === 'APPROVED' ? 'Approved:' : 'Rejected:'}</span>
-                            <span>{formatDateTime(approval.updated_at).split(',')[0]}</span>
+                          <div className="flex flex-col items-end gap-1">
+                            <div className="flex items-center gap-1">
+                              <span className="font-medium">{approval.status === 'APPROVED' ? 'Approved:' : 'Rejected:'}</span>
+                              <span>{formatDateTime(approval.updated_at).split(',')[0]}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="font-medium">by:</span>
+                              <span>{getApproverName(approval.approver_id, approvers)}</span>
+                            </div>
                           </div>
                         )}
                       </div>
