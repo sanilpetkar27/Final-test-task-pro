@@ -1067,11 +1067,14 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   const sortTasksByRecentActivity = (taskRows: DealershipTask[]): DealershipTask[] =>
     [...taskRows].sort((left, right) => getTaskActivityTimestamp(right) - getTaskActivityTimestamp(left));
 
-  const filteredPendingTasks = sortTasksByRecentActivity(getDeadlineFilteredTasks(getFilteredTasks(pendingTasks)));
-  const filteredInProgressTasks = sortTasksByRecentActivity(getDeadlineFilteredTasks(getFilteredTasks(inProgressTasks)));
-  const filteredCompletedTasks = sortTasksByRecentActivity(getDeadlineFilteredTasks(getFilteredTasks(completedTasks)));
+  const allFilteredTasks = sortTasksByRecentActivity(getFilteredTasks(tasks));
 
-  const tasksToShow = view === 'pending' ? filteredPendingTasks : view === 'in-progress' ? filteredInProgressTasks : filteredCompletedTasks;
+  // Auto-navigate back if selected task was deleted
+  useEffect(() => {
+    if (selectedTaskId && !tasks.find(t => t.id === selectedTaskId)) {
+      setSelectedTaskId(null);
+    }
+  }, [selectedTaskId, tasks]);
 
   return (
     <div className="space-y-6 relative min-h-screen">
