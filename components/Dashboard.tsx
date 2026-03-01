@@ -1103,6 +1103,27 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
         )}
       </div>
 
+      {/* Assignee Search Filter */}
+      <div className="relative">
+        <Filter className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+        <input
+          type="text"
+          value={assigneeSearch}
+          onChange={(e) => setAssigneeSearch(e.target.value)}
+          placeholder="Search by assignee name..."
+          className="w-full bg-white border border-slate-200 rounded-xl pl-11 pr-10 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300 shadow-sm transition-all"
+        />
+        {assigneeSearch && (
+          <button
+            type="button"
+            onClick={() => setAssigneeSearch('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-lg hover:bg-slate-100 transition-colors text-slate-400 hover:text-slate-600"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
       {/* Task Creation Modal */}
       {isTaskModalOpen && canAssignTasks && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
