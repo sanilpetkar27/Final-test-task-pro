@@ -1075,11 +1075,11 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
 
   return (
     <div className="space-y-6 relative min-h-screen pb-24">
-      {/* Floating New Task Button - Bottom Right */}
+      {/* Floating New Task Button - Top Right */}
       {canAssignTasks && (
         <button
           onClick={() => setIsTaskModalOpen(true)}
-          className="fixed bottom-6 right-6 z-50 bg-indigo-900 hover:bg-indigo-800 text-white rounded-full p-4 shadow-lg shadow-indigo-900/30 flex items-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95"
+          className="fixed top-6 right-6 z-50 bg-indigo-900 hover:bg-indigo-800 text-white rounded-full p-4 shadow-lg shadow-indigo-900/30 flex items-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95"
         >
           <Plus className="w-6 h-6" />
           <span className="font-semibold pr-1">New</span>
@@ -1270,8 +1270,8 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
         </div>
       )}
 
-      {/* Person Filter */}
-      <section className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+      {/* Person Filter - Hidden */}
+      {/* <section className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
         <h2 className="text-xs font-black text-slate-500 mb-3 uppercase tracking-widest flex items-center gap-2">
           <User className="w-3 h-3" />
           Person Filter
@@ -1294,7 +1294,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
         <p className="text-slate-500 text-xs mt-2">
           {isManager ? 'Filter tasks by assigned staff member' : 'Filter tasks by manager who assigned them'}
         </p>
-      </section>
+      </section> */}
 
       {/* Deadline Filter Tabs */}
       <div className="flex gap-3 pb-4">
