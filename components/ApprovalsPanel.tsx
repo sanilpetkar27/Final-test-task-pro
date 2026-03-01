@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, Download, Link2, MessageSquare, Paperclip, Send, X, XCircle } from 'lucide-react';
+import { CheckCircle2, Download, Link2, MessageSquare, Paperclip, Plus, Send, X, XCircle } from 'lucide-react';
 import { supabase } from '../src/lib/supabase';
 import { Employee } from '../types';
 
@@ -222,6 +222,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
   const [loadingApprovers, setLoadingApprovers] = useState(false);
   const [creatingApproval, setCreatingApproval] = useState(false);
   const [requestTitle, setRequestTitle] = useState('');
+  const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
   const [requestDescription, setRequestDescription] = useState('');
   const [requestAmount, setRequestAmount] = useState('');
   const [requestApproverId, setRequestApproverId] = useState('');
@@ -578,6 +579,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
       setRequestAttachments([]);
       attachmentFilesRef.current = {};
       setView('my_requests');
+      setIsApprovalModalOpen(false); // Close modal after creation
       await loadThreads(createdApproval.id);
     } catch (createErr: any) {
       setError(createErr?.message || 'Failed to create approval request.');
@@ -750,148 +752,201 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         </button>
       </div>
 
-      <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
-        <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">Create Request</p>
-        <div className="mt-2 grid grid-cols-1 gap-2">
-          <input
-            value={requestTitle}
-            onChange={(event) => setRequestTitle(event.target.value)}
-            placeholder="Request title"
-            className="h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
+      <div className="mt-4 flex justify-end">
+        <button
+          onClick={() => setIsApprovalModalOpen(true)}
+          className="bg-indigo-900 hover:bg-indigo-800 text-white rounded-full px-4 py-2.5 shadow-md shadow-indigo-900/20 flex items-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95"
+        >
+          <Plus className="w-5 h-5" />
+          <span className="font-semibold">Approvals</span>
+        </button>
+      </div>
+
+      {/* Approval Creation Modal */}
+      {isApprovalModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
+            onClick={() => !creatingApproval && setIsApprovalModalOpen(false)}
           />
-          <textarea
-            value={requestDescription}
-            onChange={(event) => setRequestDescription(event.target.value)}
-            placeholder="Description"
-            className="min-h-[70px] px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-900/20 resize-none"
-          />
-          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-semibold text-slate-600">Attachments (PDF, Excel, Images)</p>
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.preventDefault();
-                  attachmentsInputRef.current?.click();
-                }}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 hover:bg-slate-100"
-                title="Attach files"
-              >
-                <Paperclip className="w-3.5 h-3.5" />
-                Attach
-              </button>
-              <input
-                ref={attachmentsInputRef}
-                type="file"
-                multiple
-                accept=".pdf,.xls,.xlsx,.csv,image/*"
-                className="hidden"
-                onChange={(event) => {
-                  try {
-                    const files = Array.from(event.target.files || []);
-                    if (!files.length) return;
-
-                    setRequestAttachments((prev) => {
-                      const existing = new Set(prev.map((item) => `${item.name}_${item.size}`));
-                      const next = [...prev];
-
-                      for (const file of files) {
-                        const key = `${file.name}_${file.size}`;
-                        if (existing.has(key)) continue;
-
-                        const id = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-                        attachmentFilesRef.current[id] = file;
-                        next.push({
-                          id,
-                          name: file.name,
-                          contentType: file.type || '',
-                          size: file.size || 0,
-                        });
-                        existing.add(key);
-                      }
-
-                      return next;
-                    });
-                  } catch (attachError: any) {
-                    setError(attachError?.message || 'Failed to attach selected files.');
-                  } finally {
-                    event.currentTarget.value = '';
-                  }
-                }}
-              />
+          
+          {/* Modal Content */}
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95">
+            {/* Header */}
+            <div className="sticky top-0 bg-white border-b border-slate-200 p-4 flex items-center justify-between z-10">
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <Plus className="w-5 h-5 text-indigo-900" />
+                Create Approval Request
+              </h2>
+              {!creatingApproval && (
+                <button
+                  onClick={() => setIsApprovalModalOpen(false)}
+                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-500"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              )}
             </div>
-            {requestAttachments.length > 0 && (
-              <div className="mt-2 space-y-1.5">
-                {requestAttachments.map((file, index) => (
-                  <div key={`${file.name}_${file.size}_${index}`} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
-                    <p className="text-xs text-slate-700 truncate">
-                      {file.name}
-                      {file.size ? ` (${formatAttachmentSize(file.size)})` : ''}
-                    </p>
+
+            {/* Form */}
+            <div className="p-4 space-y-3">
+              <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">Create Request</p>
+              <div className="grid grid-cols-1 gap-2">
+                <input
+                  value={requestTitle}
+                  onChange={(event) => setRequestTitle(event.target.value)}
+                  placeholder="Request title"
+                  className="h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
+                  autoFocus
+                />
+                <textarea
+                  value={requestDescription}
+                  onChange={(event) => setRequestDescription(event.target.value)}
+                  placeholder="Description"
+                  className="min-h-[70px] px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-900/20 resize-none"
+                />
+                <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold text-slate-600">Attachments (PDF, Excel, Images)</p>
                     <button
                       type="button"
-                      onClick={() =>
-                        setRequestAttachments((prev) => {
-                          const toRemove = prev[index];
-                          if (toRemove?.id) {
-                            delete attachmentFilesRef.current[toRemove.id];
-                          }
-                          return prev.filter((_, i) => i !== index);
-                        })
-                      }
-                      className="p-1 rounded-md text-slate-500 hover:bg-slate-200"
-                      title="Remove attachment"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        attachmentsInputRef.current?.click();
+                      }}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 hover:bg-slate-100"
+                      title="Attach files"
                     >
-                      <X className="w-3.5 h-3.5" />
+                      <Paperclip className="w-3.5 h-3.5" />
+                      Attach
                     </button>
+                    <input
+                      ref={attachmentsInputRef}
+                      type="file"
+                      multiple
+                      accept=".pdf,.xls,.xlsx,.csv,image/*"
+                      className="hidden"
+                      onChange={(event) => {
+                        try {
+                          const files = Array.from(event.target.files || []);
+                          if (!files.length) return;
+
+                          setRequestAttachments((prev) => {
+                            const existing = new Set(prev.map((item) => `${item.name}_${item.size}`));
+                            const next = [...prev];
+
+                            for (const file of files) {
+                              const key = `${file.name}_${file.size}`;
+                              if (existing.has(key)) continue;
+
+                              const id = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+                              attachmentFilesRef.current[id] = file;
+                              next.push({
+                                id,
+                                name: file.name,
+                                contentType: file.type || '',
+                                size: file.size || 0,
+                              });
+                              existing.add(key);
+                            }
+
+                            return next;
+                          });
+                        } catch (attachError: any) {
+                          setError(attachError?.message || 'Failed to attach selected files.');
+                        } finally {
+                          event.currentTarget.value = '';
+                        }
+                      }}
+                    />
                   </div>
-                ))}
+                  {requestAttachments.length > 0 && (
+                    <div className="mt-2 space-y-1.5">
+                      {requestAttachments.map((file, index) => (
+                        <div key={`${file.name}_${file.size}_${index}`} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
+                          <p className="text-xs text-slate-700 truncate">
+                            {file.name}
+                            {file.size ? ` (${formatAttachmentSize(file.size)})` : ''}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setRequestAttachments((prev) => {
+                                const toRemove = prev[index];
+                                if (toRemove?.id) {
+                                  delete attachmentFilesRef.current[toRemove.id];
+                                }
+                                return prev.filter((_, i) => i !== index);
+                              })
+                            }
+                            className="p-1 rounded-md text-slate-500 hover:bg-slate-200"
+                            title="Remove attachment"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    value={requestAmount}
+                    onChange={(event) => setRequestAmount(event.target.value)}
+                    placeholder="Amount (INR)"
+                    type="number"
+                    min="0"
+                    className="h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
+                  />
+                  <select
+                    value={requestApproverId}
+                    onChange={(event) => setRequestApproverId(event.target.value)}
+                    className="h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
+                  >
+                    {loadingApprovers ? (
+                      <option value="">Loading approvers...</option>
+                    ) : approvers.length === 0 ? (
+                      <option value="">No approver available</option>
+                    ) : (
+                      approvers.map((approver) => (
+                        <option key={approver.id} value={approver.id}>
+                          {approver.name} ({approver.role})
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+                <input
+                  value={requestInitialNote}
+                  onChange={(event) => setRequestInitialNote(event.target.value)}
+                  placeholder="Optional note to tagged approver"
+                  className="h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
+                />
+                
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsApprovalModalOpen(false)}
+                    disabled={creatingApproval}
+                    className="flex-1 h-11 rounded-xl bg-slate-100 text-slate-700 text-sm font-bold hover:bg-slate-200 transition-all disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleCreateRequest()}
+                    disabled={creatingApproval}
+                    className="flex-1 h-11 rounded-xl bg-indigo-900 text-white text-sm font-bold disabled:opacity-60"
+                  >
+                    {creatingApproval ? 'Creating...' : 'Create & Tag Approver'}
+                  </button>
+                </div>
               </div>
-            )}
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              value={requestAmount}
-              onChange={(event) => setRequestAmount(event.target.value)}
-              placeholder="Amount (INR)"
-              type="number"
-              min="0"
-              className="h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
-            />
-            <select
-              value={requestApproverId}
-              onChange={(event) => setRequestApproverId(event.target.value)}
-              className="h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
-            >
-              {loadingApprovers ? (
-                <option value="">Loading approvers...</option>
-              ) : approvers.length === 0 ? (
-                <option value="">No approver available</option>
-              ) : (
-                approvers.map((approver) => (
-                  <option key={approver.id} value={approver.id}>
-                    {approver.name} ({approver.role})
-                  </option>
-                ))
-              )}
-            </select>
-          </div>
-          <input
-            value={requestInitialNote}
-            onChange={(event) => setRequestInitialNote(event.target.value)}
-            placeholder="Optional note to tagged approver"
-            className="h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
-          />
-          <button
-            type="button"
-            onClick={() => void handleCreateRequest()}
-            disabled={creatingApproval}
-            className="h-11 rounded-xl bg-indigo-900 text-white text-sm font-bold disabled:opacity-60"
-          >
-            {creatingApproval ? 'Creating...' : 'Create & Tag Approver'}
-          </button>
         </div>
-      </div>
+      )}
 
       {error && (
         <div className="mt-3 px-3 py-2 rounded-xl border border-rose-200 bg-rose-50 text-xs text-rose-700">
