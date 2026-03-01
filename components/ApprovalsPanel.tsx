@@ -145,11 +145,12 @@ const appendAttachmentsToDescription = (description: string, attachments: Approv
   return [description, ...attachmentLines].filter(Boolean).join('\n');
 };
 
-const formatAttachmentSize = (size: number): string => {
-  if (!size || size <= 0) return '';
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+const formatAttachmentSize = (bytes: number): string => {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
 const sanitizeFileName = (name: string): string => String(name || 'file').replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -210,12 +211,46 @@ const threadsAreEqual = (left: ApprovalThreadView[], right: ApprovalThreadView[]
   return true;
 };
 
+// Helper function to filter approvals by status
+const filterApprovalsByStatus = (approvals: ApprovalItem[], filter: 'all' | 'pending' | 'completed'): ApprovalItem[] => {
+  if (filter === 'all') return approvals;
+  if (filter === 'pending') {
+    return approvals.filter(approval => 
+      approval.status === 'PENDING' || approval.status === 'NEEDS_REVIEW'
+    );
+  }
+  if (filter === 'completed') {
+    return approvals.filter(approval => 
+      approval.status === 'APPROVED' || approval.status === 'REJECTED'
+    );
+  }
+  return approvals;
+};
+
+// Helper function to group approvals by month and year
+const groupApprovalsByMonth = (approvals: ApprovalItem[]): Record<string, ApprovalItem[]> => {
+  return approvals.reduce((groups, approval) => {
+    const date = new Date(approval.created_at || '');
+    const monthYear = date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long' 
+    });
+    
+    if (!groups[monthYear]) {
+      groups[monthYear] = [];
+    }
+    groups[monthYear].push(approval);
+    return groups;
+  }, {} as Record<string, ApprovalItem[]>);
+};
+
 interface ApprovalsPanelProps {
   currentUser: Employee;
 }
 
 const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
   const [view, setView] = useState<ApprovalView>(currentUser.role === 'owner' || currentUser.role === 'super_admin' ? 'needs_my_approval' : 'my_requests');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed'>('all');
   const [approvals, setApprovals] = useState<ApprovalItem[]>([]);
   const [selectedApprovalId, setSelectedApprovalId] = useState<string | null>(null);
   const [approvers, setApprovers] = useState<ApproverOption[]>([]);
@@ -602,6 +637,14 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
     }
   };
 
+  const handleApprove = async (approvalId: string): Promise<void> => {
+    await updateStatus('APPROVED');
+  };
+
+  const handleReject = async (approvalId: string): Promise<void> => {
+    await updateStatus('REJECTED');
+  };
+
   const handleSendMessage = async (): Promise<void> => {
     if (!selectedApproval) return;
     const trimmed = draftMessage.trim();
@@ -743,6 +786,29 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
           Needs My Approval
         </button>
       </div>
+
+      {/* Status Filter Pills - Only show for My Requests */}
+      {view === 'my_requests' && (
+        <div className="mt-3 flex gap-2">
+          {[
+            { key: 'all' as const, label: 'All' },
+            { key: 'pending' as const, label: 'Pending' },
+            { key: 'completed' as const, label: 'Completed' }
+          ].map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setStatusFilter(key)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                statusFilter === key
+                  ? 'bg-indigo-900 text-white'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Approval Creation Modal */}
       {isApprovalModalOpen && (
@@ -929,162 +995,334 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
       <div className="mt-4 space-y-3">
         {loadingApprovals ? (
           <div className="text-sm text-slate-500">Loading approvals...</div>
-        ) : approvals.length === 0 ? (
-          <div className="text-sm text-slate-500">No approvals found for this view.</div>
         ) : (
-          approvals.map((approval) => {
-            const isSelected = selectedApprovalId === approval.id;
-            const parsedApproval = extractApprovalAttachments(approval.description);
-            const canTakeActionOnApproval =
-              isSelected &&
-              approval.approver_id === currentUser.id &&
-              !LOCKED_STATUSES.includes(approval.status);
+          (() => {
+            // Filter approvals based on status filter (only for My Requests)
+            const filteredApprovals = view === 'my_requests' 
+              ? filterApprovalsByStatus(approvals, statusFilter)
+              : approvals;
 
-            return (
-              <div
-                key={approval.id}
-                className={`w-full rounded-2xl border p-3 transition-all ${
-                  isSelected
-                    ? 'border-indigo-300 bg-indigo-50'
-                    : 'border-slate-200 bg-white'
-                }`}
-              >
-                <button
-                  type="button"
-                  onClick={() => setSelectedApprovalId((prev) => (prev === approval.id ? null : approval.id))}
-                  className="w-full text-left"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-bold text-slate-900 truncate">{approval.title || 'Untitled'}</p>
-                    <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full ${getStatusClasses(approval.status)}`}>
-                      {approval.status}
-                    </span>
+            if (filteredApprovals.length === 0) {
+              return (
+                <div className="text-sm text-slate-500">
+                  {view === 'my_requests' 
+                    ? statusFilter === 'pending' 
+                      ? 'No pending requests found.'
+                      : statusFilter === 'completed'
+                      ? 'No completed requests found.'
+                      : 'No requests found.'
+                    : 'No approvals found for this view.'
+                  }
+                </div>
+              );
+            }
+
+            // Group approvals by month (only for My Requests)
+            if (view === 'my_requests') {
+              const groupedApprovals = groupApprovalsByMonth(filteredApprovals);
+              const sortedMonths = Object.keys(groupedApprovals).sort((a, b) => {
+                // Sort months chronologically (most recent first)
+                return new Date(b).getTime() - new Date(a).getTime();
+              });
+
+              return sortedMonths.map((monthYear) => (
+                <div key={monthYear} className="space-y-3">
+                  {/* Month Header */}
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                    <p className="text-xs font-bold text-slate-700">{monthYear}</p>
                   </div>
-                  <p className="text-sm font-bold text-indigo-700 mt-1">{formatAmount(approval.amount)}</p>
-                  <p className="text-xs text-slate-500 mt-1 line-clamp-2">
-                    {parsedApproval.description || 'No description'}
-                  </p>
-                </button>
+                  
+                  {/* Approvals for this month */}
+                  <div className="space-y-3">
+                    {groupedApprovals[monthYear].map((approval) => {
+                      const isSelected = selectedApprovalId === approval.id;
+                      const parsedApproval = extractApprovalAttachments(approval.description);
+                      const canTakeActionOnApproval =
+                        isSelected &&
+                        approval.approver_id === currentUser.id &&
+                        !LOCKED_STATUSES.includes(approval.status);
 
-                {isSelected && (
-                  <div className="mt-4 border-t border-slate-200 pt-4">
-                    <p className="text-xs text-slate-500">{parsedApproval.description || 'No description'}</p>
-
-                    {parsedApproval.attachments.length > 0 && (
-                      <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-2.5">
-                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Attached Documents</p>
-                        <div className="mt-2 space-y-1.5">
-                          {parsedApproval.attachments.map((attachment, index) => (
-                            <a
-                              key={`${attachment.url}_${index}`}
-                              href={attachment.url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1.5 hover:bg-slate-50"
-                            >
-                              <div className="min-w-0">
-                                <p className="text-xs font-semibold text-slate-700 truncate">{attachment.name}</p>
-                                <p className="text-[10px] text-slate-500">
-                                  {attachment.contentType || 'File'}
-                                  {attachment.size ? ` - ${formatAttachmentSize(attachment.size)}` : ''}
-                                </p>
-                              </div>
-                              <div className="flex items-center gap-1 text-slate-500 shrink-0">
-                                <Link2 className="w-3.5 h-3.5" />
-                                <Download className="w-3.5 h-3.5" />
-                              </div>
-                            </a>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {canTakeActionOnApproval && (
-                      <div className="mt-4 grid grid-cols-3 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => void updateStatus('APPROVED')}
-                          disabled={updatingStatus}
-                          className="flex items-center justify-center gap-1 px-2 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold disabled:opacity-60"
+                      return (
+                        <div
+                          key={approval.id}
+                          className={`w-full rounded-2xl border p-3 transition-all ${
+                            isSelected
+                              ? 'border-indigo-300 bg-indigo-50'
+                              : 'border-slate-200 bg-white'
+                          }`}
                         >
-                          <CheckCircle2 className="w-4 h-4" />
-                          Approve
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void updateStatus('REJECTED')}
-                          disabled={updatingStatus}
-                          className="flex items-center justify-center gap-1 px-2 py-2 rounded-xl bg-rose-600 text-white text-xs font-bold disabled:opacity-60"
-                        >
-                          <XCircle className="w-4 h-4" />
-                          Reject
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleAskForReview()}
-                          disabled={updatingStatus}
-                          className="flex items-center justify-center gap-1 px-2 py-2 rounded-xl bg-amber-500 text-white text-xs font-bold disabled:opacity-60"
-                        >
-                          <MessageSquare className="w-4 h-4" />
-                          Review
-                        </button>
-                      </div>
-                    )}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedApprovalId((prev) => (prev === approval.id ? null : approval.id))}
+                            className="w-full text-left"
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-sm font-bold text-slate-900 truncate">{approval.title || 'Untitled'}</p>
+                              <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full ${getStatusClasses(approval.status)}`}>
+                                {approval.status}
+                              </span>
+                            </div>
+                            <p className="text-sm font-bold text-indigo-700 mt-1">{formatAmount(approval.amount)}</p>
+                            <p className="text-xs text-slate-500 mt-1 line-clamp-2">
+                              {parsedApproval.description || 'No description'}
+                            </p>
+                          </button>
 
-                    <div className="mt-4">
-                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-500">Discussion</h4>
-                      <div className="mt-2 max-h-72 overflow-y-auto space-y-2 pr-1">
-                        {loadingThreads ? (
-                          <p className="text-xs text-slate-500">Loading messages...</p>
-                        ) : threads.length === 0 ? (
-                          <p className="text-xs text-slate-500">No messages yet.</p>
-                        ) : (
-                          threads.map((thread) => {
-                            const mine = thread.sender_id === currentUser.id;
-                            return (
-                              <div key={thread.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                                <div
-                                  className={`max-w-[85%] rounded-2xl px-3 py-2 border ${
-                                    mine
-                                      ? 'bg-indigo-50 border-indigo-200'
-                                      : 'bg-white border-slate-200'
-                                  }`}
-                                >
-                                  <p className="text-[10px] font-bold text-slate-500">{thread.sender_name}</p>
-                                  <p className="text-xs text-slate-900 mt-1">{thread.message_text}</p>
-                                  <p className="text-[10px] text-slate-400 mt-1">
-                                    {formatDateTime(thread.created_at)}
-                                    {thread.optimistic ? ' (sending...)' : ''}
-                                  </p>
+                          {isSelected && (
+                            <div className="mt-4 border-t border-slate-200 pt-4">
+                              <p className="text-xs text-slate-500">{parsedApproval.description || 'No description'}</p>
+
+                              {parsedApproval.attachments.length > 0 && (
+                                <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-2.5">
+                                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Attached Documents</p>
+                                  <div className="mt-2 space-y-1.5">
+                                    {parsedApproval.attachments.map((attachment, index) => (
+                                      <a
+                                        key={`${attachment.url}_${index}`}
+                                        href={attachment.url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1.5 hover:bg-slate-50"
+                                      >
+                                        <div className="min-w-0">
+                                          <p className="text-xs font-semibold text-slate-700 truncate">{attachment.name}</p>
+                                          <p className="text-[10px] text-slate-500">
+                                            {attachment.contentType || 'File'}
+                                            {attachment.size ? ` - ${formatAttachmentSize(attachment.size)}` : ''}
+                                          </p>
+                                        </div>
+                                        <div className="flex items-center gap-1 text-slate-500 shrink-0">
+                                          <Link2 className="w-3.5 h-3.5" />
+                                          <Download className="w-3.5 h-3.5" />
+                                        </div>
+                                      </a>
+                                    ))}
+                                  </div>
                                 </div>
-                              </div>
-                            );
-                          })
+                              )}
+
+                              {threads.length > 0 && (
+                                <div className="mt-3 space-y-2">
+                                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Messages</p>
+                                  <div className="max-h-32 overflow-y-auto space-y-2">
+                                    {threads.map((thread) => {
+                                      const mine = thread.sender_id === currentUser.id;
+                                      return (
+                                        <div key={thread.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                                          <div className={`max-w-[80%] rounded-lg px-2 py-1.5 ${
+                                            mine
+                                              ? 'bg-indigo-900 text-white'
+                                              : 'bg-slate-100 text-slate-700'
+                                          }`}>
+                                            <p className="text-xs font-medium">{thread.sender_name}</p>
+                                            <p className="text-xs mt-0.5">{thread.message_text}</p>
+                                            <p className="text-[9px] mt-1 opacity-70">
+                                              {formatDateTime(thread.created_at)}
+                                            </p>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+
+                              {canTakeActionOnApproval && (
+                                <div className="mt-3 flex gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleApprove(approval.id)}
+                                    disabled={updatingStatus}
+                                    className="flex-1 h-8 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
+                                  >
+                                    <CheckCircle2 className="w-3 h-3 inline mr-1" />
+                                    Approve
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleReject(approval.id)}
+                                    disabled={updatingStatus}
+                                    className="flex-1 h-8 rounded-lg bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 transition-all disabled:opacity-50"
+                                  >
+                                    <XCircle className="w-3 h-3 inline mr-1" />
+                                    Reject
+                                  </button>
+                                </div>
+                              )}
+
+                              {approval.status === 'PENDING' && approval.requester_id === currentUser.id && (
+                                <div className="mt-3 flex gap-2">
+                                  <input
+                                    type="text"
+                                    value={draftMessage}
+                                    onChange={(e) => setDraftMessage(e.target.value)}
+                                    placeholder="Add a note..."
+                                    className="flex-1 h-8 px-2 rounded-lg border border-slate-200 bg-white text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-900"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleAskForReview()}
+                                    disabled={updatingStatus || !draftMessage.trim()}
+                                    className="h-8 px-3 rounded-lg bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 transition-all disabled:opacity-50"
+                                  >
+                                    <Send className="w-3 h-3 inline mr-1" />
+                                    Request Review
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ));
+            } else {
+              // Original rendering for "Needs My Approval" view
+              return filteredApprovals.map((approval) => {
+                const isSelected = selectedApprovalId === approval.id;
+                const parsedApproval = extractApprovalAttachments(approval.description);
+                const canTakeActionOnApproval =
+                  isSelected &&
+                  approval.approver_id === currentUser.id &&
+                  !LOCKED_STATUSES.includes(approval.status);
+
+                return (
+                  <div
+                    key={approval.id}
+                    className={`w-full rounded-2xl border p-3 transition-all ${
+                      isSelected
+                        ? 'border-indigo-300 bg-indigo-50'
+                        : 'border-slate-200 bg-white'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setSelectedApprovalId((prev) => (prev === approval.id ? null : approval.id))}
+                      className="w-full text-left"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-bold text-slate-900 truncate">{approval.title || 'Untitled'}</p>
+                        <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full ${getStatusClasses(approval.status)}`}>
+                          {approval.status}
+                        </span>
+                      </div>
+                      <p className="text-sm font-bold text-indigo-700 mt-1">{formatAmount(approval.amount)}</p>
+                      <p className="text-xs text-slate-500 mt-1 line-clamp-2">
+                        {parsedApproval.description || 'No description'}
+                      </p>
+                    </button>
+
+                    {isSelected && (
+                      <div className="mt-4 border-t border-slate-200 pt-4">
+                        <p className="text-xs text-slate-500">{parsedApproval.description || 'No description'}</p>
+
+                        {parsedApproval.attachments.length > 0 && (
+                          <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-2.5">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Attached Documents</p>
+                            <div className="mt-2 space-y-1.5">
+                              {parsedApproval.attachments.map((attachment, index) => (
+                                <a
+                                  key={`${attachment.url}_${index}`}
+                                  href={attachment.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1.5 hover:bg-slate-50"
+                                >
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-semibold text-slate-700 truncate">{attachment.name}</p>
+                                    <p className="text-[10px] text-slate-500">
+                                      {attachment.contentType || 'File'}
+                                      {attachment.size ? ` - ${formatAttachmentSize(attachment.size)}` : ''}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-1 text-slate-500 shrink-0">
+                                    <Link2 className="w-3.5 h-3.5" />
+                                    <Download className="w-3.5 h-3.5" />
+                                  </div>
+                                </a>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {threads.length > 0 && (
+                          <div className="mt-3 space-y-2">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Messages</p>
+                            <div className="max-h-32 overflow-y-auto space-y-2">
+                              {threads.map((thread) => {
+                                const mine = thread.sender_id === currentUser.id;
+                                return (
+                                  <div key={thread.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                                    <div className={`max-w-[80%] rounded-lg px-2 py-1.5 ${
+                                      mine
+                                        ? 'bg-indigo-900 text-white'
+                                        : 'bg-slate-100 text-slate-700'
+                                    }`}>
+                                      <p className="text-xs font-medium">{thread.sender_name}</p>
+                                      <p className="text-xs mt-0.5">{thread.message_text}</p>
+                                      <p className="text-[9px] mt-1 opacity-70">
+                                        {formatDateTime(thread.created_at)}
+                                      </p>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {canTakeActionOnApproval && (
+                          <div className="mt-3 flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => void handleApprove(approval.id)}
+                              disabled={updatingStatus}
+                              className="flex-1 h-8 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
+                            >
+                              <CheckCircle2 className="w-3 h-3 inline mr-1" />
+                              Approve
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handleReject(approval.id)}
+                              disabled={updatingStatus}
+                              className="flex-1 h-8 rounded-lg bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 transition-all disabled:opacity-50"
+                            >
+                              <XCircle className="w-3 h-3 inline mr-1" />
+                              Reject
+                            </button>
+                          </div>
+                        )}
+
+                        {approval.status === 'PENDING' && approval.requester_id === currentUser.id && (
+                          <div className="mt-3 flex gap-2">
+                            <input
+                              type="text"
+                              value={draftMessage}
+                              onChange={(e) => setDraftMessage(e.target.value)}
+                              placeholder="Add a note..."
+                              className="flex-1 h-8 px-2 rounded-lg border border-slate-200 bg-white text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-900"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => void handleAskForReview()}
+                              disabled={updatingStatus || !draftMessage.trim()}
+                              className="h-8 px-3 rounded-lg bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 transition-all disabled:opacity-50"
+                            >
+                              <Send className="w-3 h-3 inline mr-1" />
+                              Request Review
+                            </button>
+                          </div>
                         )}
                       </div>
-
-                      <div className="mt-3 flex items-center gap-2">
-                        <input
-                          value={draftMessage}
-                          onChange={(event) => setDraftMessage(event.target.value)}
-                          placeholder="Type a message..."
-                          className="flex-1 h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => void handleSendMessage()}
-                          className="h-11 w-11 rounded-xl bg-indigo-900 text-white flex items-center justify-center"
-                          title="Send message"
-                        >
-                          <Send className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
+                    )}
                   </div>
-                )}
-              </div>
-            );
-          })
+                );
+              });
+            }
+          })()
         )}
       </div>
 
