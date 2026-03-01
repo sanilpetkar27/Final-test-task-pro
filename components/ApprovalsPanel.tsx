@@ -1377,7 +1377,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                                 </div>
                               )}
 
-                              {approval.status === 'PENDING' && approval.requester_id === currentUser.id && (
+                              {approval.status === 'PENDING' && (
                                 <div className="mt-3 flex gap-2">
                                   <input
                                     type="text"
@@ -1388,13 +1388,24 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                                   />
                                   <button
                                     type="button"
-                                    onClick={() => void handleAskForReview()}
+                                    onClick={() => void handleSendMessage()}
                                     disabled={updatingStatus || !draftMessage.trim()}
-                                    className="h-8 px-3 rounded-lg bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 transition-all disabled:opacity-50"
+                                    className="h-8 px-3 rounded-lg bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition-all disabled:opacity-50"
                                   >
                                     <Send className="w-3 h-3 inline mr-1" />
-                                    Request Review
+                                    Send
                                   </button>
+                                  {approval.requester_id === currentUser.id && (
+                                    <button
+                                      type="button"
+                                      onClick={() => void handleAskForReview()}
+                                      disabled={updatingStatus || !draftMessage.trim()}
+                                      className="h-8 px-3 rounded-lg bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 transition-all disabled:opacity-50"
+                                    >
+                                      <Send className="w-3 h-3 inline mr-1" />
+                                      Request Review
+                                    </button>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -1543,7 +1554,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                           </div>
                         )}
 
-                        {approval.status === 'PENDING' && approval.requester_id === currentUser.id && (
+                        {approval.status === 'PENDING' && (
                           <div className="mt-3 flex gap-2">
                             <input
                               type="text"
@@ -1554,13 +1565,24 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                             />
                             <button
                               type="button"
-                              onClick={() => void handleAskForReview()}
+                              onClick={() => void handleSendMessage()}
                               disabled={updatingStatus || !draftMessage.trim()}
-                              className="h-8 px-3 rounded-lg bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 transition-all disabled:opacity-50"
+                              className="h-8 px-3 rounded-lg bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition-all disabled:opacity-50"
                             >
                               <Send className="w-3 h-3 inline mr-1" />
-                              Request Review
+                              Send
                             </button>
+                            {approval.requester_id === currentUser.id && (
+                              <button
+                                type="button"
+                                onClick={() => void handleAskForReview()}
+                                disabled={updatingStatus || !draftMessage.trim()}
+                                className="h-8 px-3 rounded-lg bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 transition-all disabled:opacity-50"
+                              >
+                                <Send className="w-3 h-3 inline mr-1" />
+                                Request Review
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>
