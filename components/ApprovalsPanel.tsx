@@ -382,7 +382,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
     try {
       let query = supabase
         .from('approvals')
-        .select('id, requester_id, approver_id, title, description, amount, status, created_at, updated_at');
+        .select('id, requester_id, approver_id, title, description, amount, status, isEscalated, adminEscalationStatus, created_at, updated_at');
 
       if (view === 'my_requests') {
         query = query.eq('requester_id', currentUser.id);
@@ -403,6 +403,8 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         status: normalizeStatus(row.status),
         created_at: row.created_at ? String(row.created_at) : null,
         updated_at: row.updated_at ? String(row.updated_at) : null,
+        isEscalated: Boolean(row.isEscalated || false),
+        adminEscalationStatus: String(row.adminEscalationStatus || 'NONE'),
       })));
 
       setApprovals((prev) => (approvalsAreEqual(prev, mapped) ? prev : mapped));
@@ -819,6 +821,13 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
     
     setUpdatingStatus(true);
     setError(null);
+    
+    console.log("Escalation payload sent to Supabase:", {
+      id: selectedApproval.id,
+      isEscalated: true,
+      adminEscalationStatus: 'PENDING'
+    });
+    
     try {
       const { error: escalateError } = await supabase
         .from('approvals')
@@ -827,8 +836,13 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
           adminEscalationStatus: 'PENDING'
         })
         .eq('id', selectedApproval.id);
-      if (escalateError) throw escalateError;
-
+      
+      if (escalateError) {
+        console.error('Escalation failed:', escalateError);
+        throw escalateError;
+      }
+      
+      console.log("Escalation successful, updating local state");
       setApprovals((prev) =>
         sortApprovalsByRecency(
           prev.map((item) =>
@@ -839,6 +853,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         )
       );
     } catch (err) {
+      console.error('Escalation error caught:', err);
       setError(err instanceof Error ? err.message : 'Failed to escalate to admin.');
     } finally {
       setUpdatingStatus(false);
