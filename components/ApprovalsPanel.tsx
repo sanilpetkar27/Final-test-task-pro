@@ -16,6 +16,8 @@ type ApprovalItem = {
   status: ApprovalStatus;
   created_at?: string | null;
   updated_at?: string | null;
+  isEscalated: boolean;
+  adminEscalationStatus: 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED';
 };
 
 type ApprovalThread = {
@@ -810,6 +812,93 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
     }
   };
 
+  const handleEscalateToAdmin = async (): Promise<void> => {
+    if (!selectedApproval) return;
+    
+    setUpdatingStatus(true);
+    setError(null);
+    try {
+      const { error: escalateError } = await supabase
+        .from('approvals')
+        .update({ 
+          isEscalated: true,
+          adminEscalationStatus: 'PENDING'
+        })
+        .eq('id', selectedApproval.id);
+      if (escalateError) throw escalateError;
+
+      setApprovals((prev) =>
+        sortApprovalsByRecency(
+          prev.map((item) =>
+            item.id === selectedApproval.id
+              ? { ...item, isEscalated: true, adminEscalationStatus: 'PENDING' as const }
+              : item
+          )
+        )
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to escalate to admin.');
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
+  const handleAdminEscalationDecision = async (decision: 'APPROVED' | 'REJECTED'): Promise<void> => {
+    if (!selectedApproval) return;
+    
+    setUpdatingStatus(true);
+    setError(null);
+    try {
+      const { error: decisionError } = await supabase
+        .from('approvals')
+        .update({ adminEscalationStatus: decision })
+        .eq('id', selectedApproval.id);
+      if (decisionError) throw decisionError;
+
+      setApprovals((prev) =>
+        sortApprovalsByRecency(
+          prev.map((item) =>
+            item.id === selectedApproval.id
+              ? { ...item, adminEscalationStatus: decision }
+              : item
+          )
+        )
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update escalation decision.');
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
+  const handleFinalApproval = async (): Promise<void> => {
+    if (!selectedApproval) return;
+    
+    setUpdatingStatus(true);
+    setError(null);
+    try {
+      const { error: approveError } = await supabase
+        .from('approvals')
+        .update({ status: 'APPROVED' })
+        .eq('id', selectedApproval.id);
+      if (approveError) throw approveError;
+
+      setApprovals((prev) =>
+        sortApprovalsByRecency(
+          prev.map((item) =>
+            item.id === selectedApproval.id
+              ? { ...item, status: 'APPROVED' }
+              : item
+          )
+        )
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to approve request.');
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
   return (
     <section className="bg-white border border-slate-200 rounded-3xl p-4 shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
       <div className="flex items-center justify-between gap-3">
@@ -1356,31 +1445,8 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
 
                               {canTakeActionOnApproval && (
                                 <div className="mt-3 flex gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => void handleApprove(approval.id)}
-                                    disabled={updatingStatus}
-                                    className="flex-1 h-8 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
-                                  >
-                                    <CheckCircle2 className="w-3 h-3 inline mr-1" />
-                                    Approve
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => void handleReject(approval.id)}
-                                    disabled={updatingStatus}
-                                    className="flex-1 h-8 rounded-lg bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 transition-all disabled:opacity-50"
-                                  >
-                                    <XCircle className="w-3 h-3 inline mr-1" />
-                                    Reject
-                                  </button>
-                                </div>
-                              )}
-
-                              {approval.status === 'PENDING' && (
-                                <div className="mt-3 flex gap-2">
-                                  <input
-                                    type="text"
+                                  {/* Manager Escalation Button */}
+                                  {currentUser.role === 'manager' && !approval.isEscalated && (
                                     value={draftMessage}
                                     onChange={(e) => setDraftMessage(e.target.value)}
                                     placeholder="Add a note..."
@@ -1531,26 +1597,108 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                           </div>
                         )}
 
+                        {/* Manager Escalation Banner */}
+                        {approval.isEscalated && approval.adminEscalationStatus === 'PENDING' && currentUser.role === 'manager' && (
+                          <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                            <p className="text-xs font-medium text-amber-800">
+                              ⚠️ Escalated to Admin. Waiting for their review.
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Admin Escalation Banner */}
+                        {approval.isEscalated && currentUser.role === 'super_admin' && (
+                          <div className="mt-3 p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
+                            <p className="text-xs font-medium text-indigo-800">
+                              Escalated by {getApproverName(approval.approver_id, approvers)}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Admin Escalation Decision Banner */}
+                        {approval.adminEscalationStatus === 'APPROVED' && currentUser.role === 'manager' && (
+                          <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                            <p className="text-xs font-medium text-emerald-800">
+                              ✅ Admin Approved Escalation
+                            </p>
+                          </div>
+                        )}
+
                         {canTakeActionOnApproval && (
                           <div className="mt-3 flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => void handleApprove(approval.id)}
-                              disabled={updatingStatus}
-                              className="flex-1 h-8 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
-                            >
-                              <CheckCircle2 className="w-3 h-3 inline mr-1" />
-                              Approve
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => void handleReject(approval.id)}
-                              disabled={updatingStatus}
-                              className="flex-1 h-8 rounded-lg bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 transition-all disabled:opacity-50"
-                            >
-                              <XCircle className="w-3 h-3 inline mr-1" />
-                              Reject
-                            </button>
+                            {/* Manager Escalation Button */}
+                            {currentUser.role === 'manager' && !approval.isEscalated && (
+                              <button
+                                type="button"
+                                onClick={() => void handleEscalateToAdmin()}
+                                disabled={updatingStatus}
+                                className="flex-1 h-8 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 transition-all disabled:opacity-50"
+                              >
+                                <Send className="w-3 h-3 inline mr-1" />
+                                Escalate to Admin
+                              </button>
+                            )}
+                            
+                            {/* Admin Escalation Decision Buttons */}
+                            {currentUser.role === 'super_admin' && approval.isEscalated && approval.adminEscalationStatus === 'PENDING' && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => void handleAdminEscalationDecision('APPROVED')}
+                                  disabled={updatingStatus}
+                                  className="flex-1 h-8 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
+                                >
+                                  <CheckCircle2 className="w-3 h-3 inline mr-1" />
+                                  Approve Escalation
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void handleAdminEscalationDecision('REJECTED')}
+                                  disabled={updatingStatus}
+                                  className="flex-1 h-8 rounded-lg bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 transition-all disabled:opacity-50"
+                                >
+                                  <XCircle className="w-3 h-3 inline mr-1" />
+                                  Reject Escalation
+                                </button>
+                              </>
+                            )}
+
+                            {/* Regular Approve/Reject for Admin after escalation approval */}
+                            {currentUser.role === 'manager' && approval.adminEscalationStatus === 'APPROVED' && (
+                              <button
+                                type="button"
+                                onClick={() => void handleFinalApproval()}
+                                disabled={updatingStatus}
+                                className="flex-1 h-8 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
+                              >
+                                <CheckCircle2 className="w-3 h-3 inline mr-1" />
+                                Approve
+                              </button>
+                            )}
+
+                            {/* Regular Approve/Reject for non-escalated requests */}
+                            {!approval.isEscalated && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => void handleApprove(approval.id)}
+                                  disabled={updatingStatus}
+                                  className="flex-1 h-8 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
+                                >
+                                  <CheckCircle2 className="w-3 h-3 inline mr-1" />
+                                  Approve
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void handleReject(approval.id)}
+                                  disabled={updatingStatus}
+                                  className="flex-1 h-8 rounded-lg bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 transition-all disabled:opacity-50"
+                                >
+                                  <XCircle className="w-3 h-3 inline mr-1" />
+                                  Reject
+                                </button>
+                              </>
+                            )}
                           </div>
                         )}
 
