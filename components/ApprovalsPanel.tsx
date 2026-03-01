@@ -387,7 +387,13 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
       if (view === 'my_requests') {
         query = query.eq('requester_id', currentUser.id);
       } else {
-        query = query.eq('approver_id', currentUser.id).in('status', ['PENDING', 'NEEDS_REVIEW']);
+        if (currentUser.role === 'super_admin') {
+          // Super Admins see their own direct approvals OR any escalated requests
+          query = query.or(`and(approver_id.eq.${currentUser.id},status.in.(PENDING,NEEDS_REVIEW)),and(isEscalated.eq.true,adminEscalationStatus.eq.PENDING)`);
+        } else {
+          // Regular Managers only see requests directly assigned to them
+          query = query.eq('approver_id', currentUser.id).in('status', ['PENDING', 'NEEDS_REVIEW']);
+        }
       }
 
       const { data, error: loadError } = await query.order('id', { ascending: false });
