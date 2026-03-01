@@ -3,6 +3,7 @@ import { DealershipTask, Employee, UserRole, TaskStatus, TaskType, RecurrenceFre
 import { supabase } from '../src/lib/supabase';
 import { sendTaskCompletionNotification } from '../src/utils/pushNotifications';
 import TaskItem from './TaskItem';
+import TaskDetailsScreen from './TaskDetailsScreen';
 import CompletionModal from './CompletionModal';
 import DelegationModal from './DelegationModal';
 import ReassignModal from './ReassignModal';
@@ -77,8 +78,7 @@ const getRecurrenceIntervalMs = (frequency: RecurrenceFrequency | null | undefin
 };
 
 const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, onAddTask, onStartTask, onReopenTask, onCompleteTask, onCompleteTaskWithoutPhoto, onReassignTask, onDeleteTask, onUpdateTaskRemarks }) => {
-  const [view, setView] = useState<'pending' | 'in-progress' | 'completed'>('pending');
-  const [deadlineView, setDeadlineView] = useState<'overdue' | 'today' | 'upcoming' | 'all'>('all');
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   
   // Voice recognition state
   const [isListening, setIsListening] = useState(false);
@@ -890,53 +890,6 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   };
 
   // Tasks are already filtered by role in App.tsx, no need to filter again here
-  const pendingTasks = tasks.filter(t => t.status === 'pending');
-  const inProgressTasks = tasks.filter(t => t.status === 'in-progress');
-  const completedTasks = tasks.filter(t => t.status === 'completed');
-
-  // --- DEADLINE FILTERING LOGIC ---
-  const getDeadlineFilteredTasks = (tasks: DealershipTask[]) => {
-    if (deadlineView === 'all') return tasks;
-    
-    const now = Date.now();
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Start of today
-    const todayEnd = new Date();
-    todayEnd.setHours(23, 59, 59, 999); // End of today
-    const nextWeek = new Date(today);
-    nextWeek.setDate(nextWeek.getDate() + 7);
-    nextWeek.setHours(23, 59, 59, 999); // End of next 7 days
-
-    const incompleteTasks = tasks.filter(t => t.status !== 'completed');
-
-    switch (deadlineView) {
-      case 'overdue':
-        return incompleteTasks.filter(t => {
-          if (!t.deadline) return false;
-          const deadlineDate = new Date(t.deadline);
-          deadlineDate.setHours(0, 0, 0, 0); // Ignore time for overdue check
-          return deadlineDate < today;
-        });
-      
-      case 'today':
-        return incompleteTasks.filter(t => {
-          if (!t.deadline) return false;
-          const deadlineDate = new Date(t.deadline);
-          return deadlineDate >= today && deadlineDate <= todayEnd;
-        });
-      
-      case 'upcoming':
-        return incompleteTasks.filter(t => {
-          if (!t.deadline) return false;
-          const deadlineDate = new Date(t.deadline);
-          return deadlineDate > todayEnd && deadlineDate <= nextWeek;
-        });
-      
-      default:
-        return tasks;
-    }
-  };
-
   // Person Filter Logic
   // Get filter options based on user role
   const getFilterOptions = () => {
@@ -1067,14 +1020,63 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   const sortTasksByRecentActivity = (taskRows: DealershipTask[]): DealershipTask[] =>
     [...taskRows].sort((left, right) => getTaskActivityTimestamp(right) - getTaskActivityTimestamp(left));
 
-  const filteredPendingTasks = sortTasksByRecentActivity(getDeadlineFilteredTasks(getFilteredTasks(pendingTasks)));
-  const filteredInProgressTasks = sortTasksByRecentActivity(getDeadlineFilteredTasks(getFilteredTasks(inProgressTasks)));
-  const filteredCompletedTasks = sortTasksByRecentActivity(getDeadlineFilteredTasks(getFilteredTasks(completedTasks)));
+  const allFilteredTasks = sortTasksByRecentActivity(getFilteredTasks(tasks));
 
-  const tasksToShow = view === 'pending' ? filteredPendingTasks : view === 'in-progress' ? filteredInProgressTasks : filteredCompletedTasks;
+  // Auto-navigate back if selected task was deleted
+  useEffect(() => {
+    if (selectedTaskId && !tasks.find(t => t.id === selectedTaskId)) {
+      setSelectedTaskId(null);
+    }
+  }, [selectedTaskId, tasks]);
 
+  // --- Selected task for detail view ---
+  const selectedTask = selectedTaskId ? tasks.find(t => t.id === selectedTaskId) || null : null;
+
+  // --- If a task is selected, render TaskDetailsScreen ---
+  if (selectedTask) {
+    return (
+      <div className="relative" style={{ height: 'calc(100vh - 120px)' }}>
+        <TaskDetailsScreen
+          task={selectedTask}
+          subTasks={tasks.filter(t => t.parentTaskId === selectedTask.id)}
+          parentTask={tasks.find(t => t.id === selectedTask.parentTaskId)}
+          employees={employees}
+          currentUser={currentUser}
+          onBack={() => setSelectedTaskId(null)}
+          onStartTask={() => updateTaskStatus(selectedTask.id, 'in-progress')}
+          onReopenTask={() => updateTaskStatus(selectedTask.id, 'pending')}
+          onCompleteTask={(proof) => updateTaskStatus(selectedTask.id, 'completed', proof.imageUrl)}
+          onCompleteTaskWithoutPhoto={() => updateTaskStatus(selectedTask.id, 'completed')}
+          onReassign={() => setReassigningTaskId(selectedTask.id)}
+          onDelegate={() => setDelegatingTaskId(selectedTask.id)}
+          onDelete={() => { onDeleteTask(selectedTask.id); setSelectedTaskId(null); }}
+          onInlineEditSave={handleInlineTaskUpdate}
+          onAddRemark={(taskId: string, remark: string) => handleAddRemark(taskId, remark)}
+        />
+
+        {delegatingTaskId && (
+          <DelegationModal 
+            employees={employees}
+            onClose={() => setDelegatingTaskId(null)}
+            onConfirm={async (desc, targetId, deadline) => await handleDelegate(delegatingTaskId, desc, targetId, deadline)}
+          />
+        )}
+
+        {reassigningTaskId && (
+          <ReassignModal 
+            employees={employees}
+            currentAssignee={tasks.find(t => t.id === reassigningTaskId)?.assignedTo}
+            onClose={() => setReassigningTaskId(null)}
+            onConfirm={async (newAssigneeId) => await handleReassign(reassigningTaskId, newAssigneeId)}
+          />
+        )}
+      </div>
+    );
+  }
+
+  // --- Otherwise, render the unified task list ---
   return (
-    <div className="space-y-6 relative min-h-screen">
+    <div className="space-y-4 relative min-h-screen">
       {/* Header with Title and New Button */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -1278,161 +1280,20 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
         </div>
       )}
 
-      {/* Person Filter - Hidden */}
-      {/* <section className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-        <h2 className="text-xs font-black text-slate-500 mb-3 uppercase tracking-widest flex items-center gap-2">
-          <User className="w-3 h-3" />
-          Person Filter
-        </h2>
-        <div className="relative">
-          <select 
-            value={selectedPersonFilter}
-            onChange={(e) => setSelectedPersonFilter(e.target.value)}
-            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 appearance-none transition-all pr-10"
-          >
-            <option value="ALL" className="text-slate-900">All Users</option>
-            {filterOptions.map(person => (
-              <option key={person.id} value={person.id} className="text-slate-900">
-                {person.name} ({isManager ? 'Assignee' : 'Manager'})
-              </option>
-            ))}
-          </select>
-          <User className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
-        </div>
-        <p className="text-slate-500 text-xs mt-2">
-          {isManager ? 'Filter tasks by assigned staff member' : 'Filter tasks by manager who assigned them'}
-        </p>
-      </section> */}
-
-      {/* Deadline Filter Tabs */}
-      <div className="flex gap-3 pb-4">
-        <button 
-          onClick={() => setDeadlineView('overdue')}
-          className={`flex-1 relative overflow-hidden rounded-xl transition-all duration-300 transform hover:scale-105 ${
-            deadlineView === 'overdue' 
-              ? 'bg-indigo-900 text-white shadow-sm ring-2 ring-slate-300' 
-              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 shadow-sm hover:shadow-sm'
-          }`}
-        >
-          <div className="flex items-center justify-center gap-2 py-3 px-2">
-            <AlertTriangle className={`w-4 h-4 ${deadlineView === 'overdue' ? 'text-white' : 'text-red-500'}`} />
-            <span className="text-xs font-bold uppercase tracking-wide">Overdue</span>
-          </div>
-          {deadlineView === 'overdue' && (
-            <div className="absolute top-0 right-0 w-2 h-2 bg-white rounded-full m-1 animate-pulse"></div>
-          )}
-        </button>
-        
-        <button 
-          onClick={() => setDeadlineView('today')}
-          className={`flex-1 relative overflow-hidden rounded-xl transition-all duration-300 transform hover:scale-105 ${
-            deadlineView === 'today' 
-              ? 'bg-indigo-900 text-white shadow-sm ring-2 ring-slate-300' 
-              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 shadow-sm hover:shadow-sm'
-          }`}
-        >
-          <div className="flex items-center justify-center gap-2 py-3 px-2">
-            <Clock className={`w-4 h-4 ${deadlineView === 'today' ? 'text-white' : 'text-orange-500'}`} />
-            <span className="text-xs font-bold uppercase tracking-wide">Today</span>
-          </div>
-          {deadlineView === 'today' && (
-            <div className="absolute top-0 right-0 w-2 h-2 bg-white rounded-full m-1 animate-pulse"></div>
-          )}
-        </button>
-        
-        <button 
-          onClick={() => setDeadlineView('upcoming')}
-          className={`flex-1 relative overflow-hidden rounded-xl transition-all duration-300 transform hover:scale-105 ${
-            deadlineView === 'upcoming' 
-              ? 'bg-indigo-900 text-white shadow-sm ring-2 ring-slate-300' 
-              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 shadow-sm hover:shadow-sm'
-          }`}
-        >
-          <div className="flex items-center justify-center gap-2 py-3 px-2">
-            <Calendar className={`w-4 h-4 ${deadlineView === 'upcoming' ? 'text-white' : 'text-indigo-700'}`} />
-            <span className="text-xs font-bold uppercase tracking-wide">Upcoming</span>
-          </div>
-          {deadlineView === 'upcoming' && (
-            <div className="absolute top-0 right-0 w-2 h-2 bg-white rounded-full m-1 animate-pulse"></div>
-          )}
-        </button>
-        
-        <button 
-          onClick={() => setDeadlineView('all')}
-          className={`flex-1 relative overflow-hidden rounded-xl transition-all duration-300 transform hover:scale-105 ${
-            deadlineView === 'all' 
-              ? 'bg-indigo-900 text-white shadow-sm ring-2 ring-slate-300' 
-              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 shadow-sm hover:shadow-sm'
-          }`}
-        >
-          <div className="flex items-center justify-center gap-2 py-3 px-2">
-            <CheckCircle2 className={`w-4 h-4 ${deadlineView === 'all' ? 'text-white' : 'text-emerald-700'}`} />
-            <span className="text-xs font-bold uppercase tracking-wide">All</span>
-          </div>
-          {deadlineView === 'all' && (
-            <div className="absolute top-0 right-0 w-2 h-2 bg-white rounded-full m-1 animate-pulse"></div>
-          )}
-        </button>
-      </div>
-
-      {/* View Tabs */}
-      <div className="flex gap-2 pb-4">
-        <button 
-          onClick={() => setView('pending')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${view === 'pending' ? 'bg-white text-indigo-700 shadow-sm ring-1 ring-slate-300' : 'text-slate-500'}`}
-        >
-          <ClipboardIcon className="w-4 h-4" />
-          To Do ({filteredPendingTasks.length})
-        </button>
-        <button 
-          onClick={() => setView('in-progress')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${view === 'in-progress' ? 'bg-white text-indigo-700 shadow-sm ring-1 ring-slate-300' : 'text-slate-500'}`}
-        >
-          <Timer className="w-4 h-4" />
-          In Progress ({filteredInProgressTasks.length})
-        </button>
-        <button 
-          onClick={() => setView('completed')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${view === 'completed' ? 'bg-white text-indigo-700 shadow-sm ring-1 ring-slate-300' : 'text-slate-500'}`}
-        >
-          <CheckCircle2 className="w-4 h-4" />
-          Done ({filteredCompletedTasks.length})
-        </button>
-      </div>
-
-      {/* Task List */}
+      {/* Unified Task List */}
       <div className="space-y-3 pb-8 min-h-[500px]">
-        {tasksToShow.map(task => (
+        {allFilteredTasks.map(task => (
           <TaskItem 
             key={task.id} 
             task={task} 
-            subTasks={tasks.filter(t => t.parentTaskId === task.id)}
-            parentTask={tasks.find(t => t.id === task.parentTaskId)}
             employees={employees}
-            currentUser={currentUser}
-            onMarkComplete={() => updateTaskStatus(task.id, 'completed')}
-            onCompleteWithPhoto={(photoUrl: string) => updateTaskStatus(task.id, 'completed', photoUrl)}
-            onStartTask={() => updateTaskStatus(task.id, 'in-progress')}
-            onReopenTask={() => updateTaskStatus(task.id, 'pending')}
-            onCompleteTaskWithoutPhoto={() => updateTaskStatus(task.id, 'completed')}
-            onReassign={() => setReassigningTaskId(task.id)}
-            onDelete={() => onDeleteTask(task.id)}
-            onDelegate={() => setDelegatingTaskId(task.id)}
-            onInlineEditSave={handleInlineTaskUpdate}
-            onSubTaskComplete={(subTaskId) => updateTaskStatus(subTaskId, 'completed')}
-            onAddRemark={(taskId: string, remark: string) => handleAddRemark(taskId, remark)}
+            onClick={() => setSelectedTaskId(task.id)}
           />
         ))}
-        {tasksToShow.length === 0 && (
+        {allFilteredTasks.length === 0 && (
           <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-200">
-            {view === 'pending' ? <Clock className="w-12 h-12 mx-auto mb-3 text-slate-200" /> : 
-               view === 'in-progress' ? <Timer className="w-12 h-12 mx-auto mb-3 text-slate-200" /> :
-               <CheckCircle2 className="w-12 h-12 mx-auto mb-3 text-slate-200" />}
-            <p className="text-slate-400 font-bold">
-              {view === 'pending' ? 'No pending tasks.' : 
-                 view === 'in-progress' ? 'No tasks in progress.' : 
-                 'No completions yet.'}
-            </p>
+            <ClipboardIcon className="w-12 h-12 mx-auto mb-3 text-slate-200" />
+            <p className="text-slate-400 font-bold">No tasks found.</p>
           </div>
         )}
       </div>
