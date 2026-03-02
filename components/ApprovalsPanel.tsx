@@ -18,6 +18,7 @@ type ApprovalItem = {
   updated_at?: string | null;
   isEscalated: boolean;
   adminEscalationStatus: 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED';
+  escalated_to?: string | null;
 };
 
 type ApprovalThread = {
@@ -322,6 +323,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
   const [approvals, setApprovals] = useState<ApprovalItem[]>([]);
   const [selectedApprovalId, setSelectedApprovalId] = useState<string | null>(null);
   const [approvers, setApprovers] = useState<ApproverOption[]>([]);
+  const [selectedAdminId, setSelectedAdminId] = useState<string | null>(null);
   const [loadingApprovers, setLoadingApprovers] = useState(false);
   const [creatingApproval, setCreatingApproval] = useState(false);
   const [requestTitle, setRequestTitle] = useState('');
@@ -392,7 +394,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         data = result.data;
       } else if (currentUser.role === 'super_admin') {
         // Super Admins see their own direct approvals OR any escalated requests
-        query = query.or(`and(approver_id.eq.${currentUser.id},status.in.(PENDING,NEEDS_REVIEW)),and(isEscalated.eq.true,adminEscalationStatus.eq.PENDING)`);
+        query = query.or(`and(approver_id.eq.${currentUser.id},status.in.(PENDING,NEEDS_REVIEW)),and(escalated_to.eq.${currentUser.id})`);
         } else {
         // Regular Managers only see requests directly assigned to them
         query = query.eq('approver_id', currentUser.id).in('status', ['PENDING', 'NEEDS_REVIEW']);
@@ -412,6 +414,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         updated_at: row.updated_at ? String(row.updated_at) : null,
         isEscalated: Boolean(row.isEscalated || false),
         adminEscalationStatus: String(row.adminEscalationStatus || 'NONE'),
+        escalated_to: row.escalated_to ? String(row.escalated_to) : null,
       })));
 
       setApprovals((prev) => (approvalsAreEqual(prev, mapped) ? prev : mapped));
@@ -827,12 +830,18 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
   };
 
   const handleEscalateToAdmin = async (approvalId: string) => {
+  if (!selectedAdminId) {
+    alert("Please select a Super Admin to escalate to.");
+    return;
+  }
+
   try {
     const { error: updateError } = await supabase
       .from('approvals')
       .update({
         isEscalated: true,
-        adminEscalationStatus: 'PENDING'
+        adminEscalationStatus: 'PENDING',
+        escalated_to: selectedAdminId
       })
       .eq('id', approvalId);
 
@@ -840,11 +849,12 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
 
     setApprovals(approvals.map(app =>
       app.id === approvalId
-        ? { ...app, isEscalated: true, adminEscalationStatus: 'PENDING' }
+        ? { ...app, isEscalated: true, adminEscalationStatus: 'PENDING', escalated_to: selectedAdminId }
         : app
     ));
     
     alert("Successfully escalated to Super Admin!");
+    setSelectedAdminId(null); // Reset selection after escalation
 
   } catch (error: any) {
     console.error("Escalation error:", error);
@@ -1457,17 +1467,33 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
 
                               {canTakeActionOnApproval && (
                                 <div className="mt-3 flex gap-2">
-                                  {/* Manager Escalation Button */}
+                                  {/* Manager Escalation with Admin Selection */}
                                   {currentUser.role === 'manager' && !approval.isEscalated && (
-                                    <button
-                                      type="button"
-                                      onClick={() => void handleEscalateToAdmin(approval.id)}
-                                      disabled={updatingStatus}
-                                      className="flex-1 h-8 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 transition-all disabled:opacity-50"
-                                    >
-                                      <Send className="w-3 h-3 inline mr-1" />
-                                      Escalate to Admin
-                                    </button>
+                                    <div className="mt-3 flex gap-2">
+                                      <select
+                                        value={selectedAdminId || ''}
+                                        onChange={(e) => setSelectedAdminId(e.target.value)}
+                                        className="flex-1 h-8 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 transition-all disabled:opacity-50"
+                                      >
+                                        <option value="">Select Super Admin...</option>
+                                        {approvers
+                                          .filter(a => a.role === 'super_admin' || a.role === 'owner')
+                                          .map(admin => (
+                                            <option key={admin.id} value={admin.id}>
+                                              {admin.name}
+                                            </option>
+                                          ))}
+                                      </select>
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleEscalateToAdmin(approval.id)}
+                                        disabled={updatingStatus || !selectedAdminId}
+                                        className="flex-1 h-8 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
+                                      >
+                                        <Send className="w-3 h-3 inline mr-1" />
+                                        Escalate to Selected Admin
+                                      </button>
+                                    </div>
                                   )}
                                   
                                   {/* Admin Escalation Decision Buttons */}
