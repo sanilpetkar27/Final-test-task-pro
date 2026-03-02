@@ -1614,7 +1614,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                   !LOCKED_STATUSES.includes(approval.status) &&
                   (
                     approval.approver_id === currentUser.id ||
-                    (currentUser.role === 'super_admin' && approval.isEscalated && approval.adminEscalationStatus === 'PENDING')
+                    approval.escalated_to === currentUser.id
                   );
 
                 return (
