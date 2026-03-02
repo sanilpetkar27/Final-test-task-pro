@@ -838,21 +838,54 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
     setError(null);
     
     try {
-      // Look up a Super Admin to route the escalation to
-      const { data: adminData, error: adminLookupError } = await supabase
-        .from('employees')
-        .select('id')
-        .eq('role', 'super_admin')
-        .eq('company_id', currentUser.company_id)
-        .limit(1)
-        .single();
+      // --- Step 1: Find a Super Admin ID ---
+      // Primary: use already-loaded approvers state (bypasses RLS on employees table)
+      let adminId: string | null = null;
 
-      if (adminLookupError || !adminData?.id) {
-        throw new Error('No Super Admin found to escalate to.');
+      const localAdmin = approvers.find(a => a.role === 'super_admin' || a.role === 'owner');
+      if (localAdmin?.id) {
+        adminId = localAdmin.id;
+        console.log('[Escalation] Found admin from local approvers state:', adminId, localAdmin.role);
       }
 
-      const adminId = String(adminData.id);
+      // Fallback: direct Supabase query if approvers state didn't have one
+      if (!adminId) {
+        console.warn('[Escalation] No admin in local state, trying direct Supabase query...');
+        const { data: adminData, error: adminLookupError } = await supabase
+          .from('employees')
+          .select('id, role')
+          .eq('company_id', currentUser.company_id)
+          .in('role', ['super_admin', 'owner'])
+          .limit(1)
+          .maybeSingle();
 
+        if (adminLookupError) {
+          console.error('[Escalation] employees lookup FAILED:', {
+            message: adminLookupError.message,
+            code: adminLookupError.code,
+            details: adminLookupError.details,
+            hint: adminLookupError.hint,
+          });
+        }
+
+        if (adminData?.id) {
+          adminId = String(adminData.id);
+          console.log('[Escalation] Found admin from Supabase query:', adminId);
+        }
+      }
+
+      // --- Step 2: HARD ABORT if no admin found ---
+      if (!adminId) {
+        const msg = 'Failed to find a Super Admin to escalate to. Please contact your organization admin.';
+        console.error('[Escalation] ABORT — no admin found.', {
+          approversInState: approvers.map(a => ({ id: a.id, role: a.role })),
+          company_id: currentUser.company_id,
+        });
+        setError(msg);
+        return;
+      }
+
+      // --- Step 3: Write escalation (only reached if adminId is valid) ---
       const { error: escalateError } = await supabase
         .from('approvals')
         .update({ 
@@ -863,7 +896,11 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         .eq('id', selectedApproval.id);
       
       if (escalateError) {
-        console.error('Escalation failed:', escalateError);
+        console.error('[Escalation] approvals update FAILED:', {
+          message: escalateError.message,
+          code: escalateError.code,
+          details: escalateError.details,
+        });
         throw escalateError;
       }
       
@@ -871,13 +908,13 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         sortApprovalsByRecency(
           prev.map((item) =>
             item.id === selectedApproval.id
-              ? { ...item, isEscalated: true, adminEscalationStatus: 'PENDING' as const, escalated_to: adminId }
+              ? { ...item, isEscalated: true, adminEscalationStatus: 'PENDING' as const, escalated_to: adminId! }
               : item
           )
         )
       );
     } catch (err) {
-      console.error('Escalation error caught:', err);
+      console.error('[Escalation] caught:', err);
       setError(err instanceof Error ? err.message : 'Failed to escalate to admin.');
     } finally {
       setUpdatingStatus(false);
