@@ -323,7 +323,8 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
   const [approvals, setApprovals] = useState<ApprovalItem[]>([]);
   const [selectedApprovalId, setSelectedApprovalId] = useState<string | null>(null);
   const [approvers, setApprovers] = useState<ApproverOption[]>([]);
-  const [selectedAdminId, setSelectedAdminId] = useState<string | null>(null);
+  const [selectedAdminForEscalation, setSelectedAdminForEscalation] = useState<string>('');
+  const superAdmins = approvers.filter(a => a.role === 'super_admin' || a.role === 'owner');
   const [loadingApprovers, setLoadingApprovers] = useState(false);
   const [creatingApproval, setCreatingApproval] = useState(false);
   const [requestTitle, setRequestTitle] = useState('');
@@ -830,7 +831,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
   };
 
   const handleEscalateToAdmin = async (approvalId: string) => {
-  if (!selectedAdminId) {
+  if (!selectedAdminForEscalation) {
     alert("Please select a Super Admin to escalate to.");
     return;
   }
@@ -841,7 +842,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
       .update({
         isEscalated: true,
         adminEscalationStatus: 'PENDING',
-        escalated_to: selectedAdminId
+        escalated_to: selectedAdminForEscalation
       })
       .eq('id', approvalId);
 
@@ -849,12 +850,12 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
 
     setApprovals(approvals.map(app =>
       app.id === approvalId
-        ? { ...app, isEscalated: true, adminEscalationStatus: 'PENDING', escalated_to: selectedAdminId }
+        ? { ...app, isEscalated: true, adminEscalationStatus: 'PENDING', escalated_to: selectedAdminForEscalation }
         : app
     ));
     
     alert("Successfully escalated to Super Admin!");
-    setSelectedAdminId(null); // Reset selection after escalation
+    setSelectedAdminForEscalation(''); // Reset selection after escalation
 
   } catch (error: any) {
     console.error("Escalation error:", error);
@@ -1471,27 +1472,25 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                                   {currentUser.role === 'manager' && !approval.isEscalated && (
                                     <div className="mt-3 flex gap-2">
                                       <select
-                                        value={selectedAdminId || ''}
-                                        onChange={(e) => setSelectedAdminId(e.target.value)}
+                                        value={selectedAdminForEscalation}
+                                        onChange={(e) => setSelectedAdminForEscalation(e.target.value)}
                                         className="flex-1 h-8 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 transition-all disabled:opacity-50"
                                       >
                                         <option value="">Select Super Admin...</option>
-                                        {approvers
-                                          .filter(a => a.role === 'super_admin' || a.role === 'owner')
-                                          .map(admin => (
-                                            <option key={admin.id} value={admin.id}>
-                                              {admin.name}
-                                            </option>
-                                          ))}
+                                        {superAdmins.map(admin => (
+                                          <option key={admin.id} value={admin.id}>
+                                            {admin.name}
+                                          </option>
+                                        ))}
                                       </select>
                                       <button
                                         type="button"
                                         onClick={() => void handleEscalateToAdmin(approval.id)}
-                                        disabled={updatingStatus || !selectedAdminId}
+                                        disabled={updatingStatus || !selectedAdminForEscalation}
                                         className="flex-1 h-8 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
                                       >
                                         <Send className="w-3 h-3 inline mr-1" />
-                                        Escalate to Selected Admin
+                                        Confirm Escalation
                                       </button>
                                     </div>
                                   )}
