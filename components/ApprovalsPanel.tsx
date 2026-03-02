@@ -666,6 +666,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         id: String(created.id),
         requester_id: String(created.requester_id || currentUser.id),
         approver_id: String(created.approver_id || approverId),
+        escalated_to: null,
         title: String(created.title || title),
         description: String(created.description || descriptionWithAttachments),
         amount: created.amount === null || created.amount === undefined
