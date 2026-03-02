@@ -441,6 +441,10 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
       })));
 
       setApprovals((prev) => (approvalsAreEqual(prev, mapped) ? prev : mapped));
+
+      // Diagnostic: prove whether Supabase returned escalated rows
+      console.log("Super Admin Fetched Data:", mapped.filter(a => a.isEscalated));
+
       if (!mapped.length) {
         setSelectedApprovalId(null);
         setThreads([]);
