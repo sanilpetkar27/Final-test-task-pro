@@ -442,7 +442,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         setLoadingApprovals(false);
       }
     }
-  }, [currentUser.id, currentUser.role, view]);
+  }, [currentUser.id, view]);
 
   const loadThreads = useCallback(async (approvalId: string, options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false;
