@@ -426,6 +426,11 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         data = result.data;
       }
 
+      // Diagnostic: log raw Supabase response before mapping
+      if (currentUser.role === 'super_admin') {
+        console.log('[Escalation Debug] raw rows from Supabase:', data?.length, data?.filter((r: any) => r.isEscalated));
+      }
+
       const mapped = sortApprovalsByRecency((data || []).map((row: any) => ({
         id: String(row.id),
         requester_id: String(row.requester_id || ''),
