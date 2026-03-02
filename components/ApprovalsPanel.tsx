@@ -384,7 +384,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
     try {
       let query = supabase
         .from('approvals')
-        .select('id, requester_id, approver_id, title, description, amount, status, isEscalated, adminEscalationStatus, created_at, updated_at');
+        .select('id, requester_id, approver_id, title, description, amount, status, isEscalated, adminEscalationStatus, escalated_to, created_at, updated_at');
 
       let data: any[] | null = null;
 
