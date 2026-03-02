@@ -10,6 +10,7 @@ type ApprovalItem = {
   id: string;
   requester_id: string;
   approver_id: string;
+  escalated_to?: string | null;
   title: string;
   description: string;
   amount: number | null;
