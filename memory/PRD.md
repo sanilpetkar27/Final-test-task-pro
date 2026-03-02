@@ -1,41 +1,28 @@
-# Shadow Escalation Bug Fix - PRD
+# Shadow Escalation - PRD
 
-## Original Problem Statement
-The "Shadow Escalation" feature in the Approvals system was broken. A Manager clicks "Escalate to Admin", the DB write succeeds (isEscalated=true, adminEscalationStatus=PENDING confirmed), but the Super Admin cannot see the escalated request in their "Needs My Approval" inbox.
+## Problem Statement
+Shadow Escalation feature: Manager escalates an approval to Super Admin. DB write works (isEscalated=true, adminEscalationStatus=PENDING). Super Admin's "Needs My Approval" inbox was empty due to broken read/render pipeline + RLS blocking.
 
-## Architecture
-- Frontend: React + TypeScript + Vite + Supabase JS Client (direct from frontend)
-- Database: Supabase (PostgreSQL via PostgREST)
-- Key file: `/app/components/ApprovalsPanel.tsx`
+## Solution: `escalated_to` Column
+Added a dedicated `escalated_to` UUID column that stores the target Super Admin's ID. This trivializes the entire pipeline — query, RLS, rendering — by making escalation a simple ownership check identical to `approver_id`.
 
-## Root Cause Analysis (4 bugs found + RLS evaluation)
+## Changes Made (Jan 2026)
 
-### Bug 1: Fetch Query - PostgREST `.or()` parsing failure (PRIMARY)
-- Replaced broken `.or('and(...,status.in.(...)),and(...)')` with two parallel queries via `Promise.all`, merged and deduplicated by ID.
+### Code Changes (`components/ApprovalsPanel.tsx`)
+1. **Type**: Added `escalated_to?: string | null` to `ApprovalItem`
+2. **Escalation Write**: `handleEscalateToAdmin` now looks up a Super Admin via `employees.role = 'super_admin'` and sets `escalated_to: adminId`
+3. **Fetch Logic**: Simplified from complex `Promise.all` dual-query to single `.or('approver_id.eq.X,escalated_to.eq.X')`
+4. **Action Guard**: `canTakeActionOnApproval` uses `approval.escalated_to === currentUser.id` (both render paths)
+5. **Realtime**: `isRowRelevantToCurrentUser` checks `escalated_to` field
+6. **Equality Check**: `approvalsAreEqual` includes `escalated_to`
+7. **Create mapping**: New approvals default `escalated_to: null`
 
-### Bug 2: `canTakeActionOnApproval` guard blocks Super Admin actions
-- Added OR condition for `super_admin + isEscalated + PENDING` in both rendering paths.
-
-### Bug 3: Realtime blind spot for Super Admin
-- Added escalation-aware check to `isRowRelevantToCurrentUser()`.
-
-### Bug 4: Missing useCallback dependency
-- Added `currentUser.role` to `loadApprovals` dependency array.
-
-### RLS Evaluation (CRITICAL - likely remaining blocker)
-- If console logs show `raw rows from Supabase: 0 []`, the issue is Supabase Row Level Security.
-- RLS policy on `approvals` table likely restricts reads to `requester_id = auth.uid() OR approver_id = auth.uid()`.
-- Escalated items have the Manager as approver_id, NOT the Super Admin — so RLS blocks the read.
-- SQL fix provided to user.
-
-## What's Been Implemented (Jan 2026)
-- All 4 code bugs fixed in `ApprovalsPanel.tsx`
-- Diagnostic console.log added for debugging
-- RLS bypass SQL provided
-- TypeScript compilation verified clean
+### SQL Required (run in Supabase Dashboard)
+- Add `escalated_to` UUID column
+- Drop old RLS policies
+- Create new trivial RLS policies using `approver_id` OR `escalated_to`
 
 ## Backlog
-- P1: Remove diagnostic logs after confirming fix
-- P2: Add visual "Escalated" badge on approval cards
-- P2: Add escalation history/audit trail
-- P3: Email/push notification when escalation occurs
+- P2: Multi-admin escalation routing (pick specific admin)
+- P2: Escalation audit trail
+- P3: Push notification on escalation
