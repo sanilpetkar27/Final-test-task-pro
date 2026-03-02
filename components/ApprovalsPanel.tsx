@@ -391,40 +391,14 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         if (result.error) throw result.error;
         data = result.data;
       } else if (currentUser.role === 'super_admin') {
-        // Two separate queries to avoid PostgREST .or() + nested and()/in.() parsing issues
-        const selectCols = 'id, requester_id, approver_id, title, description, amount, status, isEscalated, adminEscalationStatus, created_at, updated_at';
-        const [directResult, escalatedResult] = await Promise.all([
-          supabase
-            .from('approvals')
-            .select(selectCols)
-            .eq('approver_id', currentUser.id)
-            .in('status', ['PENDING', 'NEEDS_REVIEW'])
-            .order('id', { ascending: false }),
-          supabase
-            .from('approvals')
-            .select(selectCols)
-            .eq('isEscalated', true)
-            .eq('adminEscalationStatus', 'PENDING')
-            .order('id', { ascending: false }),
-        ]);
-        if (directResult.error) throw directResult.error;
-        if (escalatedResult.error) throw escalatedResult.error;
-
-        // Merge and deduplicate by id
-        const merged = [...(directResult.data || []), ...(escalatedResult.data || [])];
-        const seen = new Set<string>();
-        data = merged.filter((row) => {
-          const rowId = String(row.id);
-          if (seen.has(rowId)) return false;
-          seen.add(rowId);
-          return true;
-        });
-      } else {
+        // Super Admins see their own direct approvals OR any escalated requests
+        query = query.or(`and(approver_id.eq.${currentUser.id},status.in.(PENDING,NEEDS_REVIEW)),and(isEscalated.eq.true,adminEscalationStatus.eq.PENDING)`);
+        } else {
         // Regular Managers only see requests directly assigned to them
-        const result = await query.eq('approver_id', currentUser.id).in('status', ['PENDING', 'NEEDS_REVIEW']).order('id', { ascending: false });
-        if (result.error) throw result.error;
-        data = result.data;
+        query = query.eq('approver_id', currentUser.id).in('status', ['PENDING', 'NEEDS_REVIEW']);
       }
+
+      const { data, error: loadError } = await query.order('id', { ascending: false });
 
       const mapped = sortApprovalsByRecency((data || []).map((row: any) => ({
         id: String(row.id),
