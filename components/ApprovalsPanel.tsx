@@ -384,20 +384,47 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         .from('approvals')
         .select('id, requester_id, approver_id, title, description, amount, status, isEscalated, adminEscalationStatus, created_at, updated_at');
 
-      if (view === 'my_requests') {
-        query = query.eq('requester_id', currentUser.id);
-      } else {
-        if (currentUser.role === 'super_admin') {
-          // Super Admins see their own direct approvals OR any escalated requests
-          query = query.or(`and(approver_id.eq.${currentUser.id},status.in.(PENDING,NEEDS_REVIEW)),and(isEscalated.eq.true,adminEscalationStatus.eq.PENDING)`);
-        } else {
-          // Regular Managers only see requests directly assigned to them
-          query = query.eq('approver_id', currentUser.id).in('status', ['PENDING', 'NEEDS_REVIEW']);
-        }
-      }
+      let data: any[] | null = null;
 
-      const { data, error: loadError } = await query.order('id', { ascending: false });
-      if (loadError) throw loadError;
+      if (view === 'my_requests') {
+        const result = await query.eq('requester_id', currentUser.id).order('id', { ascending: false });
+        if (result.error) throw result.error;
+        data = result.data;
+      } else if (currentUser.role === 'super_admin') {
+        // Two separate queries to avoid PostgREST .or() + nested and()/in.() parsing issues
+        const selectCols = 'id, requester_id, approver_id, title, description, amount, status, isEscalated, adminEscalationStatus, created_at, updated_at';
+        const [directResult, escalatedResult] = await Promise.all([
+          supabase
+            .from('approvals')
+            .select(selectCols)
+            .eq('approver_id', currentUser.id)
+            .in('status', ['PENDING', 'NEEDS_REVIEW'])
+            .order('id', { ascending: false }),
+          supabase
+            .from('approvals')
+            .select(selectCols)
+            .eq('isEscalated', true)
+            .eq('adminEscalationStatus', 'PENDING')
+            .order('id', { ascending: false }),
+        ]);
+        if (directResult.error) throw directResult.error;
+        if (escalatedResult.error) throw escalatedResult.error;
+
+        // Merge and deduplicate by id
+        const merged = [...(directResult.data || []), ...(escalatedResult.data || [])];
+        const seen = new Set<string>();
+        data = merged.filter((row) => {
+          const rowId = String(row.id);
+          if (seen.has(rowId)) return false;
+          seen.add(rowId);
+          return true;
+        });
+      } else {
+        // Regular Managers only see requests directly assigned to them
+        const result = await query.eq('approver_id', currentUser.id).in('status', ['PENDING', 'NEEDS_REVIEW']).order('id', { ascending: false });
+        if (result.error) throw result.error;
+        data = result.data;
+      }
 
       const mapped = sortApprovalsByRecency((data || []).map((row: any) => ({
         id: String(row.id),
@@ -414,6 +441,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
       })));
 
       setApprovals((prev) => (approvalsAreEqual(prev, mapped) ? prev : mapped));
+
       if (!mapped.length) {
         setSelectedApprovalId(null);
         setThreads([]);
@@ -436,7 +464,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         setLoadingApprovals(false);
       }
     }
-  }, [currentUser.id, view]);
+  }, [currentUser.id, currentUser.role, view]);
 
   const loadThreads = useCallback(async (approvalId: string, options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false;
@@ -509,7 +537,9 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
     const isRowRelevantToCurrentUser = (row: any): boolean => {
       const requesterId = String(row?.requester_id || '');
       const approverId = String(row?.approver_id || '');
-      return requesterId === currentUser.id || approverId === currentUser.id;
+      const isEscalated = Boolean(row?.isEscalated);
+      return requesterId === currentUser.id || approverId === currentUser.id ||
+        (currentUser.role === 'super_admin' && isEscalated);
     };
 
     const channel = supabase
@@ -1340,8 +1370,11 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                       const parsedApproval = extractApprovalAttachments(approval.description);
                       const canTakeActionOnApproval =
                         isSelected &&
-                        approval.approver_id === currentUser.id &&
-                        !LOCKED_STATUSES.includes(approval.status);
+                        !LOCKED_STATUSES.includes(approval.status) &&
+                        (
+                          approval.approver_id === currentUser.id ||
+                          (currentUser.role === 'super_admin' && approval.isEscalated && approval.adminEscalationStatus === 'PENDING')
+                        );
 
                       return (
                         <div
@@ -1572,8 +1605,11 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                 const parsedApproval = extractApprovalAttachments(approval.description);
                 const canTakeActionOnApproval =
                   isSelected &&
-                  approval.approver_id === currentUser.id &&
-                  !LOCKED_STATUSES.includes(approval.status);
+                  !LOCKED_STATUSES.includes(approval.status) &&
+                  (
+                    approval.approver_id === currentUser.id ||
+                    (currentUser.role === 'super_admin' && approval.isEscalated && approval.adminEscalationStatus === 'PENDING')
+                  );
 
                 return (
                   <div
