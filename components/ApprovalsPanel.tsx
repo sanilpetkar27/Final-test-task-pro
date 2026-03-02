@@ -381,55 +381,26 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
       setError(null);
     }
     try {
-      let query = supabase
-        .from('approvals')
-        .select('id, requester_id, approver_id, title, description, amount, status, isEscalated, adminEscalationStatus, created_at, updated_at');
-
+      const selectCols = 'id, requester_id, approver_id, escalated_to, title, description, amount, status, isEscalated, adminEscalationStatus, created_at, updated_at';
       let data: any[] | null = null;
 
       if (view === 'my_requests') {
-        const result = await query.eq('requester_id', currentUser.id).order('id', { ascending: false });
+        const result = await supabase
+          .from('approvals')
+          .select(selectCols)
+          .eq('requester_id', currentUser.id)
+          .order('id', { ascending: false });
         if (result.error) throw result.error;
         data = result.data;
-      } else if (currentUser.role === 'super_admin') {
-        // Two separate queries to avoid PostgREST .or() + nested and()/in.() parsing issues
-        const selectCols = 'id, requester_id, approver_id, title, description, amount, status, isEscalated, adminEscalationStatus, created_at, updated_at';
-        const [directResult, escalatedResult] = await Promise.all([
-          supabase
-            .from('approvals')
-            .select(selectCols)
-            .eq('approver_id', currentUser.id)
-            .in('status', ['PENDING', 'NEEDS_REVIEW'])
-            .order('id', { ascending: false }),
-          supabase
-            .from('approvals')
-            .select(selectCols)
-            .eq('isEscalated', true)
-            .eq('adminEscalationStatus', 'PENDING')
-            .order('id', { ascending: false }),
-        ]);
-        if (directResult.error) throw directResult.error;
-        if (escalatedResult.error) throw escalatedResult.error;
-
-        // Merge and deduplicate by id
-        const merged = [...(directResult.data || []), ...(escalatedResult.data || [])];
-        const seen = new Set<string>();
-        data = merged.filter((row) => {
-          const rowId = String(row.id);
-          if (seen.has(rowId)) return false;
-          seen.add(rowId);
-          return true;
-        });
       } else {
-        // Regular Managers only see requests directly assigned to them
-        const result = await query.eq('approver_id', currentUser.id).in('status', ['PENDING', 'NEEDS_REVIEW']).order('id', { ascending: false });
+        // "Needs My Approval": show rows where I'm the approver OR the escalation target
+        const result = await supabase
+          .from('approvals')
+          .select(selectCols)
+          .or(`approver_id.eq.${currentUser.id},escalated_to.eq.${currentUser.id}`)
+          .order('id', { ascending: false });
         if (result.error) throw result.error;
         data = result.data;
-      }
-
-      // Diagnostic: log raw Supabase response before mapping
-      if (currentUser.role === 'super_admin') {
-        console.log('[Escalation Debug] raw rows from Supabase:', data?.length, data?.filter((r: any) => r.isEscalated));
       }
 
       const mapped = sortApprovalsByRecency((data || []).map((row: any) => ({
