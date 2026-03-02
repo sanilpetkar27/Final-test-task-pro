@@ -1620,8 +1620,11 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                 const parsedApproval = extractApprovalAttachments(approval.description);
                 const canTakeActionOnApproval =
                   isSelected &&
-                  approval.approver_id === currentUser.id &&
-                  !LOCKED_STATUSES.includes(approval.status);
+                  !LOCKED_STATUSES.includes(approval.status) &&
+                  (
+                    approval.approver_id === currentUser.id ||
+                    (currentUser.role === 'super_admin' && approval.isEscalated && approval.adminEscalationStatus === 'PENDING')
+                  );
 
                 return (
                   <div
