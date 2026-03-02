@@ -822,49 +822,31 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
     }
   };
 
-  const handleEscalateToAdmin = async (): Promise<void> => {
-    if (!selectedApproval) return;
+  const handleEscalateToAdmin = async (approvalId: string) => {
+  try {
+    const { error: updateError } = await supabase
+      .from('approvals')
+      .update({
+        isEscalated: true,
+        adminEscalationStatus: 'PENDING'
+      })
+      .eq('id', approvalId);
+
+    if (updateError) throw updateError;
+
+    setApprovals(approvals.map(app =>
+      app.id === approvalId
+        ? { ...app, isEscalated: true, adminEscalationStatus: 'PENDING' }
+        : app
+    ));
     
-    setUpdatingStatus(true);
-    setError(null);
-    
-    console.log("Escalation payload sent to Supabase:", {
-      id: selectedApproval.id,
-      isEscalated: true,
-      adminEscalationStatus: 'PENDING'
-    });
-    
-    try {
-      const { error: escalateError } = await supabase
-        .from('approvals')
-        .update({ 
-          isEscalated: true,
-          adminEscalationStatus: 'PENDING'
-        })
-        .eq('id', selectedApproval.id);
-      
-      if (escalateError) {
-        console.error('Escalation failed:', escalateError);
-        throw escalateError;
-      }
-      
-      console.log("Escalation successful, updating local state");
-      setApprovals((prev) =>
-        sortApprovalsByRecency(
-          prev.map((item) =>
-            item.id === selectedApproval.id
-              ? { ...item, isEscalated: true, adminEscalationStatus: 'PENDING' as const }
-              : item
-          )
-        )
-      );
-    } catch (err) {
-      console.error('Escalation error caught:', err);
-      setError(err instanceof Error ? err.message : 'Failed to escalate to admin.');
-    } finally {
-      setUpdatingStatus(false);
-    }
-  };
+    alert("Successfully escalated to Super Admin!");
+
+  } catch (error: any) {
+    console.error("Escalation error:", error);
+    alert("Failed to escalate: " + error.message);
+  }
+};
 
   const handleAdminEscalationDecision = async (decision: 'APPROVED' | 'REJECTED'): Promise<void> => {
     if (!selectedApproval) return;
@@ -1472,7 +1454,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                                   {currentUser.role === 'manager' && !approval.isEscalated && (
                                     <button
                                       type="button"
-                                      onClick={() => void handleEscalateToAdmin()}
+                                      onClick={() => void handleEscalateToAdmin(approval.id)}
                                       disabled={updatingStatus}
                                       className="flex-1 h-8 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 transition-all disabled:opacity-50"
                                     >
@@ -1731,7 +1713,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                             {currentUser.role === 'manager' && !approval.isEscalated && (
                               <button
                                 type="button"
-                                onClick={() => void handleEscalateToAdmin()}
+                                onClick={() => void handleEscalateToAdmin(approval.id)}
                                 disabled={updatingStatus}
                                 className="flex-1 h-8 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 transition-all disabled:opacity-50"
                               >
