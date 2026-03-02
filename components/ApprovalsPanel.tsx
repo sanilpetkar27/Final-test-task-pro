@@ -536,7 +536,9 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
     const isRowRelevantToCurrentUser = (row: any): boolean => {
       const requesterId = String(row?.requester_id || '');
       const approverId = String(row?.approver_id || '');
-      return requesterId === currentUser.id || approverId === currentUser.id;
+      const isEscalated = Boolean(row?.isEscalated);
+      return requesterId === currentUser.id || approverId === currentUser.id ||
+        (currentUser.role === 'super_admin' && isEscalated);
     };
 
     const channel = supabase
