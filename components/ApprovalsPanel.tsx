@@ -182,6 +182,7 @@ const approvalsAreEqual = (left: ApprovalItem[], right: ApprovalItem[]): boolean
       a.id !== b.id ||
       a.requester_id !== b.requester_id ||
       a.approver_id !== b.approver_id ||
+      a.escalated_to !== b.escalated_to ||
       a.title !== b.title ||
       a.description !== b.description ||
       a.status !== b.status ||
