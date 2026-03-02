@@ -867,18 +867,28 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
     setUpdatingStatus(true);
     setError(null);
     
-    console.log("Escalation payload sent to Supabase:", {
-      id: selectedApproval.id,
-      isEscalated: true,
-      adminEscalationStatus: 'PENDING'
-    });
-    
     try {
+      // Look up a Super Admin to route the escalation to
+      const { data: adminData, error: adminLookupError } = await supabase
+        .from('employees')
+        .select('id')
+        .eq('role', 'super_admin')
+        .eq('company_id', currentUser.company_id)
+        .limit(1)
+        .single();
+
+      if (adminLookupError || !adminData?.id) {
+        throw new Error('No Super Admin found to escalate to.');
+      }
+
+      const adminId = String(adminData.id);
+
       const { error: escalateError } = await supabase
         .from('approvals')
         .update({ 
           isEscalated: true,
-          adminEscalationStatus: 'PENDING'
+          adminEscalationStatus: 'PENDING',
+          escalated_to: adminId,
         })
         .eq('id', selectedApproval.id);
       
@@ -887,12 +897,11 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         throw escalateError;
       }
       
-      console.log("Escalation successful, updating local state");
       setApprovals((prev) =>
         sortApprovalsByRecency(
           prev.map((item) =>
             item.id === selectedApproval.id
-              ? { ...item, isEscalated: true, adminEscalationStatus: 'PENDING' as const }
+              ? { ...item, isEscalated: true, adminEscalationStatus: 'PENDING' as const, escalated_to: adminId }
               : item
           )
         )
