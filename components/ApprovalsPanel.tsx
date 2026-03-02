@@ -407,6 +407,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         id: String(row.id),
         requester_id: String(row.requester_id || ''),
         approver_id: String(row.approver_id || ''),
+        escalated_to: row.escalated_to ? String(row.escalated_to) : null,
         title: String(row.title || ''),
         description: String(row.description || ''),
         amount: row.amount === null || row.amount === undefined ? null : Number(row.amount),
@@ -418,9 +419,6 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
       })));
 
       setApprovals((prev) => (approvalsAreEqual(prev, mapped) ? prev : mapped));
-
-      // Diagnostic: prove whether Supabase returned escalated rows
-      console.log("Super Admin Fetched Data:", mapped.filter(a => a.isEscalated));
 
       if (!mapped.length) {
         setSelectedApprovalId(null);
