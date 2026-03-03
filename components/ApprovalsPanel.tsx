@@ -1488,10 +1488,10 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                               )}
 
                               {canTakeActionOnApproval && (
-                                <div className="mt-3 flex gap-2">
+                                <div className="mt-3 space-y-2">
                                   {/* Manager Escalation with Admin Selection */}
                                   {currentUser.role === 'manager' && !approval.isEscalated && (
-                                    <div className="mt-3 flex gap-2">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                       <select
                                         value={selectedEscalationAdminByApproval[approval.id] || ''}
                                         onChange={(e) =>
@@ -1500,7 +1500,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                                             [approval.id]: e.target.value,
                                           }))
                                         }
-                                        className="flex-1 h-8 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 transition-all disabled:opacity-50"
+                                        className="h-10 w-full px-2.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs sm:text-sm font-semibold hover:bg-slate-50 transition-all disabled:opacity-50"
                                       >
                                         <option value="">Select Super Admin...</option>
                                         {superAdmins.map(admin => (
@@ -1513,7 +1513,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                                         type="button"
                                         onClick={() => void handleEscalateToAdmin(approval.id)}
                                         disabled={updatingStatus || !(selectedEscalationAdminByApproval[approval.id] || '')}
-                                        className="flex-1 h-8 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
+                                        className="h-10 w-full rounded-lg bg-emerald-600 text-white text-xs sm:text-sm font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
                                       >
                                         <Send className="w-3 h-3 inline mr-1" />
                                         Confirm Escalation
@@ -1523,12 +1523,12 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                                   
                                   {/* Admin Escalation Decision Buttons */}
                                   {currentUser.role === 'super_admin' && approval.isEscalated && approval.adminEscalationStatus === 'PENDING' && (
-                                    <>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                       <button
                                         type="button"
                                         onClick={() => void handleAdminEscalationDecision('APPROVED')}
                                         disabled={updatingStatus}
-                                        className="flex-1 h-8 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
+                                        className="h-10 w-full rounded-lg bg-emerald-600 text-white text-xs sm:text-sm font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
                                       >
                                         <CheckCircle2 className="w-3 h-3 inline mr-1" />
                                         Approve Escalation
@@ -1537,12 +1537,12 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                                         type="button"
                                         onClick={() => void handleAdminEscalationDecision('REJECTED')}
                                         disabled={updatingStatus}
-                                        className="flex-1 h-8 rounded-lg bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 transition-all disabled:opacity-50"
+                                        className="h-10 w-full rounded-lg bg-rose-600 text-white text-xs sm:text-sm font-bold hover:bg-rose-700 transition-all disabled:opacity-50"
                                       >
                                         <XCircle className="w-3 h-3 inline mr-1" />
                                         Reject Escalation
                                       </button>
-                                    </>
+                                    </div>
                                   )}
 
                                   {/* Regular Approve/Reject for Admin after escalation approval */}
@@ -1551,7 +1551,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                                       type="button"
                                       onClick={() => void handleFinalApproval()}
                                       disabled={updatingStatus}
-                                      className="flex-1 h-8 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
+                                      className="h-10 w-full sm:w-auto px-4 rounded-lg bg-emerald-600 text-white text-xs sm:text-sm font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
                                     >
                                       <CheckCircle2 className="w-3 h-3 inline mr-1" />
                                       Approve
@@ -1560,12 +1560,12 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
 
                                   {/* Regular Approve/Reject for non-escalated requests */}
                                   {!approval.isEscalated && (
-                                    <>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                       <button
                                         type="button"
                                         onClick={() => void handleApprove(approval.id)}
                                         disabled={updatingStatus}
-                                        className="flex-1 h-8 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
+                                        className="h-10 w-full rounded-lg bg-emerald-600 text-white text-xs sm:text-sm font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
                                       >
                                         <CheckCircle2 className="w-3 h-3 inline mr-1" />
                                         Approve
@@ -1574,30 +1574,30 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                                         type="button"
                                         onClick={() => void handleReject(approval.id)}
                                         disabled={updatingStatus}
-                                        className="flex-1 h-8 rounded-lg bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 transition-all disabled:opacity-50"
+                                        className="h-10 w-full rounded-lg bg-rose-600 text-white text-xs sm:text-sm font-bold hover:bg-rose-700 transition-all disabled:opacity-50"
                                       >
                                         <XCircle className="w-3 h-3 inline mr-1" />
                                         Reject
                                       </button>
-                                    </>
+                                    </div>
                                   )}
                                 </div>
                               )}
 
                               {approval.status === 'PENDING' && (
-                                <div className="mt-3 flex gap-2">
+                                <div className="mt-3 flex flex-col sm:flex-row gap-2">
                                   <input
                                     type="text"
                                     value={draftMessage}
                                     onChange={(e) => setDraftMessage(e.target.value)}
                                     placeholder="Add a note..."
-                                    className="flex-1 h-8 px-2 rounded-lg border border-slate-200 bg-white text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-900"
+                                    className="flex-1 h-10 px-3 rounded-lg border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-900"
                                   />
                                   <button
                                     type="button"
                                     onClick={() => void handleSendMessage()}
                                     disabled={updatingStatus || !draftMessage.trim()}
-                                    className="h-8 px-3 rounded-lg bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition-all disabled:opacity-50"
+                                    className="h-10 px-4 rounded-lg bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition-all disabled:opacity-50"
                                   >
                                     <Send className="w-3 h-3 inline mr-1" />
                                     Send
@@ -1607,7 +1607,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                                       type="button"
                                       onClick={() => void handleAskForReview()}
                                       disabled={updatingStatus || !draftMessage.trim()}
-                                      className="h-8 px-3 rounded-lg bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 transition-all disabled:opacity-50"
+                                      className="h-10 px-4 rounded-lg bg-amber-600 text-white text-sm font-bold hover:bg-amber-700 transition-all disabled:opacity-50"
                                     >
                                       <Send className="w-3 h-3 inline mr-1" />
                                       Request Review
@@ -1769,10 +1769,10 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                         )}
 
                         {canTakeActionOnApproval && (
-                          <div className="mt-3 flex gap-2">
+                          <div className="mt-3 space-y-2">
                             {/* Manager Escalation with Admin Selection */}
                             {currentUser.role === 'manager' && !approval.isEscalated && (
-                              <div className="mt-3 flex gap-2">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 <select
                                   value={selectedEscalationAdminByApproval[approval.id] || ''}
                                   onChange={(e) =>
@@ -1781,7 +1781,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                                       [approval.id]: e.target.value,
                                     }))
                                   }
-                                  className="flex-1 h-8 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 transition-all disabled:opacity-50"
+                                  className="h-10 w-full px-2.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs sm:text-sm font-semibold hover:bg-slate-50 transition-all disabled:opacity-50"
                                 >
                                   <option value="">Select Super Admin...</option>
                                   {superAdmins.map((admin) => (
@@ -1794,7 +1794,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                                   type="button"
                                   onClick={() => void handleEscalateToAdmin(approval.id)}
                                   disabled={updatingStatus || !(selectedEscalationAdminByApproval[approval.id] || '')}
-                                  className="flex-1 h-8 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
+                                  className="h-10 w-full rounded-lg bg-emerald-600 text-white text-xs sm:text-sm font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
                                 >
                                   <Send className="w-3 h-3 inline mr-1" />
                                   Confirm Escalation
@@ -1804,12 +1804,12 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                             
                             {/* Admin Escalation Decision Buttons */}
                             {currentUser.role === 'super_admin' && approval.isEscalated && approval.adminEscalationStatus === 'PENDING' && (
-                              <>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 <button
                                   type="button"
                                   onClick={() => void handleAdminEscalationDecision('APPROVED')}
                                   disabled={updatingStatus}
-                                  className="flex-1 h-8 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
+                                  className="h-10 w-full rounded-lg bg-emerald-600 text-white text-xs sm:text-sm font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
                                 >
                                   <CheckCircle2 className="w-3 h-3 inline mr-1" />
                                   Approve Escalation
@@ -1818,12 +1818,12 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                                   type="button"
                                   onClick={() => void handleAdminEscalationDecision('REJECTED')}
                                   disabled={updatingStatus}
-                                  className="flex-1 h-8 rounded-lg bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 transition-all disabled:opacity-50"
+                                  className="h-10 w-full rounded-lg bg-rose-600 text-white text-xs sm:text-sm font-bold hover:bg-rose-700 transition-all disabled:opacity-50"
                                 >
                                   <XCircle className="w-3 h-3 inline mr-1" />
                                   Reject Escalation
                                 </button>
-                              </>
+                              </div>
                             )}
 
                             {/* Regular Approve/Reject for Admin after escalation approval */}
@@ -1832,7 +1832,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                                 type="button"
                                 onClick={() => void handleFinalApproval()}
                                 disabled={updatingStatus}
-                                className="flex-1 h-8 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
+                                className="h-10 w-full sm:w-auto px-4 rounded-lg bg-emerald-600 text-white text-xs sm:text-sm font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
                               >
                                 <CheckCircle2 className="w-3 h-3 inline mr-1" />
                                 Approve
@@ -1841,12 +1841,12 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
 
                             {/* Regular Approve/Reject for non-escalated requests */}
                             {!approval.isEscalated && (
-                              <>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 <button
                                   type="button"
                                   onClick={() => void handleApprove(approval.id)}
                                   disabled={updatingStatus}
-                                  className="flex-1 h-8 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
+                                  className="h-10 w-full rounded-lg bg-emerald-600 text-white text-xs sm:text-sm font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
                                 >
                                   <CheckCircle2 className="w-3 h-3 inline mr-1" />
                                   Approve
@@ -1855,30 +1855,30 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                                   type="button"
                                   onClick={() => void handleReject(approval.id)}
                                   disabled={updatingStatus}
-                                  className="flex-1 h-8 rounded-lg bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 transition-all disabled:opacity-50"
+                                  className="h-10 w-full rounded-lg bg-rose-600 text-white text-xs sm:text-sm font-bold hover:bg-rose-700 transition-all disabled:opacity-50"
                                 >
                                   <XCircle className="w-3 h-3 inline mr-1" />
                                   Reject
                                 </button>
-                              </>
+                              </div>
                             )}
                           </div>
                         )}
 
                         {approval.status === 'PENDING' && (
-                          <div className="mt-3 flex gap-2">
+                          <div className="mt-3 flex flex-col sm:flex-row gap-2">
                             <input
                               type="text"
                               value={draftMessage}
                               onChange={(e) => setDraftMessage(e.target.value)}
                               placeholder="Add a note..."
-                              className="flex-1 h-8 px-2 rounded-lg border border-slate-200 bg-white text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-900"
+                              className="flex-1 h-10 px-3 rounded-lg border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-900"
                             />
                             <button
                               type="button"
                               onClick={() => void handleSendMessage()}
                               disabled={updatingStatus || !draftMessage.trim()}
-                              className="h-8 px-3 rounded-lg bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition-all disabled:opacity-50"
+                              className="h-10 px-4 rounded-lg bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition-all disabled:opacity-50"
                             >
                               <Send className="w-3 h-3 inline mr-1" />
                               Send
@@ -1888,7 +1888,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                                 type="button"
                                 onClick={() => void handleAskForReview()}
                                 disabled={updatingStatus || !draftMessage.trim()}
-                                className="h-8 px-3 rounded-lg bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 transition-all disabled:opacity-50"
+                                className="h-10 px-4 rounded-lg bg-amber-600 text-white text-sm font-bold hover:bg-amber-700 transition-all disabled:opacity-50"
                               >
                                 <Send className="w-3 h-3 inline mr-1" />
                                 Request Review
