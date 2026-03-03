@@ -1359,6 +1359,25 @@ const App: React.FC = () => {
     };
   }, [currentUser?.id, loadUserNotifications]);
 
+  const markAllNotificationsAsRead = useCallback(async () => {
+    if (!currentUser?.id) return;
+
+    setUserNotifications((prev) =>
+      prev.map((item) => (item.is_read ? item : { ...item, is_read: true }))
+    );
+
+    const { error } = await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('user_id', currentUser.id)
+      .eq('is_read', false);
+
+    if (error) {
+      console.warn('Failed to mark all notifications as read:', error);
+      void loadUserNotifications();
+    }
+  }, [currentUser?.id, loadUserNotifications]);
+
   const markNotificationAsRead = async (notificationId: string) => {
     if (!currentUser?.id) return;
 
@@ -1377,6 +1396,36 @@ const App: React.FC = () => {
     if (error) {
       console.warn('Failed to mark notification as read:', error);
       void loadUserNotifications();
+    }
+  };
+
+  const clearAllNotifications = useCallback(async () => {
+    if (!currentUser?.id || userNotifications.length === 0) return;
+
+    const previousNotifications = userNotifications;
+    setUserNotifications([]);
+
+    const { error } = await supabase
+      .from('notifications')
+      .delete()
+      .eq('user_id', currentUser.id);
+
+    if (error) {
+      console.warn('Failed to clear notifications:', error);
+      setUserNotifications(previousNotifications);
+      void loadUserNotifications();
+      return;
+    }
+
+    toast.success('All notifications cleared');
+  }, [currentUser?.id, userNotifications, loadUserNotifications]);
+
+  const toggleNotificationsPanel = () => {
+    const isOpening = !showNotificationsPanel;
+    setShowNotificationsPanel(isOpening);
+
+    if (isOpening) {
+      void markAllNotificationsAsRead();
     }
   };
 
@@ -2238,7 +2287,7 @@ const App: React.FC = () => {
 
         <div className="relative flex items-center gap-2">
           <button
-            onClick={() => setShowNotificationsPanel((prev) => !prev)}
+            onClick={toggleNotificationsPanel}
             className="p-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600 transition-all border border-slate-200 relative"
             title="Notifications"
           >
@@ -2263,12 +2312,22 @@ const App: React.FC = () => {
             <div className="absolute right-0 top-full mt-2 w-[300px] max-w-[calc(100vw-1rem)] max-h-[360px] overflow-y-auto bg-white border border-slate-200 rounded-2xl shadow-[0_8px_24px_rgba(15,23,42,0.10)] z-50 p-2">
               <div className="flex items-center justify-between px-2 py-1 border-b border-slate-100 mb-1">
                 <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">Notifications</p>
-                <button
-                  onClick={() => setShowNotificationsPanel(false)}
-                  className="text-slate-400 hover:text-slate-600"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-2">
+                  {userNotifications.length > 0 && (
+                    <button
+                      onClick={() => void clearAllNotifications()}
+                      className="text-[10px] font-black uppercase tracking-wide text-slate-500 hover:text-slate-700 px-2 py-1 rounded-lg border border-slate-200 hover:border-slate-300"
+                    >
+                      Clear all
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setShowNotificationsPanel(false)}
+                    className="text-slate-400 hover:text-slate-600"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
               {notificationsLoading ? (
                 <div className="px-3 py-4 text-xs text-slate-500">Loading...</div>
