@@ -359,6 +359,12 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   }
 
   if (task.status === 'in-progress') {
+    if (isManager) {
+      actions.push({
+        label: 'Delegate', icon: <GitFork className="w-5 h-5" />, onClick: onDelegate,
+        className: 'bg-indigo-700 text-white hover:bg-indigo-600'
+      });
+    }
     if (task.requirePhoto) {
       actions.push({
         label: isUploading ? 'Uploading...' : 'Complete', icon: isUploading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Camera className="w-5 h-5" />,
