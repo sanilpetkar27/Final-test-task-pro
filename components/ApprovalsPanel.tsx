@@ -336,16 +336,136 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
   const [threads, setThreads] = useState<ApprovalThreadView[]>([]);
   const [loadingApprovals, setLoadingApprovals] = useState(false);
   const [loadingThreads, setLoadingThreads] = useState(false);
+  const [approvalReadAtById, setApprovalReadAtById] = useState<Record<string, number>>({});
+  const [approvalUnreadCountById, setApprovalUnreadCountById] = useState<Record<string, number>>({});
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [draftMessage, setDraftMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
   const attachmentsInputRef = useRef<HTMLInputElement | null>(null);
   const attachmentFilesRef = useRef<Record<string, File>>({});
+  const approvalChatReadsTableMissingRef = useRef(false);
 
   const selectedApproval = useMemo(
     () => approvals.find((item) => item.id === selectedApprovalId) || null,
     [approvals, selectedApprovalId]
   );
+
+  const loadApprovalReadReceipts = useCallback(async (approvalIds: string[]) => {
+    if (!approvalIds.length || approvalChatReadsTableMissingRef.current) {
+      return;
+    }
+
+    const { data, error: readError } = await supabase
+      .from('approval_chat_reads')
+      .select('approval_id, last_read_at')
+      .eq('user_id', currentUser.id)
+      .in('approval_id', approvalIds);
+
+    if (readError) {
+      const msg = String(readError.message || '').toLowerCase();
+      const missingTable =
+        (msg.includes('relation') && msg.includes('approval_chat_reads')) ||
+        (msg.includes('does not exist') && msg.includes('approval_chat_reads'));
+      if (missingTable) {
+        approvalChatReadsTableMissingRef.current = true;
+        console.warn('approval_chat_reads table is missing; unread approval badges are disabled until migration is run.');
+        return;
+      }
+      console.warn('Failed to load approval chat read state:', readError);
+      return;
+    }
+
+    const next: Record<string, number> = {};
+    for (const row of data || []) {
+      const approvalId = String((row as any).approval_id || '');
+      if (!approvalId) continue;
+      next[approvalId] = parseDateTimeMs((row as any).last_read_at);
+    }
+    setApprovalReadAtById((prev) => ({ ...prev, ...next }));
+  }, [currentUser.id]);
+
+  const recomputeApprovalUnreadCounts = useCallback(async (
+    approvalIds: string[],
+    readMapOverride?: Record<string, number>
+  ) => {
+    if (!approvalIds.length) {
+      setApprovalUnreadCountById({});
+      return;
+    }
+
+    const { data, error: threadsError } = await supabase
+      .from('approval_threads')
+      .select('approval_id, sender_id, created_at')
+      .in('approval_id', approvalIds);
+
+    if (threadsError) {
+      console.warn('Failed to compute approval unread counts:', threadsError);
+      return;
+    }
+
+    const readMap = readMapOverride ?? approvalReadAtById;
+    const counts: Record<string, number> = {};
+    for (const approvalId of approvalIds) {
+      counts[approvalId] = 0;
+    }
+
+    for (const row of data || []) {
+      const approvalId = String((row as any).approval_id || '');
+      if (!approvalId || !(approvalId in counts)) continue;
+      const senderId = String((row as any).sender_id || '');
+      if (senderId === currentUser.id) continue;
+      const createdAtMs = parseDateTimeMs((row as any).created_at);
+      const lastReadAtMs = readMap[approvalId] || 0;
+      if (createdAtMs > lastReadAtMs) {
+        counts[approvalId] += 1;
+      }
+    }
+
+    setApprovalUnreadCountById(counts);
+  }, [approvalReadAtById, currentUser.id]);
+
+  const markApprovalThreadRead = useCallback(async (approvalId: string) => {
+    if (!approvalId || approvalChatReadsTableMissingRef.current) return;
+
+    const nowIso = new Date().toISOString();
+    const nowMs = Date.parse(nowIso);
+    setApprovalReadAtById((prev) => ({ ...prev, [approvalId]: nowMs }));
+    setApprovalUnreadCountById((prev) => ({ ...prev, [approvalId]: 0 }));
+
+    const { error: upsertError } = await supabase
+      .from('approval_chat_reads')
+      .upsert(
+        {
+          approval_id: approvalId,
+          user_id: currentUser.id,
+          last_read_at: nowIso,
+        },
+        { onConflict: 'approval_id,user_id' }
+      );
+
+    if (upsertError) {
+      const msg = String(upsertError.message || '').toLowerCase();
+      const missingTable =
+        (msg.includes('relation') && msg.includes('approval_chat_reads')) ||
+        (msg.includes('does not exist') && msg.includes('approval_chat_reads'));
+      if (missingTable) {
+        approvalChatReadsTableMissingRef.current = true;
+        console.warn('approval_chat_reads table is missing; unread approval badges are disabled until migration is run.');
+        return;
+      }
+      console.warn('Failed to mark approval chat as read:', upsertError);
+    }
+  }, [currentUser.id]);
+
+  const toggleApprovalSelection = useCallback((approvalId: string) => {
+    setSelectedApprovalId((prev) => {
+      const next = prev === approvalId ? null : approvalId;
+      if (next) {
+        void markApprovalThreadRead(next);
+      }
+      return next;
+    });
+  }, [markApprovalThreadRead]);
 
   const loadApprovers = useCallback(async () => {
     setLoadingApprovers(true);
@@ -518,12 +638,40 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
   }, [selectedApprovalId, loadThreads]);
 
   useEffect(() => {
+    if (!selectedApprovalId) return;
+    void markApprovalThreadRead(selectedApprovalId);
+  }, [selectedApprovalId, markApprovalThreadRead]);
+
+  useEffect(() => {
+    const approvalIds = approvals.map((item) => item.id);
+    if (!approvalIds.length) {
+      setApprovalUnreadCountById({});
+      return;
+    }
+    void loadApprovalReadReceipts(approvalIds);
+  }, [approvals, loadApprovalReadReceipts]);
+
+  useEffect(() => {
+    const approvalIds = approvals.map((item) => item.id);
+    if (!approvalIds.length) {
+      setApprovalUnreadCountById({});
+      return;
+    }
+    void recomputeApprovalUnreadCounts(approvalIds);
+  }, [approvals, approvalReadAtById, recomputeApprovalUnreadCounts]);
+
+  useEffect(() => {
     const isRowRelevantToCurrentUser = (row: any): boolean => {
       const requesterId = String(row?.requester_id || '');
       const approverId = String(row?.approver_id || '');
       const isEscalated = Boolean(row?.isEscalated);
       return requesterId === currentUser.id || approverId === currentUser.id ||
         (currentUser.role === 'super_admin' && isEscalated);
+    };
+    const refreshUnreadCounts = () => {
+      const approvalIds = approvals.map((item) => item.id);
+      if (!approvalIds.length) return;
+      void recomputeApprovalUnreadCounts(approvalIds);
     };
 
     const channel = supabase
@@ -551,11 +699,42 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'approval_threads' },
         (payload: any) => {
-          if (!selectedApprovalId) return;
           const newApprovalId = String(payload?.new?.approval_id || '');
           const oldApprovalId = String(payload?.old?.approval_id || '');
-          if (newApprovalId === selectedApprovalId || oldApprovalId === selectedApprovalId) {
-            void loadThreads(selectedApprovalId, { silent: true });
+          const changedApprovalId = newApprovalId || oldApprovalId;
+          if (!changedApprovalId) return;
+
+          refreshUnreadCounts();
+
+          const threadForSelectedApproval =
+            !!selectedApprovalId &&
+            (newApprovalId === selectedApprovalId || oldApprovalId === selectedApprovalId);
+
+          if (!threadForSelectedApproval) return;
+
+          void loadThreads(selectedApprovalId, { silent: true });
+
+          const senderId = String(payload?.new?.sender_id || '');
+          if (senderId && senderId !== currentUser.id) {
+            void markApprovalThreadRead(selectedApprovalId);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'approval_chat_reads',
+          filter: `user_id=eq.${currentUser.id}`,
+        },
+        (payload: any) => {
+          const approvalId = String(payload?.new?.approval_id || payload?.old?.approval_id || '');
+          if (!approvalId) return;
+          const readAtMs = parseDateTimeMs(payload?.new?.last_read_at);
+          setApprovalReadAtById((prev) => ({ ...prev, [approvalId]: readAtMs || Date.now() }));
+          if (approvalId === selectedApprovalId) {
+            setApprovalUnreadCountById((prev) => ({ ...prev, [approvalId]: 0 }));
           }
         }
       )
@@ -564,7 +743,16 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [currentUser.id, selectedApprovalId, loadApprovals, loadThreads]);
+  }, [
+    approvals,
+    currentUser.id,
+    currentUser.role,
+    selectedApprovalId,
+    loadApprovals,
+    loadThreads,
+    recomputeApprovalUnreadCounts,
+    markApprovalThreadRead,
+  ]);
 
   useEffect(() => {
     const refresh = () => {
@@ -939,6 +1127,17 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
       setUpdatingStatus(false);
     }
   };
+
+  const renderUnreadIndicator = (count: number) => (
+    <div className="relative h-7 w-7 rounded-full border border-slate-200 bg-white flex items-center justify-center text-slate-500 shrink-0">
+      <MessageSquare className="w-4 h-4" />
+      {count > 0 && (
+        <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold leading-none">
+          {count > 99 ? '99+' : count}
+        </span>
+      )}
+    </div>
+  );
 
   return (
     <section className="bg-white border border-slate-200 rounded-3xl p-4 shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
@@ -1373,6 +1572,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                   <div className="space-y-3">
                     {groupedApprovals[monthYear].map((approval) => {
                       const isSelected = selectedApprovalId === approval.id;
+                      const unreadCount = approvalUnreadCountById[approval.id] || 0;
                       const parsedApproval = extractApprovalAttachments(approval.description);
                       const canTakeActionOnApproval =
                         isSelected &&
@@ -1393,14 +1593,17 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                         >
                           <button
                             type="button"
-                            onClick={() => setSelectedApprovalId((prev) => (prev === approval.id ? null : approval.id))}
+                            onClick={() => toggleApprovalSelection(approval.id)}
                             className="w-full text-left"
                           >
                             <div className="flex items-center justify-between gap-3">
                               <p className="text-sm font-bold text-slate-900 truncate">{approval.title || 'Untitled'}</p>
-                              <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full ${getStatusClasses(approval.status)}`}>
-                                {approval.status}
-                              </span>
+                              <div className="flex items-center gap-2">
+                                {renderUnreadIndicator(unreadCount)}
+                                <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full ${getStatusClasses(approval.status)}`}>
+                                  {approval.status}
+                                </span>
+                              </div>
                             </div>
                             <p className="text-sm font-bold text-indigo-700 mt-1">{formatAmount(approval.amount)}</p>
                             <p className="text-xs text-slate-500 mt-1 line-clamp-2">
@@ -1634,6 +1837,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
               // Original rendering for "Needs My Approval" view
               return filteredApprovals.map((approval) => {
                 const isSelected = selectedApprovalId === approval.id;
+                const unreadCount = approvalUnreadCountById[approval.id] || 0;
                 const parsedApproval = extractApprovalAttachments(approval.description);
                 const canTakeActionOnApproval =
                   isSelected &&
@@ -1654,14 +1858,17 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                   >
                     <button
                       type="button"
-                      onClick={() => setSelectedApprovalId((prev) => (prev === approval.id ? null : approval.id))}
+                      onClick={() => toggleApprovalSelection(approval.id)}
                       className="w-full text-left"
                     >
                       <div className="flex items-center justify-between gap-3">
                         <p className="text-sm font-bold text-slate-900 truncate">{approval.title || 'Untitled'}</p>
-                        <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full ${getStatusClasses(approval.status)}`}>
-                          {approval.status}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          {renderUnreadIndicator(unreadCount)}
+                          <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full ${getStatusClasses(approval.status)}`}>
+                            {approval.status}
+                          </span>
+                        </div>
                       </div>
                       <p className="text-sm font-bold text-indigo-700 mt-1">{formatAmount(approval.amount)}</p>
                       <p className="text-xs text-slate-500 mt-1 line-clamp-2">

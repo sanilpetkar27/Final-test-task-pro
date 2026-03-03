@@ -1,11 +1,12 @@
 import React from 'react';
 import { DealershipTask, Employee, TaskExtensionStatus } from '../types';
-import { User, Calendar, ChevronRight, Clock } from 'lucide-react';
+import { User, Calendar, ChevronRight, Clock, MessageSquare } from 'lucide-react';
 
 interface TaskItemProps {
   task: DealershipTask;
   employees: Employee[];
   onClick: () => void;
+  unreadCount?: number;
 }
 
 const formatShortDate = (timestamp: number): string => {
@@ -14,7 +15,7 @@ const formatShortDate = (timestamp: number): string => {
   return `${date.getDate()} ${months[date.getMonth()]}`;
 };
 
-const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick }) => {
+const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCount = 0 }) => {
   const getEmployeeName = (id?: string): string | null => {
     if (!id) return null;
     return employees.find(e => e.id === id)?.name || null;
@@ -116,8 +117,17 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick }) => {
           )}
         </div>
 
-        {/* Chevron */}
-        <ChevronRight className="w-5 h-5 text-slate-300 flex-shrink-0" />
+        <div className="flex flex-col items-center gap-2">
+          <div className="relative h-8 w-8 rounded-full border border-slate-200 bg-slate-50 flex items-center justify-center text-slate-500">
+            <MessageSquare className="w-4 h-4" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold leading-none">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
+          </div>
+          <ChevronRight className="w-5 h-5 text-slate-300 flex-shrink-0" />
+        </div>
       </div>
     </button>
   );

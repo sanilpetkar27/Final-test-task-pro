@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { DealershipTask, Employee, UserRole, TaskStatus, TaskType, RecurrenceFrequency, TaskRemark } from '../types';
 import { supabase } from '../src/lib/supabase';
 import { sendTaskCompletionNotification } from '../src/utils/pushNotifications';
@@ -74,6 +74,17 @@ const getRecurrenceIntervalMs = (frequency: RecurrenceFrequency | null | undefin
   if (frequency === 'daily') return DAILY_MS;
   if (frequency === 'weekly') return WEEKLY_MS;
   if (frequency === 'monthly') return MONTHLY_MS;
+  return 0;
+};
+
+const parseDateToMs = (value: unknown): number => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const direct = Number(value);
+    if (Number.isFinite(direct)) return direct;
+    const parsed = Date.parse(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
   return 0;
 };
 
@@ -164,6 +175,8 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   const lastTaskSubmitRef = useRef<{ signature: string; timestamp: number } | null>(null);
   const [statusBumpTimestamps, setStatusBumpTimestamps] = useState<Record<string, number>>({});
   const previousTaskStatusRef = useRef<Record<string, TaskStatus>>({});
+  const [taskReadAtById, setTaskReadAtById] = useState<Record<string, number>>({});
+  const taskChatReadsTableMissingRef = useRef(false);
 
   // Dashboard uses employees from props, no independent fetching needed
   const clearVoiceSafetyStopTimer = () => {
@@ -178,6 +191,124 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
       window.clearTimeout(voiceIdleStopTimerRef.current);
       voiceIdleStopTimerRef.current = null;
     }
+  };
+
+  const loadTaskChatReads = useCallback(async (taskIds: string[]) => {
+    if (!taskIds.length || taskChatReadsTableMissingRef.current) return;
+
+    const { data, error } = await supabase
+      .from('task_chat_reads')
+      .select('task_id, last_read_at')
+      .eq('user_id', currentUser.id)
+      .in('task_id', taskIds);
+
+    if (error) {
+      const msg = String(error.message || '').toLowerCase();
+      const missingTable =
+        (msg.includes('relation') && msg.includes('task_chat_reads')) ||
+        (msg.includes('does not exist') && msg.includes('task_chat_reads'));
+      if (missingTable) {
+        taskChatReadsTableMissingRef.current = true;
+        console.warn('task_chat_reads table is missing; unread task badges are disabled until migration is run.');
+        return;
+      }
+      console.warn('Failed to load task chat read state:', error);
+      return;
+    }
+
+    const next: Record<string, number> = {};
+    for (const row of data || []) {
+      const taskId = String((row as any).task_id || '');
+      if (!taskId) continue;
+      next[taskId] = parseDateToMs((row as any).last_read_at);
+    }
+    setTaskReadAtById((prev) => ({ ...prev, ...next }));
+  }, [currentUser.id]);
+
+  const markTaskChatRead = useCallback(async (taskId: string) => {
+    if (!taskId || taskChatReadsTableMissingRef.current) return;
+
+    const nowIso = new Date().toISOString();
+    const nowMs = Date.parse(nowIso);
+    setTaskReadAtById((prev) => ({ ...prev, [taskId]: nowMs }));
+
+    const { error } = await supabase
+      .from('task_chat_reads')
+      .upsert(
+        {
+          task_id: taskId,
+          user_id: currentUser.id,
+          last_read_at: nowIso,
+        },
+        { onConflict: 'task_id,user_id' }
+      );
+
+    if (error) {
+      const msg = String(error.message || '').toLowerCase();
+      const missingTable =
+        (msg.includes('relation') && msg.includes('task_chat_reads')) ||
+        (msg.includes('does not exist') && msg.includes('task_chat_reads'));
+      if (missingTable) {
+        taskChatReadsTableMissingRef.current = true;
+        console.warn('task_chat_reads table is missing; unread task badges are disabled until migration is run.');
+        return;
+      }
+      console.warn('Failed to mark task chat as read:', error);
+    }
+  }, [currentUser.id]);
+
+  useEffect(() => {
+    void loadTaskChatReads(tasks.map((task) => task.id));
+  }, [tasks, loadTaskChatReads]);
+
+  useEffect(() => {
+    if (taskChatReadsTableMissingRef.current) return;
+
+    const channel = supabase
+      .channel(`task-chat-reads-${currentUser.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'task_chat_reads',
+          filter: `user_id=eq.${currentUser.id}`,
+        },
+        (payload: any) => {
+          const taskId = String(payload?.new?.task_id || payload?.old?.task_id || '');
+          if (!taskId) return;
+          const readAtMs = parseDateToMs(payload?.new?.last_read_at);
+          setTaskReadAtById((prev) => ({ ...prev, [taskId]: readAtMs || Date.now() }));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [currentUser.id]);
+
+  const taskUnreadCountById = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const task of tasks) {
+      const lastReadAt = taskReadAtById[task.id] || 0;
+      const remarks = Array.isArray(task.remarks) ? task.remarks : [];
+      counts[task.id] = remarks.reduce((total, remark: any) => {
+        const remarkTs = parseDateToMs(remark?.timestamp);
+        const senderId = String(remark?.employeeId || '');
+        const isOwnMessage =
+          senderId === currentUser.id ||
+          (currentUser.auth_user_id ? senderId === currentUser.auth_user_id : false);
+        if (isOwnMessage) return total;
+        return remarkTs > lastReadAt ? total + 1 : total;
+      }, 0);
+    }
+    return counts;
+  }, [tasks, taskReadAtById, currentUser.id, currentUser.auth_user_id]);
+
+  const handleOpenTask = (taskId: string) => {
+    setSelectedTaskId(taskId);
+    void markTaskChatRead(taskId);
   };
 
   const stopRecognitionInstanceSafely = (recognitionInstance: any) => {
@@ -1045,6 +1176,14 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   // --- Selected task for detail view ---
   const selectedTask = selectedTaskId ? tasks.find(t => t.id === selectedTaskId) || null : null;
 
+  useEffect(() => {
+    if (!selectedTaskId) return;
+    const unread = taskUnreadCountById[selectedTaskId] || 0;
+    if (unread > 0) {
+      void markTaskChatRead(selectedTaskId);
+    }
+  }, [selectedTaskId, taskUnreadCountById, markTaskChatRead]);
+
   // --- If a task is selected, render TaskDetailsScreen ---
   if (selectedTask) {
     return (
@@ -1322,7 +1461,8 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
             key={task.id} 
             task={task} 
             employees={employees}
-            onClick={() => setSelectedTaskId(task.id)}
+            unreadCount={taskUnreadCountById[task.id] || 0}
+            onClick={() => handleOpenTask(task.id)}
           />
         ))}
         {allFilteredTasks.length === 0 && (
