@@ -1121,22 +1121,12 @@ const TeamManager: React.FC<TeamManagerProps> = ({
                         {addedByManagers.length === 0 ? (
                           <span className="text-amber-600">Unassigned</span>
                         ) : (
-                          addedByManagers.map((manager, index) => (
-                            <span key={`${emp.id}-${manager.id}`} className="inline-flex items-center gap-1">
-                              {index > 0 && <span className="text-slate-400">,</span>}
-                              {getTelHref(manager.mobile) && (
-                                <a
-                                  href={getTelHref(manager.mobile) || '#'}
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors border border-emerald-200"
-                                  title={`Call ${manager.name}`}
-                                >
-                                  <Phone className="w-3.5 h-3.5" />
-                                </a>
-                              )}
-                              <span>{manager.name}</span>
-                            </span>
-                          ))
+	                          addedByManagers.map((manager, index) => (
+	                            <span key={`${emp.id}-${manager.id}`} className="inline-flex items-center gap-1">
+	                              {index > 0 && <span className="text-slate-400">,</span>}
+	                              <span>{manager.name}</span>
+	                            </span>
+	                          ))
                         )}
                       </div>
                     )}
