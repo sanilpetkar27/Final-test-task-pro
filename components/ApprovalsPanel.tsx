@@ -158,9 +158,15 @@ const formatAttachmentSize = (bytes: number): string => {
 
 const sanitizeFileName = (name: string): string => String(name || 'file').replace(/[^a-zA-Z0-9._-]/g, '_');
 
-const parseDateTimeMs = (value?: string | null): number => {
-  const parsed = Date.parse(String(value || ''));
-  return Number.isFinite(parsed) ? parsed : 0;
+const parseDateTimeMs = (value: unknown): number => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const direct = Number(value);
+    if (Number.isFinite(direct)) return direct;
+    const parsed = Date.parse(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return 0;
 };
 
 const approvalActivityMs = (item: ApprovalItem): number =>
@@ -463,7 +469,27 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
   const markApprovalThreadRead = useCallback(async (approvalId: string, readAtMs?: number) => {
     if (!approvalId || approvalChatReadsTableMissingRef.current) return;
 
-    const effectiveReadAtMs = Math.max(readAtMs || 0, Date.now());
+    let resolvedReadAtMs = readAtMs || 0;
+    if (!resolvedReadAtMs) {
+      const { data: latestRow, error: latestError } = await supabase
+        .from('approval_threads')
+        .select('created_at')
+        .eq('approval_id', approvalId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (latestError) {
+        console.warn('Failed to resolve latest approval thread timestamp:', latestError);
+      } else if (latestRow?.created_at) {
+        const latestTs = parseDateTimeMs(latestRow.created_at);
+        if (latestTs > 0) {
+          resolvedReadAtMs = latestTs + 1;
+        }
+      }
+    }
+
+    const effectiveReadAtMs = Math.max(resolvedReadAtMs, Date.now());
     const readAtIso = new Date(effectiveReadAtMs).toISOString();
     setApprovalReadAtById((prev) => {
       const merged = { ...prev, [approvalId]: Math.max(prev[approvalId] || 0, effectiveReadAtMs) };
@@ -679,10 +705,8 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
 
   useEffect(() => {
     if (!selectedApprovalId) return;
-    const latestMessageMs = threads.reduce((maxTs, message) => Math.max(maxTs, parseDateTimeMs(message.created_at)), 0);
-    const readAtMs = latestMessageMs > 0 ? latestMessageMs + 1 : Date.now();
-    void markApprovalThreadRead(selectedApprovalId, readAtMs);
-  }, [selectedApprovalId, threads, markApprovalThreadRead]);
+    void markApprovalThreadRead(selectedApprovalId);
+  }, [selectedApprovalId, markApprovalThreadRead]);
 
   useEffect(() => {
     const approvalIds = approvals.map((item) => item.id);
