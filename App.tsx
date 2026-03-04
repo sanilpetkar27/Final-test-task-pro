@@ -24,6 +24,7 @@ import {
 
 const DEFAULT_COMPANY_ID = '00000000-0000-0000-0000-000000000001';
 const USER_CACHE_KEY = 'universal_app_user';
+const ACTIVE_TAB_CACHE_KEY = 'universal_app_active_tab';
 const EMPLOYEES_CACHE_KEY = 'universalAppEmployees';
 const TASKS_CACHE_KEY = 'universalAppTasks';
 const STAFF_MANAGER_LINKS_CACHE_KEY = 'universalAppStaffManagerLinks';
@@ -78,6 +79,48 @@ const getRoleLabel = (role: Employee['role']): string => {
   if (role === 'super_admin' || role === 'owner') return 'Owner';
   if (role === 'manager') return 'Manager';
   return 'Staff';
+};
+
+const canAccessTeamTab = (role: Employee['role'] | null | undefined): boolean => {
+  return role === 'manager' || role === 'super_admin' || role === 'owner';
+};
+
+const normalizePersistedAppTab = (tabValue: string | null): AppTab | null => {
+  if (tabValue === AppTab.TASKS || tabValue === AppTab.APPROVALS || tabValue === AppTab.TEAM) {
+    return tabValue;
+  }
+
+  return null;
+};
+
+const resolveActiveTabForRole = (
+  nextTab: AppTab | null | undefined,
+  role: Employee['role'] | null | undefined
+): AppTab => {
+  if (nextTab === AppTab.APPROVALS) return AppTab.APPROVALS;
+  if (nextTab === AppTab.TEAM && canAccessTeamTab(role)) return AppTab.TEAM;
+  return AppTab.TASKS;
+};
+
+const readPersistedActiveTab = (userId?: string | null): AppTab | null => {
+  if (typeof window === 'undefined') return null;
+
+  const normalizedUserId = String(userId || '').trim();
+  const lookupKeys = normalizedUserId
+    ? [`${ACTIVE_TAB_CACHE_KEY}:${normalizedUserId}`, ACTIVE_TAB_CACHE_KEY]
+    : [ACTIVE_TAB_CACHE_KEY];
+
+  for (const key of lookupKeys) {
+    try {
+      const rawTab = localStorage.getItem(key);
+      const parsedTab = normalizePersistedAppTab(rawTab);
+      if (parsedTab) return parsedTab;
+    } catch {
+      // Ignore local storage read failures and continue with defaults.
+    }
+  }
+
+  return null;
 };
 
 const toFallbackEmployeeFromAuthUser = (authUser: any): Employee => {
@@ -674,7 +717,10 @@ const App: React.FC = () => {
     }
   });
 
-  const [activeTab, setActiveTab] = useState<AppTab>(AppTab.TASKS);
+  const [activeTab, setActiveTab] = useState<AppTab>(() => {
+    const cachedTab = readPersistedActiveTab(currentUser?.id);
+    return resolveActiveTabForRole(cachedTab, currentUser?.role);
+  });
   const [tasksTabReselectSignal, setTasksTabReselectSignal] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
   const [appReady, setAppReady] = useState(false);
@@ -1025,6 +1071,29 @@ const App: React.FC = () => {
       }
     });
   }, [currentUser?.id, currentUser?.company_id, currentUser?.role]);
+
+  useEffect(() => {
+    const normalizedTab = resolveActiveTabForRole(activeTab, currentUser?.role);
+
+    if (normalizedTab !== activeTab) {
+      setActiveTab(normalizedTab);
+      return;
+    }
+
+    if (typeof window === 'undefined') return;
+
+    const normalizedUserId = String(currentUser?.id || '').trim();
+    const perUserTabKey = normalizedUserId
+      ? `${ACTIVE_TAB_CACHE_KEY}:${normalizedUserId}`
+      : ACTIVE_TAB_CACHE_KEY;
+
+    try {
+      localStorage.setItem(ACTIVE_TAB_CACHE_KEY, normalizedTab);
+      localStorage.setItem(perUserTabKey, normalizedTab);
+    } catch {
+      // Ignore local storage write failures so tab navigation remains functional.
+    }
+  }, [activeTab, currentUser?.id, currentUser?.role]);
 
   // --- REALTIME SUBSCRIPTION FOR TASKS ---
   useEffect(() => {
@@ -2148,7 +2217,7 @@ const App: React.FC = () => {
 
     setCurrentUser(normalizedInputUser);
     localStorage.setItem(USER_CACHE_KEY, JSON.stringify(normalizedInputUser));
-    setActiveTab(AppTab.TASKS);
+    setActiveTab(resolveActiveTabForRole(readPersistedActiveTab(normalizedInputUser.id), normalizedInputUser.role));
 
     try {
       const { data: { session } } = await supabaseAuth.getSession();
