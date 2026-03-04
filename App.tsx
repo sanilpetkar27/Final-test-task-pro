@@ -675,6 +675,7 @@ const App: React.FC = () => {
   });
 
   const [activeTab, setActiveTab] = useState<AppTab>(AppTab.TASKS);
+  const [tasksTabReselectSignal, setTasksTabReselectSignal] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
   const [appReady, setAppReady] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -1427,6 +1428,15 @@ const App: React.FC = () => {
     if (isOpening) {
       void markAllNotificationsAsRead();
     }
+  };
+
+  const handleTasksTabClick = () => {
+    if (activeTab === AppTab.TASKS) {
+      setTasksTabReselectSignal((prev) => prev + 1);
+      return;
+    }
+
+    setActiveTab(AppTab.TASKS);
   };
 
   // --- 4. CORE ACTIONS (Add, Delete, Complete) ---
@@ -2374,6 +2384,7 @@ const App: React.FC = () => {
             tasks={tasks}
             employees={scopedEmployees}
             currentUser={currentUser}
+            tasksTabReselectSignal={tasksTabReselectSignal}
             onAddTask={addTask}
             onStartTask={startTask}
             onReopenTask={reopenTask}
@@ -2427,7 +2438,7 @@ const App: React.FC = () => {
 
           <NavBtn
             active={activeTab === AppTab.TASKS}
-            onClick={() => setActiveTab(AppTab.TASKS)}
+            onClick={handleTasksTabClick}
             icon={<ClipboardList className="w-6 h-6" />}
             label="Tasks"
           />
