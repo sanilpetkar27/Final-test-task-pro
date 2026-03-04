@@ -1215,6 +1215,11 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
     [...taskRows].sort((left, right) => getTaskActivityTimestamp(right) - getTaskActivityTimestamp(left));
 
   const allFilteredTasks = sortTasksByRecentActivity(getFilteredTasks(tasks));
+  const currentUserFirstName = useMemo(() => {
+    const rawName = String(currentUser.name || '').trim();
+    if (!rawName) return '';
+    return rawName.split(/\s+/)[0] || '';
+  }, [currentUser.name]);
 
   // Auto-navigate back if selected task was deleted
   useEffect(() => {
@@ -1287,9 +1292,16 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
   // --- Otherwise, render the unified task list ---
   return (
     <div className="space-y-4 relative min-h-screen">
+      <div className="space-y-1">
+        <h2 className="text-2xl font-bold text-gray-900 tracking-tight">
+          {currentUserFirstName ? `Hello, ${currentUserFirstName}` : 'Hello,'}
+        </h2>
+        <p className="text-sm text-gray-500 mt-1">Here is your task overview for today.</p>
+      </div>
+
       {/* Header with Title and New Button */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 ml-8 sm:ml-16">
           <h1 className="text-xl font-bold text-slate-900">Tasks</h1>
           <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-sm font-medium">
             {tasks.length} total
