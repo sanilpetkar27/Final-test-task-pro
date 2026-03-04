@@ -1096,15 +1096,15 @@ const TeamManager: React.FC<TeamManagerProps> = ({
                       <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${emp.role === 'super_admin' || emp.role === 'owner' ? 'bg-slate-800 text-white' : emp.role === 'manager' ? 'bg-indigo-900 text-white' : 'bg-slate-100 text-slate-500'}`}>
                         {getRoleLabel(emp.role)}
                       </span>
-                      <span className="text-[10px] text-slate-500 font-medium inline-flex items-center gap-1">
+                      <span className="text-[10px] text-slate-500 font-medium inline-flex items-center gap-1.5">
                         {getTelHref(emp.mobile) && (
                           <a
                             href={getTelHref(emp.mobile) || '#'}
                             onClick={(e) => e.stopPropagation()}
-                            className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+                            className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors border border-emerald-200"
                             title={`Call ${emp.name}`}
                           >
-                            <Phone className="w-2.5 h-2.5" />
+                            <Phone className="w-4 h-4" />
                           </a>
                         )}
                         <span>{emp.mobile}</span>
@@ -1128,10 +1128,10 @@ const TeamManager: React.FC<TeamManagerProps> = ({
                                 <a
                                   href={getTelHref(manager.mobile) || '#'}
                                   onClick={(e) => e.stopPropagation()}
-                                  className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+                                  className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors border border-emerald-200"
                                   title={`Call ${manager.name}`}
                                 >
-                                  <Phone className="w-2.5 h-2.5" />
+                                  <Phone className="w-3.5 h-3.5" />
                                 </a>
                               )}
                               <span>{manager.name}</span>

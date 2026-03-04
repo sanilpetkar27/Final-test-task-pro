@@ -473,10 +473,10 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
                 {assigneeTelHref && (
                   <a
                     href={assigneeTelHref}
-                    className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+                    className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors border border-emerald-200"
                     title={`Call ${assigneeName}`}
                   >
-                    <Phone className="w-3.5 h-3.5" />
+                    <Phone className="w-4 h-4" />
                   </a>
                 )}
               </span>
@@ -492,10 +492,10 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
                   {assignerTelHref && (
                     <a
                       href={assignerTelHref}
-                      className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+                      className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors border border-emerald-200"
                       title={`Call ${assignerName}`}
                     >
-                      <Phone className="w-3.5 h-3.5" />
+                      <Phone className="w-4 h-4" />
                     </a>
                   )}
                 </span>
