@@ -13,6 +13,7 @@ interface DashboardProps {
   tasks: DealershipTask[];
   employees: Employee[];
   currentUser: Employee;
+  tasksTabReselectSignal?: number;
   onAddTask: (
     desc: string,
     assignedTo?: string,
@@ -88,7 +89,7 @@ const parseDateToMs = (value: unknown): number => {
   return 0;
 };
 
-const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, onAddTask, onStartTask, onReopenTask, onCompleteTask, onCompleteTaskWithoutPhoto, onReassignTask, onDeleteTask, onUpdateTaskRemarks }) => {
+const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, tasksTabReselectSignal = 0, onAddTask, onStartTask, onReopenTask, onCompleteTask, onCompleteTaskWithoutPhoto, onReassignTask, onDeleteTask, onUpdateTaskRemarks }) => {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   
   // Voice recognition state
@@ -177,6 +178,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   const previousTaskStatusRef = useRef<Record<string, TaskStatus>>({});
   const [taskReadAtById, setTaskReadAtById] = useState<Record<string, number>>({});
   const taskChatReadsTableMissingRef = useRef(false);
+  const taskReadStorageKey = useMemo(() => `task-chat-read:${currentUser.id}`, [currentUser.id]);
 
   // Dashboard uses employees from props, no independent fetching needed
   const clearVoiceSafetyStopTimer = () => {
@@ -192,6 +194,39 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
       voiceIdleStopTimerRef.current = null;
     }
   };
+
+  const getLocalTaskReadMap = useCallback((): Record<string, number> => {
+    if (typeof window === 'undefined') return {};
+    try {
+      const raw = localStorage.getItem(taskReadStorageKey);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') return {};
+      const map: Record<string, number> = {};
+      Object.entries(parsed).forEach(([taskId, value]) => {
+        const ts = parseDateToMs(value);
+        if (taskId && ts > 0) {
+          map[taskId] = ts;
+        }
+      });
+      return map;
+    } catch {
+      return {};
+    }
+  }, [taskReadStorageKey]);
+
+  const saveLocalTaskReadMap = useCallback((next: Record<string, number>) => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(taskReadStorageKey, JSON.stringify(next));
+    } catch {
+      // ignore storage errors
+    }
+  }, [taskReadStorageKey]);
+
+  useEffect(() => {
+    setTaskReadAtById(getLocalTaskReadMap());
+  }, [getLocalTaskReadMap]);
 
   const loadTaskChatReads = useCallback(async (taskIds: string[]) => {
     if (!taskIds.length || taskChatReadsTableMissingRef.current) return;
@@ -216,21 +251,27 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
       return;
     }
 
-    const next: Record<string, number> = {};
+    const localMap = getLocalTaskReadMap();
+    const next: Record<string, number> = { ...localMap };
     for (const row of data || []) {
       const taskId = String((row as any).task_id || '');
       if (!taskId) continue;
-      next[taskId] = parseDateToMs((row as any).last_read_at);
+      next[taskId] = Math.max(next[taskId] || 0, parseDateToMs((row as any).last_read_at));
     }
     setTaskReadAtById((prev) => ({ ...prev, ...next }));
-  }, [currentUser.id]);
+    saveLocalTaskReadMap(next);
+  }, [currentUser.id, getLocalTaskReadMap, saveLocalTaskReadMap]);
 
-  const markTaskChatRead = useCallback(async (taskId: string) => {
+  const markTaskChatRead = useCallback(async (taskId: string, readAtMs?: number) => {
     if (!taskId || taskChatReadsTableMissingRef.current) return;
 
-    const nowIso = new Date().toISOString();
-    const nowMs = Date.parse(nowIso);
-    setTaskReadAtById((prev) => ({ ...prev, [taskId]: nowMs }));
+    const effectiveReadAtMs = Math.max(readAtMs || 0, Date.now());
+    const readAtIso = new Date(effectiveReadAtMs).toISOString();
+    setTaskReadAtById((prev) => {
+      const merged = { ...prev, [taskId]: Math.max(prev[taskId] || 0, effectiveReadAtMs) };
+      saveLocalTaskReadMap(merged);
+      return merged;
+    });
 
     const { error } = await supabase
       .from('task_chat_reads')
@@ -238,7 +279,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
         {
           task_id: taskId,
           user_id: currentUser.id,
-          last_read_at: nowIso,
+          last_read_at: readAtIso,
         },
         { onConflict: 'task_id,user_id' }
       );
@@ -255,7 +296,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
       }
       console.warn('Failed to mark task chat as read:', error);
     }
-  }, [currentUser.id]);
+  }, [currentUser.id, saveLocalTaskReadMap]);
 
   useEffect(() => {
     void loadTaskChatReads(tasks.map((task) => task.id));
@@ -278,7 +319,11 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
           const taskId = String(payload?.new?.task_id || payload?.old?.task_id || '');
           if (!taskId) return;
           const readAtMs = parseDateToMs(payload?.new?.last_read_at);
-          setTaskReadAtById((prev) => ({ ...prev, [taskId]: readAtMs || Date.now() }));
+          setTaskReadAtById((prev) => {
+            const merged = { ...prev, [taskId]: readAtMs || Date.now() };
+            saveLocalTaskReadMap(merged);
+            return merged;
+          });
         }
       )
       .subscribe();
@@ -286,7 +331,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [currentUser.id]);
+  }, [currentUser.id, saveLocalTaskReadMap]);
 
   const taskUnreadCountById = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -306,9 +351,14 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
     return counts;
   }, [tasks, taskReadAtById, currentUser.id, currentUser.auth_user_id]);
 
-  const handleOpenTask = (taskId: string) => {
-    setSelectedTaskId(taskId);
-    void markTaskChatRead(taskId);
+  const handleOpenTask = (task: DealershipTask) => {
+    const latestRemarkMs = (Array.isArray(task.remarks) ? task.remarks : []).reduce((maxTs, remark: any) => {
+      const ts = parseDateToMs(remark?.timestamp);
+      return Math.max(maxTs, ts);
+    }, 0);
+    const readAtMs = latestRemarkMs > 0 ? latestRemarkMs + 1 : Date.now();
+    setSelectedTaskId(task.id);
+    void markTaskChatRead(task.id, readAtMs);
   };
 
   const stopRecognitionInstanceSafely = (recognitionInstance: any) => {
@@ -1173,16 +1223,24 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
     }
   }, [selectedTaskId, tasks]);
 
+  useEffect(() => {
+    setSelectedTaskId(null);
+  }, [tasksTabReselectSignal]);
+
   // --- Selected task for detail view ---
   const selectedTask = selectedTaskId ? tasks.find(t => t.id === selectedTaskId) || null : null;
 
   useEffect(() => {
-    if (!selectedTaskId) return;
-    const unread = taskUnreadCountById[selectedTaskId] || 0;
-    if (unread > 0) {
-      void markTaskChatRead(selectedTaskId);
-    }
-  }, [selectedTaskId, taskUnreadCountById, markTaskChatRead]);
+    if (!selectedTask) return;
+    const unread = taskUnreadCountById[selectedTask.id] || 0;
+    if (unread <= 0) return;
+    const latestRemarkMs = (Array.isArray(selectedTask.remarks) ? selectedTask.remarks : []).reduce((maxTs, remark: any) => {
+      const ts = parseDateToMs(remark?.timestamp);
+      return Math.max(maxTs, ts);
+    }, 0);
+    const readAtMs = latestRemarkMs > 0 ? latestRemarkMs + 1 : Date.now();
+    void markTaskChatRead(selectedTask.id, readAtMs);
+  }, [selectedTask, taskUnreadCountById, markTaskChatRead]);
 
   // --- If a task is selected, render TaskDetailsScreen ---
   if (selectedTask) {
@@ -1462,7 +1520,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
             task={task} 
             employees={employees}
             unreadCount={taskUnreadCountById[task.id] || 0}
-            onClick={() => handleOpenTask(task.id)}
+            onClick={() => handleOpenTask(task)}
           />
         ))}
         {allFilteredTasks.length === 0 && (
@@ -1504,4 +1562,3 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
 };
 
 export default Dashboard;
-

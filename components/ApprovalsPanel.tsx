@@ -344,11 +344,45 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
   const attachmentsInputRef = useRef<HTMLInputElement | null>(null);
   const attachmentFilesRef = useRef<Record<string, File>>({});
   const approvalChatReadsTableMissingRef = useRef(false);
+  const approvalReadStorageKey = useMemo(() => `approval-chat-read:${currentUser.id}`, [currentUser.id]);
 
   const selectedApproval = useMemo(
     () => approvals.find((item) => item.id === selectedApprovalId) || null,
     [approvals, selectedApprovalId]
   );
+
+  const getLocalApprovalReadMap = useCallback((): Record<string, number> => {
+    if (typeof window === 'undefined') return {};
+    try {
+      const raw = localStorage.getItem(approvalReadStorageKey);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') return {};
+      const map: Record<string, number> = {};
+      Object.entries(parsed).forEach(([approvalId, value]) => {
+        const ts = parseDateTimeMs(value);
+        if (approvalId && ts > 0) {
+          map[approvalId] = ts;
+        }
+      });
+      return map;
+    } catch {
+      return {};
+    }
+  }, [approvalReadStorageKey]);
+
+  const saveLocalApprovalReadMap = useCallback((next: Record<string, number>) => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(approvalReadStorageKey, JSON.stringify(next));
+    } catch {
+      // ignore storage errors
+    }
+  }, [approvalReadStorageKey]);
+
+  useEffect(() => {
+    setApprovalReadAtById(getLocalApprovalReadMap());
+  }, [getLocalApprovalReadMap]);
 
   const loadApprovalReadReceipts = useCallback(async (approvalIds: string[]) => {
     if (!approvalIds.length || approvalChatReadsTableMissingRef.current) {
@@ -375,14 +409,16 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
       return;
     }
 
-    const next: Record<string, number> = {};
+    const localMap = getLocalApprovalReadMap();
+    const next: Record<string, number> = { ...localMap };
     for (const row of data || []) {
       const approvalId = String((row as any).approval_id || '');
       if (!approvalId) continue;
-      next[approvalId] = parseDateTimeMs((row as any).last_read_at);
+      next[approvalId] = Math.max(next[approvalId] || 0, parseDateTimeMs((row as any).last_read_at));
     }
     setApprovalReadAtById((prev) => ({ ...prev, ...next }));
-  }, [currentUser.id]);
+    saveLocalApprovalReadMap(next);
+  }, [currentUser.id, getLocalApprovalReadMap, saveLocalApprovalReadMap]);
 
   const recomputeApprovalUnreadCounts = useCallback(async (
     approvalIds: string[],
@@ -424,12 +460,16 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
     setApprovalUnreadCountById(counts);
   }, [approvalReadAtById, currentUser.id]);
 
-  const markApprovalThreadRead = useCallback(async (approvalId: string) => {
+  const markApprovalThreadRead = useCallback(async (approvalId: string, readAtMs?: number) => {
     if (!approvalId || approvalChatReadsTableMissingRef.current) return;
 
-    const nowIso = new Date().toISOString();
-    const nowMs = Date.parse(nowIso);
-    setApprovalReadAtById((prev) => ({ ...prev, [approvalId]: nowMs }));
+    const effectiveReadAtMs = Math.max(readAtMs || 0, Date.now());
+    const readAtIso = new Date(effectiveReadAtMs).toISOString();
+    setApprovalReadAtById((prev) => {
+      const merged = { ...prev, [approvalId]: Math.max(prev[approvalId] || 0, effectiveReadAtMs) };
+      saveLocalApprovalReadMap(merged);
+      return merged;
+    });
     setApprovalUnreadCountById((prev) => ({ ...prev, [approvalId]: 0 }));
 
     const { error: upsertError } = await supabase
@@ -438,7 +478,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         {
           approval_id: approvalId,
           user_id: currentUser.id,
-          last_read_at: nowIso,
+          last_read_at: readAtIso,
         },
         { onConflict: 'approval_id,user_id' }
       );
@@ -455,7 +495,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
       }
       console.warn('Failed to mark approval chat as read:', upsertError);
     }
-  }, [currentUser.id]);
+  }, [currentUser.id, saveLocalApprovalReadMap]);
 
   const toggleApprovalSelection = useCallback((approvalId: string) => {
     setSelectedApprovalId((prev) => {
@@ -639,8 +679,10 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
 
   useEffect(() => {
     if (!selectedApprovalId) return;
-    void markApprovalThreadRead(selectedApprovalId);
-  }, [selectedApprovalId, markApprovalThreadRead]);
+    const latestMessageMs = threads.reduce((maxTs, message) => Math.max(maxTs, parseDateTimeMs(message.created_at)), 0);
+    const readAtMs = latestMessageMs > 0 ? latestMessageMs + 1 : Date.now();
+    void markApprovalThreadRead(selectedApprovalId, readAtMs);
+  }, [selectedApprovalId, threads, markApprovalThreadRead]);
 
   useEffect(() => {
     const approvalIds = approvals.map((item) => item.id);
@@ -716,7 +758,8 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
 
           const senderId = String(payload?.new?.sender_id || '');
           if (senderId && senderId !== currentUser.id) {
-            void markApprovalThreadRead(selectedApprovalId);
+            const incomingMessageMs = parseDateTimeMs(payload?.new?.created_at);
+            void markApprovalThreadRead(selectedApprovalId, incomingMessageMs > 0 ? incomingMessageMs + 1 : undefined);
           }
         }
       )
@@ -732,7 +775,11 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
           const approvalId = String(payload?.new?.approval_id || payload?.old?.approval_id || '');
           if (!approvalId) return;
           const readAtMs = parseDateTimeMs(payload?.new?.last_read_at);
-          setApprovalReadAtById((prev) => ({ ...prev, [approvalId]: readAtMs || Date.now() }));
+          setApprovalReadAtById((prev) => {
+            const merged = { ...prev, [approvalId]: readAtMs || Date.now() };
+            saveLocalApprovalReadMap(merged);
+            return merged;
+          });
           if (approvalId === selectedApprovalId) {
             setApprovalUnreadCountById((prev) => ({ ...prev, [approvalId]: 0 }));
           }
@@ -752,6 +799,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
     loadThreads,
     recomputeApprovalUnreadCounts,
     markApprovalThreadRead,
+    saveLocalApprovalReadMap,
   ]);
 
   useEffect(() => {
