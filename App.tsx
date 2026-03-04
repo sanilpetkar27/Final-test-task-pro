@@ -2258,7 +2258,7 @@ const App: React.FC = () => {
   const scopedEmployees = scopeEmployeesForCurrentUser(employees, tasks, currentUser, staffManagerLinks);
 
   return (
-    <div className="flex flex-col h-screen max-w-md mx-auto bg-slate-50 relative overflow-hidden font-sans">
+    <div className="flex flex-col h-screen max-w-md mx-auto bg-white relative overflow-hidden font-sans sm:shadow-2xl sm:rounded-2xl sm:border sm:border-gray-200 sm:my-8">
 
       {/* Notification Banner */}
       {notification && (

@@ -1300,8 +1300,8 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
       </div>
 
       {/* Header with Title and New Button */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3 ml-8 sm:ml-16">
+      <div className={`flex items-center ${canAssignTasks ? 'justify-end' : 'justify-start'}`}>
+        <div className={`flex items-center gap-3 ${canAssignTasks ? 'ml-auto mr-4' : ''}`}>
           <h1 className="text-xl font-bold text-slate-900">Tasks</h1>
           <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-sm font-medium">
             {tasks.length} total
