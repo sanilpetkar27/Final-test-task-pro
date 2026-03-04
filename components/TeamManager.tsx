@@ -134,6 +134,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
   const [targetPoints, setTargetPoints] = useState(rewardConfig.targetPoints.toString());
   const [rewardName, setRewardName] = useState(rewardConfig.rewardName);
   const [isAdding, setIsAdding] = useState(false);
+  const [showCreateUserForm, setShowCreateUserForm] = useState(false);
   const canAddMembers = ['super_admin', 'manager', 'owner'].includes(currentUser.role);
   const canAssignMultipleManagers =
     currentUser.role === 'super_admin' || currentUser.role === 'owner' || isSuperAdmin;
@@ -211,6 +212,26 @@ const TeamManager: React.FC<TeamManagerProps> = ({
     return managerMap;
   }, [employees, teamMembers, currentUser.id, currentUser.name]);
 
+  const managerById = useMemo(() => {
+    const managerMap = new Map<string, { id: string; name: string; mobile: string }>();
+    [...(employees || []), ...(teamMembers || [])].forEach((member) => {
+      if (!member || !member.id || !member.name) return;
+      if (member.role === 'manager' || member.role === 'super_admin' || member.role === 'owner') {
+        managerMap.set(String(member.id), {
+          id: String(member.id),
+          name: String(member.name),
+          mobile: String(member.mobile || ''),
+        });
+      }
+    });
+    managerMap.set(String(currentUser.id), {
+      id: String(currentUser.id),
+      name: String(currentUser.name),
+      mobile: String(currentUser.mobile || ''),
+    });
+    return managerMap;
+  }, [employees, teamMembers, currentUser.id, currentUser.name, currentUser.mobile]);
+
   const managerIdsByStaffId = useMemo(() => {
     const managerMap = new Map<string, string[]>();
     (staffManagerLinks || []).forEach((link) => {
@@ -254,6 +275,27 @@ const TeamManager: React.FC<TeamManagerProps> = ({
 
     const managerNames = managerIds.map((managerId) => managerNameById.get(managerId) || managerId);
     return `Added by: ${managerNames.join(', ')}`;
+  };
+
+  const getAddedByManagers = (member: Employee): Array<{ id: string; name: string; mobile: string }> => {
+    if (!member || member.role !== 'staff') {
+      return [];
+    }
+    const managerIds = getManagerIdsForMember(member);
+    return managerIds
+      .map((managerId) => managerById.get(managerId) || { id: managerId, name: managerNameById.get(managerId) || managerId, mobile: '' })
+      .filter((manager) => Boolean(manager.name));
+  };
+
+  const getTelHref = (mobile: string): string | null => {
+    const trimmed = String(mobile || '').trim();
+    if (!trimmed) return null;
+    if (trimmed.startsWith('+')) {
+      const digits = trimmed.slice(1).replace(/\D/g, '');
+      return digits ? `tel:+${digits}` : null;
+    }
+    const digits = trimmed.replace(/\D/g, '');
+    return digits ? `tel:${digits}` : null;
   };
 
   const canDeleteMember = (member: Employee): boolean => {
@@ -794,8 +836,24 @@ const TeamManager: React.FC<TeamManagerProps> = ({
 
       {canAddMembers && (
         <section className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-          <h3 className="text-xs font-bold text-slate-500 mb-3 uppercase tracking-wider">Add Staff Member</h3>
-          <form onSubmit={handleCreateUser} className="space-y-3">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Team Actions</h3>
+            <button
+              type="button"
+              onClick={() => {
+                if (!isAdding) setShowCreateUserForm((prev) => !prev);
+              }}
+              disabled={isAdding}
+              className="h-10 rounded-xl bg-indigo-900 hover:bg-indigo-800 text-white px-4 text-sm font-bold inline-flex items-center gap-2 transition-all disabled:opacity-50"
+            >
+              <UserPlus className="w-4 h-4" />
+              {showCreateUserForm ? 'Close Create User' : 'Create User'}
+            </button>
+          </div>
+
+          {showCreateUserForm && (
+            <form onSubmit={handleCreateUser} className="space-y-3">
+              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Add Staff Member</h4>
             <input 
               type="text" 
               value={newName}
@@ -898,7 +956,8 @@ const TeamManager: React.FC<TeamManagerProps> = ({
                 )}
               </div>
             )}
-          </form>
+            </form>
+          )}
         </section>
       )}
 
@@ -1016,6 +1075,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
             // Strict safety filter: prevent all invalid data from rendering
             if (!emp || !emp.id || !emp.name || emp.name.trim() === '') return null;
             const addedByLabel = getAddedByLabel(emp);
+            const addedByManagers = getAddedByManagers(emp);
             const showAddedBy =
               Boolean(addedByLabel) &&
               (currentUser.role === 'super_admin' || currentUser.role === 'owner');
@@ -1036,7 +1096,19 @@ const TeamManager: React.FC<TeamManagerProps> = ({
                       <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${emp.role === 'super_admin' || emp.role === 'owner' ? 'bg-slate-800 text-white' : emp.role === 'manager' ? 'bg-indigo-900 text-white' : 'bg-slate-100 text-slate-500'}`}>
                         {getRoleLabel(emp.role)}
                       </span>
-                      <span className="text-[10px] text-slate-500 font-medium">{emp.mobile}</span>
+                      <span className="text-[10px] text-slate-500 font-medium inline-flex items-center gap-1">
+                        {getTelHref(emp.mobile) && (
+                          <a
+                            href={getTelHref(emp.mobile) || '#'}
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+                            title={`Call ${emp.name}`}
+                          >
+                            <Phone className="w-2.5 h-2.5" />
+                          </a>
+                        )}
+                        <span>{emp.mobile}</span>
+                      </span>
                       {SHOW_POINTS_SYSTEM && (
                       <span className="text-[9px] font-black text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">
                         {emp.points} pts
@@ -1044,7 +1116,29 @@ const TeamManager: React.FC<TeamManagerProps> = ({
                       )}
                     </div>
                     {showAddedBy && (
-                      <p className="text-[10px] text-slate-500 font-medium">{addedByLabel}</p>
+                      <div className="text-[10px] text-slate-500 font-medium flex flex-wrap items-center gap-1">
+                        <span>Added by:</span>
+                        {addedByManagers.length === 0 ? (
+                          <span className="text-amber-600">Unassigned</span>
+                        ) : (
+                          addedByManagers.map((manager, index) => (
+                            <span key={`${emp.id}-${manager.id}`} className="inline-flex items-center gap-1">
+                              {index > 0 && <span className="text-slate-400">,</span>}
+                              {getTelHref(manager.mobile) && (
+                                <a
+                                  href={getTelHref(manager.mobile) || '#'}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+                                  title={`Call ${manager.name}`}
+                                >
+                                  <Phone className="w-2.5 h-2.5" />
+                                </a>
+                              )}
+                              <span>{manager.name}</span>
+                            </span>
+                          ))
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>

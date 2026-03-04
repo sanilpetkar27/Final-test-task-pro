@@ -3,7 +3,7 @@ import { DealershipTask, Employee, TaskRemark, TaskType, RecurrenceFrequency, Ta
 import {
   ArrowLeft, User, Calendar, Clock, Check, Camera,
   Edit, Trash2, UserPlus, Play, RotateCcw,
-  Send, X, ChevronDown, CalendarClock, Layers, CheckCircle,
+  Send, X, ChevronDown, CalendarClock, Layers, CheckCircle, Phone,
   Eye, GitFork
 } from 'lucide-react';
 import { supabase } from '../src/lib/supabase';
@@ -131,9 +131,27 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
     return employees.find(e => e.id === id)?.role;
   };
 
+  const getEmployeeMobile = (id?: string | null): string => {
+    if (!id) return '';
+    return String(employees.find(e => e.id === id)?.mobile || '');
+  };
+
+  const getTelHref = (mobile: string): string | null => {
+    const trimmed = String(mobile || '').trim();
+    if (!trimmed) return null;
+    if (trimmed.startsWith('+')) {
+      const digits = trimmed.slice(1).replace(/\D/g, '');
+      return digits ? `tel:+${digits}` : null;
+    }
+    const digits = trimmed.replace(/\D/g, '');
+    return digits ? `tel:${digits}` : null;
+  };
+
   const isOverdue = task.status !== 'completed' && task.deadline != null && Date.now() > task.deadline;
   const assigneeName = getEmployeeName(task.assignedTo);
   const assignerName = getEmployeeName(task.assignedBy);
+  const assigneeTelHref = getTelHref(getEmployeeMobile(task.assignedTo));
+  const assignerTelHref = getTelHref(getEmployeeMobile(task.assignedBy));
 
   const isManager = currentUser.role === 'manager' || currentUser.role === 'super_admin' || currentUser.role === 'owner';
 
@@ -450,7 +468,18 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
             <div className="flex items-center gap-3">
               <User className="w-5 h-5 text-slate-400 flex-shrink-0" />
               <span className="text-sm text-slate-500">Assigned to</span>
-              <span className="text-sm font-semibold text-slate-900 ml-1">{assigneeName}</span>
+              <span className="text-sm font-semibold text-slate-900 ml-1 inline-flex items-center gap-2">
+                <span>{assigneeName}</span>
+                {assigneeTelHref && (
+                  <a
+                    href={assigneeTelHref}
+                    className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+                    title={`Call ${assigneeName}`}
+                  >
+                    <Phone className="w-3.5 h-3.5" />
+                  </a>
+                )}
+              </span>
             </div>
 
             {/* Assigned by */}
@@ -458,7 +487,18 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
               <div className="flex items-center gap-3">
                 <UserPlus className="w-5 h-5 text-slate-400 flex-shrink-0" />
                 <span className="text-sm text-slate-500">Assigned by</span>
-                <span className="text-sm font-semibold text-slate-900 ml-1">{assignerName}</span>
+                <span className="text-sm font-semibold text-slate-900 ml-1 inline-flex items-center gap-2">
+                  <span>{assignerName}</span>
+                  {assignerTelHref && (
+                    <a
+                      href={assignerTelHref}
+                      className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+                      title={`Call ${assignerName}`}
+                    >
+                      <Phone className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                </span>
               </div>
             )}
 
