@@ -32,6 +32,14 @@ interface DashboardProps {
   onUpdateTaskRemarks?: (taskId: string, remarks: TaskRemark[]) => void;
 }
 
+type RemarkSubmissionPayload =
+  | string
+  | {
+      text: string;
+      mentionedUserIds?: string[];
+      mentionedDisplayNames?: string[];
+    };
+
 const isMissingTaskRecurrenceColumnError = (error: any): boolean => {
   const message = String(error?.message || '').toLowerCase();
   const missingRecurrenceColumn =
@@ -1105,9 +1113,30 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
   };
 
   // Add remark handler
-  const handleAddRemark = async (taskId: string, remark: string) => {
+  const handleAddRemark = async (taskId: string, remarkInput: RemarkSubmissionPayload) => {
     try {
-      console.log('🔧 Adding remark to task:', taskId, remark);
+      const remarkText =
+        typeof remarkInput === 'string'
+          ? remarkInput.trim()
+          : String(remarkInput?.text || '').trim();
+      const mentionedUserIds = Array.from(
+        new Set(
+          (typeof remarkInput === 'string' ? [] : (remarkInput.mentionedUserIds || []))
+            .map((id) => String(id || '').trim())
+            .filter(Boolean)
+        )
+      );
+      const mentionedDisplayNames = Array.from(
+        new Set(
+          (typeof remarkInput === 'string' ? [] : (remarkInput.mentionedDisplayNames || []))
+            .map((name) => String(name || '').trim())
+            .filter(Boolean)
+        )
+      );
+
+      if (!remarkText) {
+        return;
+      }
       
       const newRemarkId = `remark_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const newRemark = {
@@ -1118,8 +1147,10 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
           currentUser.name?.trim() ||
           currentUser.email?.split('@')[0] ||
           'Unknown User',
-        remark: remark,
-        timestamp: Date.now()
+        remark: remarkText,
+        timestamp: Date.now(),
+        mentionedUserIds,
+        mentionedDisplayNames
       };
       
       // For now, we'll store remarks in the task's remarks array
@@ -1148,6 +1179,36 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
         
         console.log('Remark added successfully');
         onUpdateTaskRemarks?.(taskId, updatedRemarks as TaskRemark[]);
+
+        if (mentionedUserIds.length > 0) {
+          const targetUserIds = mentionedUserIds.filter((userId) => userId !== currentUser.id);
+          if (targetUserIds.length > 0) {
+            const actorName =
+              currentUser.name?.trim() ||
+              currentUser.email?.split('@')[0] ||
+              'A teammate';
+            const taskTitle = task.description?.trim() || 'Task';
+            const nowIso = new Date().toISOString();
+
+            const mentionNotifications = targetUserIds.map((userId) => ({
+              user_id: userId,
+              title: 'You were mentioned in a task remark',
+              body: `${actorName} mentioned you in a remark on "${taskTitle}".`,
+              entity_type: 'task',
+              entity_id: taskId,
+              is_read: false,
+              created_at: nowIso,
+            }));
+
+            const { error: mentionNotificationError } = await supabase
+              .from('notifications')
+              .insert(mentionNotifications);
+
+            if (mentionNotificationError) {
+              console.warn('Mention notification insert failed:', mentionNotificationError);
+            }
+          }
+        }
       }
     } catch (err) {
       console.error('🚨 Unexpected error adding remark:', err);
@@ -1266,7 +1327,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
           onDelegate={() => setDelegatingTaskId(selectedTask.id)}
           onDelete={() => { onDeleteTask(selectedTask.id); setSelectedTaskId(null); }}
           onInlineEditSave={handleInlineTaskUpdate}
-          onAddRemark={(taskId: string, remark: string) => handleAddRemark(taskId, remark)}
+          onAddRemark={(taskId, remark) => handleAddRemark(taskId, remark)}
         />
 
         {delegatingTaskId && (

@@ -33,7 +33,16 @@ interface TaskDetailsScreenProps {
       recurrenceFrequency: RecurrenceFrequency | null;
     }
   ) => Promise<boolean>;
-  onAddRemark?: (taskId: string, remark: string) => void;
+  onAddRemark?: (
+    taskId: string,
+    remark:
+      | string
+      | {
+          text: string;
+          mentionedUserIds?: string[];
+          mentionedDisplayNames?: string[];
+        }
+  ) => void;
 }
 
 // --- Helpers ---
@@ -47,6 +56,12 @@ interface TaskRemarkGroup {
   dateKey: string;
   label: string;
   remarks: NormalizedTaskRemark[];
+}
+
+interface MentionCandidate {
+  id: string;
+  name: string;
+  email?: string;
 }
 
 const formatFullDate = (timestamp: number | undefined | null): string => {
@@ -84,6 +99,26 @@ const parseTimestamp = (value: unknown): number | null => {
   return null;
 };
 
+const escapeRegex = (value: string): string =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const extractMentionContext = (text: string, caretPosition: number): { start: number; query: string } | null => {
+  const safeCaret = Math.max(0, Math.min(caretPosition, text.length));
+  const textBeforeCaret = text.slice(0, safeCaret);
+  const atIndex = textBeforeCaret.lastIndexOf('@');
+  if (atIndex < 0) return null;
+
+  const beforeAt = textBeforeCaret.slice(0, atIndex);
+  const charBeforeAt = beforeAt.slice(-1);
+  if (charBeforeAt && !/\s|[([{]/.test(charBeforeAt)) return null;
+
+  const mentionQuery = textBeforeCaret.slice(atIndex + 1);
+  if (!/^[\w.\- ]{0,40}$/.test(mentionQuery)) return null;
+  if (mentionQuery.includes('\n')) return null;
+
+  return { start: atIndex, query: mentionQuery.trimStart() };
+};
+
 const formatDateTimeForInput = (timestamp?: number | null): string => {
   if (!timestamp) return '';
   const date = new Date(timestamp);
@@ -118,7 +153,15 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   const [editRequirePhoto, setEditRequirePhoto] = useState(Boolean(task.requirePhoto));
   const [editTaskType, setEditTaskType] = useState<TaskType>('one_time');
   const [editRecurrenceFrequency, setEditRecurrenceFrequency] = useState<RecurrenceFrequency | ''>('');
+  const [mentionCandidates, setMentionCandidates] = useState<MentionCandidate[]>([]);
+  const [mentionMenuOpen, setMentionMenuOpen] = useState(false);
+  const [mentionLoading, setMentionLoading] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [mentionStartIndex, setMentionStartIndex] = useState<number | null>(null);
+  const [activeMentionIndex, setActiveMentionIndex] = useState(0);
+  const [selectedMentions, setSelectedMentions] = useState<MentionCandidate[]>([]);
   const remarksScrollRef = useRef<HTMLDivElement | null>(null);
+  const remarkInputRef = useRef<HTMLTextAreaElement | null>(null);
 
   // --- Derived values ---
   const getEmployeeName = (id?: string | null): string => {
@@ -154,6 +197,17 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   const assignerTelHref = getTelHref(getEmployeeMobile(task.assignedBy));
 
   const isManager = currentUser.role === 'manager' || currentUser.role === 'super_admin' || currentUser.role === 'owner';
+  const mentionableMembers = useMemo<MentionCandidate[]>(
+    () =>
+      (employees || [])
+        .filter((employee) => employee?.id && employee.id !== currentUser.id)
+        .map((employee) => ({
+          id: employee.id,
+          name: String(employee.name || '').trim() || String(employee.email || '').trim() || 'User',
+          email: String(employee.email || '').trim() || undefined,
+        })),
+    [employees, currentUser.id]
+  );
 
   const rawTaskType = String((task as any).taskType ?? (task as any).task_type ?? '').toLowerCase();
   const rawRecurrence = String((task as any).recurrenceFrequency ?? (task as any).recurrence_frequency ?? '').toLowerCase();
@@ -245,9 +299,85 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   }, [groupedRemarks]);
 
   useEffect(() => {
+    if (!mentionMenuOpen) return;
+
+    let isCancelled = false;
+    const timer = window.setTimeout(async () => {
+      setMentionLoading(true);
+      const companyId = String(currentUser.company_id || '').trim();
+      const queryText = mentionQuery.trim();
+
+      try {
+        let supabaseCandidates: MentionCandidate[] = [];
+        if (companyId) {
+          let dbQuery = supabase
+            .from('employees')
+            .select('id, name, email')
+            .eq('company_id', companyId)
+            .neq('id', currentUser.id)
+            .order('name', { ascending: true })
+            .limit(8);
+
+          if (queryText) {
+            dbQuery = dbQuery.or(`name.ilike.%${queryText}%,email.ilike.%${queryText}%`);
+          }
+
+          const { data, error } = await dbQuery;
+          if (!error && Array.isArray(data)) {
+            supabaseCandidates = data.map((row: any) => ({
+              id: String(row.id || ''),
+              name: String(row.name || row.email || 'User').trim(),
+              email: typeof row.email === 'string' ? row.email.trim() : undefined,
+            }));
+          }
+        }
+
+        const localFallback = mentionableMembers.filter((member) => {
+          if (!queryText) return true;
+          const nameMatch = member.name.toLowerCase().includes(queryText.toLowerCase());
+          const emailMatch = String(member.email || '').toLowerCase().includes(queryText.toLowerCase());
+          return nameMatch || emailMatch;
+        });
+
+        const merged = [...supabaseCandidates, ...localFallback]
+          .filter((item) => item.id && item.name)
+          .reduce<MentionCandidate[]>((acc, candidate) => {
+            if (acc.some((existing) => existing.id === candidate.id)) return acc;
+            acc.push(candidate);
+            return acc;
+          }, [])
+          .slice(0, 8);
+
+        if (!isCancelled) {
+          setMentionCandidates(merged);
+          setActiveMentionIndex(0);
+        }
+      } finally {
+        if (!isCancelled) {
+          setMentionLoading(false);
+        }
+      }
+    }, 120);
+
+    return () => {
+      isCancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [mentionMenuOpen, mentionQuery, mentionableMembers, currentUser.company_id, currentUser.id]);
+
+  useEffect(() => {
     setShowExtensionInput(false);
     setExtensionDate(formatDateTimeForInput(requestedDueDate ?? task.deadline));
   }, [task.id, requestedDueDate, task.deadline]);
+
+  useEffect(() => {
+    setMentionMenuOpen(false);
+    setMentionCandidates([]);
+    setMentionQuery('');
+    setMentionStartIndex(null);
+    setActiveMentionIndex(0);
+    setSelectedMentions([]);
+  }, [task.id]);
 
   // --- Handlers ---
   const handlePhotoUpload = async (file: File) => {
@@ -277,11 +407,112 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
     input.click();
   };
 
-  const handleAddRemark = () => {
-    if (newRemark.trim() && onAddRemark) {
-      onAddRemark(task.id, newRemark.trim());
-      setNewRemark('');
+  const syncMentionMenuFromInput = (value: string, caretPosition: number) => {
+    const mentionContext = extractMentionContext(value, caretPosition);
+    if (!mentionContext) {
+      setMentionMenuOpen(false);
+      setMentionStartIndex(null);
+      setMentionQuery('');
+      setMentionCandidates([]);
+      return;
     }
+    setMentionStartIndex(mentionContext.start);
+    setMentionQuery(mentionContext.query);
+    setMentionMenuOpen(true);
+  };
+
+  const applyMentionCandidate = (candidate: MentionCandidate) => {
+    const textarea = remarkInputRef.current;
+    if (!textarea) return;
+
+    const cursorPos = textarea.selectionStart ?? newRemark.length;
+    const mentionStart = mentionStartIndex ?? Math.max(0, newRemark.slice(0, cursorPos).lastIndexOf('@'));
+    if (mentionStart < 0) return;
+
+    const before = newRemark.slice(0, mentionStart);
+    const after = newRemark.slice(cursorPos);
+    const mentionText = `@${candidate.name}`;
+    const nextValue = `${before}${mentionText} ${after}`;
+    const nextCaret = (before + mentionText + ' ').length;
+
+    setNewRemark(nextValue);
+    setSelectedMentions((prev) => {
+      if (prev.some((entry) => entry.id === candidate.id)) return prev;
+      return [...prev, candidate];
+    });
+    setMentionMenuOpen(false);
+    setMentionCandidates([]);
+    setMentionStartIndex(null);
+    setMentionQuery('');
+    setActiveMentionIndex(0);
+
+    requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.setSelectionRange(nextCaret, nextCaret);
+    });
+  };
+
+  const extractMentionPayload = (text: string): { mentionedUserIds: string[]; mentionedDisplayNames: string[] } => {
+    const normalizedText = text.toLowerCase();
+    const mentioned = selectedMentions.filter((candidate) =>
+      normalizedText.includes(`@${candidate.name.toLowerCase()}`)
+    );
+    return {
+      mentionedUserIds: Array.from(new Set(mentioned.map((candidate) => candidate.id))),
+      mentionedDisplayNames: Array.from(new Set(mentioned.map((candidate) => candidate.name))),
+    };
+  };
+
+  const renderRemarkContent = (text: string, mentionNames?: string[]) => {
+    const normalizedMentionNames = Array.isArray(mentionNames)
+      ? mentionNames.map((name) => String(name || '').trim()).filter(Boolean)
+      : [];
+
+    if (normalizedMentionNames.length === 0) {
+      return text;
+    }
+
+    const pattern = normalizedMentionNames
+      .map((name) => `@${escapeRegex(name)}`)
+      .sort((a, b) => b.length - a.length)
+      .join('|');
+
+    if (!pattern) {
+      return text;
+    }
+
+    const mentionRegex = new RegExp(`(${pattern})`, 'gi');
+    return text.split(mentionRegex).map((part, index) => {
+      if (!part) return null;
+      if (part.startsWith('@')) {
+        return (
+          <span key={`${part}_${index}`} className="font-semibold text-indigo-600">
+            {part}
+          </span>
+        );
+      }
+      return <React.Fragment key={`txt_${index}`}>{part}</React.Fragment>;
+    });
+  };
+
+  const handleAddRemark = () => {
+    const text = newRemark.trim();
+    if (!text || !onAddRemark) return;
+
+    const payload = extractMentionPayload(text);
+    onAddRemark(task.id, {
+      text,
+      mentionedUserIds: payload.mentionedUserIds,
+      mentionedDisplayNames: payload.mentionedDisplayNames,
+    });
+
+    setNewRemark('');
+    setMentionMenuOpen(false);
+    setMentionCandidates([]);
+    setMentionStartIndex(null);
+    setMentionQuery('');
+    setActiveMentionIndex(0);
+    setSelectedMentions([]);
   };
 
   const updateTaskExtensionFields = async (snakePayload: Record<string, unknown>, camelPayload?: Record<string, unknown>) => {
@@ -689,7 +920,9 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
                               ? 'bg-indigo-900 text-white rounded-br-md'
                               : 'bg-slate-100 text-slate-800 rounded-bl-md'
                           }`}>
-                            <p className="text-sm leading-relaxed break-words">{remark.remark}</p>
+                            <p className="text-sm leading-relaxed break-words">
+                              {renderRemarkContent(remark.remark, (remark as any).mentionedDisplayNames)}
+                            </p>
                           </div>
                           {/* Timestamp */}
                           <p className={`text-[10px] text-slate-400 mt-1 ${isOwn ? 'text-right' : 'text-left'}`}>
@@ -710,25 +943,95 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
 
       {/* ─── Chat Input Bar (sticky bottom) ─── */}
       <div className="bg-white border-t border-slate-200 px-4 py-3 flex-shrink-0">
-        <div className="flex items-end gap-2">
-          <textarea
-            value={newRemark}
-            onChange={(e) => setNewRemark(e.target.value)}
-            placeholder="Type a message..."
-            className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-200 resize-none min-h-[48px] max-h-28"
-            rows={1}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddRemark(); } }}
-          />
-          <button
-            type="button"
-            onClick={handleAddRemark}
-            disabled={!newRemark.trim()}
-            className="bg-indigo-900 text-white p-3 rounded-xl transition-all active:scale-95 disabled:opacity-40 hover:bg-indigo-800"
-            style={{ minHeight: 48, minWidth: 48 }}
-            title="Send message"
-          >
-            <Send className="w-5 h-5" />
-          </button>
+        <div className="relative">
+          {mentionMenuOpen && (
+            <div className="absolute left-0 right-0 bottom-[calc(100%+8px)] z-20 rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden">
+              {mentionLoading ? (
+                <div className="px-3 py-2 text-xs text-slate-500">Loading team members…</div>
+              ) : mentionCandidates.length === 0 ? (
+                <div className="px-3 py-2 text-xs text-slate-500">No team members found</div>
+              ) : (
+                <ul className="max-h-56 overflow-y-auto py-1">
+                  {mentionCandidates.map((candidate, index) => (
+                    <li key={candidate.id}>
+                      <button
+                        type="button"
+                        onClick={() => applyMentionCandidate(candidate)}
+                        className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                          index === activeMentionIndex
+                            ? 'bg-indigo-50 text-indigo-700'
+                            : 'text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className="font-semibold">{candidate.name}</span>
+                        {candidate.email && (
+                          <span className="ml-2 text-xs text-slate-400">{candidate.email}</span>
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
+          <div className="flex items-end gap-2">
+            <textarea
+              ref={remarkInputRef}
+              value={newRemark}
+              onChange={(e) => {
+                const nextValue = e.target.value;
+                setNewRemark(nextValue);
+                const caret = e.target.selectionStart ?? nextValue.length;
+                syncMentionMenuFromInput(nextValue, caret);
+              }}
+              placeholder="Type a message... Use @ to mention"
+              className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-200 resize-none min-h-[48px] max-h-28"
+              rows={1}
+              onKeyDown={(e) => {
+                if (mentionMenuOpen && mentionCandidates.length > 0) {
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setActiveMentionIndex((prev) => (prev + 1) % mentionCandidates.length);
+                    return;
+                  }
+                  if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setActiveMentionIndex((prev) => (prev - 1 + mentionCandidates.length) % mentionCandidates.length);
+                    return;
+                  }
+                  if (e.key === 'Enter' || e.key === 'Tab') {
+                    e.preventDefault();
+                    const selected = mentionCandidates[activeMentionIndex];
+                    if (selected) {
+                      applyMentionCandidate(selected);
+                    }
+                    return;
+                  }
+                  if (e.key === 'Escape') {
+                    e.preventDefault();
+                    setMentionMenuOpen(false);
+                    return;
+                  }
+                }
+
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleAddRemark();
+                }
+              }}
+            />
+            <button
+              type="button"
+              onClick={handleAddRemark}
+              disabled={!newRemark.trim()}
+              className="bg-indigo-900 text-white p-3 rounded-xl transition-all active:scale-95 disabled:opacity-40 hover:bg-indigo-800"
+              style={{ minHeight: 48, minWidth: 48 }}
+              title="Send message"
+            >
+              <Send className="w-5 h-5" />
+            </button>
+          </div>
         </div>
       </div>
 

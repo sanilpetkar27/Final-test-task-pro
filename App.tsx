@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { AppTab, DealershipTask, Employee, UserRole, TaskStatus, RewardConfig, TaskType, RecurrenceFrequency, TaskRemark, StaffManagerLink } from './types';
+import { AppTab, DealershipTask, Employee, UserRole, TaskStatus, TaskType, RecurrenceFrequency, TaskRemark, StaffManagerLink } from './types';
 import Dashboard from './components/Dashboard';
 import StatsScreen from './components/StatsScreen';
 import TeamManager from './components/TeamManager';
@@ -135,7 +135,6 @@ const toFallbackEmployeeFromAuthUser = (authUser: any): Employee => {
     email: email || `${authUser?.id || 'user'}@taskpro.local`,
     mobile: mobile || String(authUser?.id || '0000000000').slice(0, 10),
     role: normalizeRole(metadata.role),
-    points: 0,
     company_id: String(metadata.company_id || DEFAULT_COMPANY_ID),
   };
 };
@@ -246,7 +245,6 @@ const normalizeEmployeeProfile = (employee: Partial<Employee> & { id: string }):
     email: safeEmail,
     mobile: safeMobile || safeId.slice(0, 10),
     role: normalizeRole(employee.role),
-    points: Number(employee.points || 0),
     company_id: String(employee.company_id || DEFAULT_COMPANY_ID),
     auth_user_id: employee.auth_user_id ? String(employee.auth_user_id) : undefined,
     manager_id: safeManagerId,
@@ -373,7 +371,6 @@ const syncEmployeeProfileToDatabase = async (employee: Employee, authUserId?: st
     email: normalizedProfile.email,
     mobile: normalizedProfile.mobile,
     role: normalizedProfile.role,
-    points: normalizedProfile.points,
     company_id: normalizedProfile.company_id,
     auth_user_id: authUserId || normalizedProfile.auth_user_id || null,
     updated_at: new Date().toISOString(),
@@ -394,7 +391,6 @@ const syncEmployeeProfileToDatabase = async (employee: Employee, authUserId?: st
         email: normalizedProfile.email,
         mobile: normalizedProfile.mobile,
         role: normalizedProfile.role,
-        points: normalizedProfile.points,
         company_id: normalizedProfile.company_id,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'id' })
@@ -654,6 +650,16 @@ const normalizeRealtimeRemarks = (rawRemarks: unknown, taskId: string): TaskRema
         typeof remarkRecord.taskId === 'string' && remarkRecord.taskId.trim()
           ? remarkRecord.taskId
           : taskId;
+      const mentionedUserIds = Array.isArray(remarkRecord.mentionedUserIds)
+        ? remarkRecord.mentionedUserIds
+            .map((value) => String(value || '').trim())
+            .filter(Boolean)
+        : [];
+      const mentionedDisplayNames = Array.isArray(remarkRecord.mentionedDisplayNames)
+        ? remarkRecord.mentionedDisplayNames
+            .map((value) => String(value || '').trim())
+            .filter(Boolean)
+        : [];
 
       return {
         id: remarkId,
@@ -661,7 +667,9 @@ const normalizeRealtimeRemarks = (rawRemarks: unknown, taskId: string): TaskRema
         employeeId,
         employeeName,
         remark: remarkText,
-        timestamp: toTimestampNumber(remarkRecord.timestamp)
+        timestamp: toTimestampNumber(remarkRecord.timestamp),
+        ...(mentionedUserIds.length > 0 ? { mentionedUserIds } : {}),
+        ...(mentionedDisplayNames.length > 0 ? { mentionedDisplayNames } : {})
       };
     })
     .filter((remark): remark is TaskRemark => Boolean(remark))
@@ -731,7 +739,6 @@ const App: React.FC = () => {
   const [showNotificationsPanel, setShowNotificationsPanel] = useState(false);
   const [userNotifications, setUserNotifications] = useState<InAppNotification[]>([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
-  const hasShownPolicyErrorRef = useRef(false);
   const lastForegroundRefreshAtRef = useRef(0);
   const lastRealtimeTasksRefetchAtRef = useRef(0);
 
@@ -776,14 +783,13 @@ const App: React.FC = () => {
   const DEFAULT_EMPLOYEES: Employee[] = [
     {
       id: 'emp-admin',
-      name: 'Sanil Petkar', // Updated Name
-      email: 'sanil@company.com', // Added email
-      mobile: '8668678238',
-      role: 'manager',
-      points: 0
+      name: 'Admin User', // Updated Name
+      email: 'admin@company.com', // Added email
+      mobile: '9000000001',
+      role: 'manager'
     },
-    { id: 'emp-staff-1', name: 'Staff Member 1', email: 'staff1@company.com', mobile: '8888888888', role: 'staff', points: 0 },
-    { id: 'emp-staff-2', name: 'Staff Member 2', email: 'staff2@company.com', mobile: '7777777777', role: 'staff', points: 0 }
+    { id: 'emp-staff-1', name: 'Staff Member 1', email: 'staff1@company.com', mobile: '8888888888', role: 'staff' },
+    { id: 'emp-staff-2', name: 'Staff Member 2', email: 'staff2@company.com', mobile: '7777777777', role: 'staff' }
   ];
 
   const DEFAULT_TASKS = [
@@ -801,11 +807,6 @@ const App: React.FC = () => {
   const [staffManagerLinks, setStaffManagerLinks] = useState<StaffManagerLink[]>(() =>
     parseCachedArray<StaffManagerLink>(STAFF_MANAGER_LINKS_CACHE_KEY)
   );
-  const [rewardConfig, setRewardConfig] = useState<RewardConfig>({
-    targetPoints: 100,
-    rewardName: 'Bonus Day Off'
-  });
-
   // Load data logic
   const loadInitialData = async (isSilent: boolean = false) => {
     try {
@@ -901,12 +902,6 @@ const App: React.FC = () => {
         console.warn('using fallback data due to Supabase error');
         if (employeesError) console.warn('Employees error:', employeesError);
         if (tasksError) console.warn('Tasks error:', tasksError);
-
-        const hasPolicyError = isPolicyRecursionError(employeesError) || isPolicyRecursionError(tasksError);
-        if (hasPolicyError && !hasShownPolicyErrorRef.current) {
-          hasShownPolicyErrorRef.current = true;
-          toast.error('Database policy error (RLS recursion). Please run the policy fix SQL in Supabase.');
-        }
       }
 
       localStorage.setItem(EMPLOYEES_CACHE_KEY, JSON.stringify(mergedEmployees));
@@ -954,7 +949,6 @@ const App: React.FC = () => {
   // Extract fetchTasks logic as useCallback to prevent stale closures
   const fetchTasks = useCallback(async () => {
     try {
-      console.log('🔄 Fetching tasks...');
       
       const activeCompanyId = currentUser?.company_id || null;
 
@@ -984,7 +978,6 @@ const App: React.FC = () => {
       if (tasksError) {
         console.error('❌ Failed to fetch tasks:', tasksError);
       } else {
-        console.log('✅ Successfully fetched tasks:', tasksData);
         setTasks(transformTasksToApp((tasksData || []) as DatabaseTask[]));
       }
     } catch (err) {
@@ -1020,7 +1013,6 @@ const App: React.FC = () => {
         }
 
         const authUserId = session.user.id;
-        console.log('Auth session found:', authUserId);
 
         const resolvedProfile = await resolveEmployeeProfileFromAuthUser(session.user);
 
@@ -1123,7 +1115,6 @@ const App: React.FC = () => {
     const taskListener = supabase
       .channel(`public:tasks:${currentUser.company_id || 'all'}:${currentUser.id}`)
       .on('postgres_changes', { event: 'INSERT', ...taskChangeFilter }, async (payload) => {
-        console.log('🔔 Realtime INSERT:', payload);
         try {
           const payloadTaskId = String((payload.new as any)?.id || '');
           if (!payloadTaskId) {
@@ -1191,7 +1182,6 @@ const App: React.FC = () => {
             assigned_by_user: assigner
           };
 
-          console.log('✅ Created rich task:', richTask);
           setTasks(prev => upsertTaskAtTop(prev, richTask as DealershipTask));
           triggerRealtimeTasksRefetch();
 
@@ -1201,7 +1191,6 @@ const App: React.FC = () => {
         }
       })
       .on('postgres_changes', { event: 'UPDATE', ...taskChangeFilter }, async (payload) => {
-        console.log('🔔 Realtime UPDATE:', payload);
         try {
           const payloadTaskId = String((payload.new as any)?.id || '');
           if (!payloadTaskId) {
@@ -1282,7 +1271,6 @@ const App: React.FC = () => {
             assigned_by_user: assigner
           };
 
-          console.log('✅ Updated rich task:', richTask);
           setTasks(prev => upsertTaskInPlace(prev, richTask as DealershipTask));
           triggerRealtimeTasksRefetch();
 
@@ -1292,7 +1280,6 @@ const App: React.FC = () => {
         }
       })
       .on('postgres_changes', { event: 'DELETE', ...taskChangeFilter }, (payload) => {
-        console.log('🔔 Realtime DELETE:', payload);
         const deletedTaskId = payload.old.id;
         setTasks(prev => prev.filter(task => task.id !== deletedTaskId));
         triggerRealtimeTasksRefetch();
@@ -1319,7 +1306,6 @@ const App: React.FC = () => {
       }
 
       lastForegroundRefreshAtRef.current = now;
-      console.log(reason === 'focus' ? '🎯 App gained focus, refreshing tasks...' : '📱 App became visible, refreshing tasks...');
       // Keep foreground refresh silent so transient focus changes (e.g. file picker) do not
       // remount the app and wipe in-progress form state.
       loadInitialData(true).then(data => {
@@ -1742,33 +1728,6 @@ const App: React.FC = () => {
           : t
       ));
 
-      // Add 10 points to the user who completed the task
-      if (task && task.assignedTo) {
-        const employee = employees.find(emp => emp.id === task.assignedTo);
-        if (employee) {
-          const { error: pointsError } = await supabase
-            .from('employees')
-            .update({ points: employee.points + 10 })
-            .eq('id', task.assignedTo);
-
-          if (pointsError) {
-            console.error('Error updating points:', pointsError);
-            // Fallback to local state
-            setEmployees(prev => prev.map(emp =>
-              emp.id === task.assignedTo
-                ? { ...emp, points: emp.points + 10 }
-                : emp
-            ));
-          } else {
-            // Update local state
-            setEmployees(prev => prev.map(emp =>
-              emp.id === task.assignedTo
-                ? { ...emp, points: emp.points + 10 }
-                : emp
-            ));
-          }
-        }
-      }
     } catch (error) {
       console.error('Error completing task:', error);
       toast.error(`Failed to complete task: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -1817,33 +1776,6 @@ const App: React.FC = () => {
           : t
       ));
 
-      // Add 10 points to the user who completed the task
-      if (task && task.assignedTo) {
-        const employee = employees.find(emp => emp.id === task.assignedTo);
-        if (employee) {
-          const { error: pointsError } = await supabase
-            .from('employees')
-            .update({ points: employee.points + 10 })
-            .eq('id', task.assignedTo);
-
-          if (pointsError) {
-            console.error('Error updating points:', pointsError);
-            // Fallback to local state
-            setEmployees(prev => prev.map(emp =>
-              emp.id === task.assignedTo
-                ? { ...emp, points: emp.points + 10 }
-                : emp
-            ));
-          } else {
-            // Update local state
-            setEmployees(prev => prev.map(emp =>
-              emp.id === task.assignedTo
-                ? { ...emp, points: emp.points + 10 }
-                : emp
-            ));
-          }
-        }
-      }
     } catch (error) {
       console.error('Error completing task:', error);
       toast.error(`Failed to complete task: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -1928,7 +1860,6 @@ const App: React.FC = () => {
       )
     );
 
-    console.log('🔗 Updating staff managers:', { staffId: normalizedStaffId, managerIds: normalizedManagerIds, companyId });
 
     try {
       let staffManagerLinksUnavailable = false;
@@ -1962,7 +1893,6 @@ const App: React.FC = () => {
           manager_id: managerId,
         }));
 
-        console.log('📥 Inserting manager links:', rows);
 
         const { data: insertedData, error: upsertLinksError } = await supabase
           .from('staff_manager_links')
@@ -1980,7 +1910,6 @@ const App: React.FC = () => {
           console.warn('staff_manager_links table not available during upsert, falling back to employees.manager_id only.');
         }
 
-        console.log('✅ Successfully inserted manager links:', insertedData);
       }
 
       // Update primary manager in employees table
@@ -2017,7 +1946,6 @@ const App: React.FC = () => {
         }));
 
         const newLinks = staffManagerLinksUnavailable ? remaining : [...remaining, ...nextLinks];
-        console.log('🔄 Updated staffManagerLinks state:', newLinks);
         return newLinks;
       });
 
@@ -2040,7 +1968,6 @@ const App: React.FC = () => {
             .eq('staff_id', normalizedStaffId);
           
           if (refreshedLinks && refreshedLinks.length > 0) {
-            console.log('🔄 Refresh confirmed manager links:', refreshedLinks);
             setStaffManagerLinks((prev) => {
               const otherLinks = prev.filter(
                 (link) =>
@@ -2058,7 +1985,6 @@ const App: React.FC = () => {
       if (staffManagerLinksUnavailable) {
         toast.warning('Multi-manager links table not found. Saved primary manager assignment only.');
       } else {
-        console.log('✅ Successfully updated staff managers:', normalizedManagerIds);
       }
 
       return true;
@@ -2101,7 +2027,6 @@ const App: React.FC = () => {
       name,
       mobile: formattedMobile,
       role,
-      points: 0,
       email: `${formattedMobile}@taskpro.local`,
       company_id: currentUser.company_id || DEFAULT_COMPANY_ID,
       manager_id:
@@ -2110,7 +2035,6 @@ const App: React.FC = () => {
           : null
     };
 
-    console.log('Adding employee:', newEmployee);
 
     // Add to local state immediately for instant UI feedback
     setEmployees(prev => [...prev, newEmployee]);
@@ -2126,7 +2050,6 @@ const App: React.FC = () => {
         console.error('Error adding employee to database:', error);
         toast.error(`Database Error: ${error.message}. Employee added locally.`);
       } else if (data) {
-        console.log('Employee synced with database:', data);
         setEmployees(prev => prev.map(e => e.id === newEmployee.id ? data as Employee : e));
       }
     } catch (error) {
@@ -2168,11 +2091,9 @@ const App: React.FC = () => {
       return;
     }
 
-    console.log('🗑️ Removing employee:', id);
     
     // Remove from local state IMMEDIATELY for instant UI feedback
     setEmployees(prev => prev.filter(e => e.id !== id));
-    console.log('✅ Employee removed from local state immediately');
     
     try {
       // Delete employee from Supabase
@@ -2186,7 +2107,6 @@ const App: React.FC = () => {
         console.error('❌ Error removing employee from database:', error);
         toast.error(`Database Error: ${error.message}. Employee removed locally.`);
       } else {
-        console.log('✅ Employee removed from database successfully');
         setStaffManagerLinks((prev) =>
           prev.filter((link) => String(link.staff_id || '').trim() !== String(id || '').trim())
         );
@@ -2444,7 +2364,6 @@ const App: React.FC = () => {
             tasks={tasks}
             currentUser={currentUser}
             employees={employees}
-            rewardConfig={rewardConfig}
           />
         )} */}
 
@@ -2477,8 +2396,6 @@ const App: React.FC = () => {
             onAddEmployee={addEmployee}
             onRemoveEmployee={removeEmployee}
             onUpdateStaffManagers={updateStaffManagers}
-            rewardConfig={rewardConfig}
-            onUpdateRewardConfig={setRewardConfig}
             isSuperAdmin={isSuperAdmin}
             setEmployees={setEmployees}
             onRefreshData={async () => {

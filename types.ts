@@ -18,7 +18,6 @@ export interface Employee {
   email: string;
   role: UserRole;
   mobile: string;
-  points: number;
   company_id: string;
   auth_user_id?: string;
   manager_id?: string | null;
@@ -32,11 +31,6 @@ export interface StaffManagerLink {
   updated_at?: string;
 }
 
-export interface RewardConfig {
-  targetPoints: number;
-  rewardName: string;
-}
-
 export interface TaskRemark {
   id: string;
   taskId: string;
@@ -44,6 +38,8 @@ export interface TaskRemark {
   employeeName: string;
   remark: string;
   timestamp: number;
+  mentionedUserIds?: string[];
+  mentionedDisplayNames?: string[];
 }
 
 export interface DealershipTask {
