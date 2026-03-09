@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { AppTab, DealershipTask, Employee, UserRole, TaskStatus, TaskType, RecurrenceFrequency, TaskRemark, StaffManagerLink } from './types';
+import { AppTab, DealershipTask, Employee, UserRole, TaskStatus, TaskType, RecurrenceFrequency, TaskPriority, TaskRemark, StaffManagerLink } from './types';
 import Dashboard from './components/Dashboard';
 import StatsScreen from './components/StatsScreen';
 import TeamManager from './components/TeamManager';
@@ -797,6 +797,7 @@ const App: React.FC = () => {
       id: 'task-demo-1',
       description: 'Welcome to your new TaskPro',
       status: 'pending' as TaskStatus,
+      priority: 'Medium' as TaskPriority,
       createdAt: Date.now(),
       assignedBy: 'emp-admin',
       assignedTo: 'emp-staff-1'
@@ -1503,12 +1504,15 @@ const App: React.FC = () => {
     deadline?: number,
     requirePhoto?: boolean,
     taskType: TaskType = 'one_time',
-    recurrenceFrequency?: RecurrenceFrequency | null
+    recurrenceFrequency?: RecurrenceFrequency | null,
+    priority: TaskPriority = 'Medium'
   ) => {
     if (!currentUser) return;
     if (!description.trim()) return;
 
     const normalizedTaskType: TaskType = taskType === 'recurring' ? 'recurring' : 'one_time';
+    const normalizedPriority: TaskPriority =
+      priority === 'High' || priority === 'Low' ? priority : 'Medium';
     const normalizedRecurrenceFrequency: RecurrenceFrequency | null =
       normalizedTaskType === 'recurring' &&
       (recurrenceFrequency === 'daily' || recurrenceFrequency === 'weekly' || recurrenceFrequency === 'monthly')
@@ -1526,6 +1530,7 @@ const App: React.FC = () => {
       id: `task-${now}`,
       description,
       status: 'pending',
+      priority: normalizedPriority,
       taskType: normalizedTaskType,
       recurrenceFrequency: normalizedRecurrenceFrequency,
       nextRecurrenceNotificationAt:

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { DealershipTask, Employee, UserRole, TaskStatus, TaskType, RecurrenceFrequency, TaskRemark } from '../types';
+import { DealershipTask, Employee, UserRole, TaskStatus, TaskType, RecurrenceFrequency, TaskPriority, TaskRemark } from '../types';
 import { supabase } from '../src/lib/supabase';
 import { sendTaskCompletionNotification } from '../src/utils/pushNotifications';
 import TaskItem from './TaskItem';
@@ -21,7 +21,8 @@ interface DashboardProps {
     deadline?: number,
     requirePhoto?: boolean,
     taskType?: TaskType,
-    recurrenceFrequency?: RecurrenceFrequency | null
+    recurrenceFrequency?: RecurrenceFrequency | null,
+    priority?: TaskPriority
   ) => Promise<void> | void;
   onStartTask: (id: string) => void;
   onReopenTask: (id: string) => void;
@@ -121,6 +122,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
   const [requirePhoto, setRequirePhoto] = useState(false);
   const [taskType, setTaskType] = useState<TaskType>('one_time');
   const [recurrenceFrequency, setRecurrenceFrequency] = useState<RecurrenceFrequency | ''>('');
+  const [priority, setPriority] = useState<TaskPriority>('Medium');
   
   // Clear legacy cached task description so old dictated text is not restored.
   useEffect(() => {
@@ -153,6 +155,10 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
   }, [taskType, recurrenceFrequency]);
 
   useEffect(() => {
+    sessionStorage.setItem('task_form_priority', priority);
+  }, [priority]);
+
+  useEffect(() => {
     if (taskType === 'one_time' && recurrenceFrequency) {
       setRecurrenceFrequency('');
     }
@@ -165,12 +171,14 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
     setRequirePhoto(false);
     setTaskType('one_time');
     setRecurrenceFrequency('');
+    setPriority('Medium');
     sessionStorage.removeItem('task_form_desc');
     sessionStorage.removeItem('task_form_assignee');
     sessionStorage.removeItem('task_form_deadline');
     sessionStorage.removeItem('task_form_photo');
     sessionStorage.removeItem('task_form_task_type');
     sessionStorage.removeItem('task_form_recurrence_frequency');
+    sessionStorage.removeItem('task_form_priority');
   };
   // Dashboard uses employees from props, no local state needed
   const [selectedPersonFilter, setSelectedPersonFilter] = useState('ALL');
@@ -794,7 +802,8 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
       deadline || '',
       requirePhoto ? '1' : '0',
       normalizedTaskType,
-      normalizedRecurrenceFrequency || ''
+      normalizedRecurrenceFrequency || '',
+      priority
     ].join('|');
     const now = Date.now();
     const lastSubmit = lastTaskSubmitRef.current;
@@ -817,7 +826,8 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
         deadlineTimestamp,
         requirePhoto,
         normalizedTaskType,
-        normalizedRecurrenceFrequency
+        normalizedRecurrenceFrequency,
+        priority
       ));
 
       // IMMEDIATELY reset form states
@@ -827,6 +837,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
       setRequirePhoto(false);
       setTaskType('one_time');
       setRecurrenceFrequency('');
+      setPriority('Medium');
 
       // Auto-reset filter to show new task
       setSelectedPersonFilter('ALL');
@@ -1491,7 +1502,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                 <div className="relative">
                   <select
                     value={taskType}
@@ -1525,6 +1536,24 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
                     <Calendar className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
                   </div>
                 )}
+
+                <div className="relative">
+                  <select
+                    value={priority}
+                    onChange={(e) => {
+                      const nextPriority = e.target.value;
+                      setPriority(
+                        nextPriority === 'High' || nextPriority === 'Low' ? (nextPriority as TaskPriority) : 'Medium'
+                      );
+                    }}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900 appearance-none transition-all pr-10"
+                  >
+                    <option value="High" className="text-slate-900">High Priority</option>
+                    <option value="Medium" className="text-slate-900">Medium Priority</option>
+                    <option value="Low" className="text-slate-900">Low Priority</option>
+                  </select>
+                  <AlertTriangle className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
               </div>
 
               <div className="flex items-center gap-2">
