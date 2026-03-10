@@ -1,6 +1,6 @@
 import React from 'react';
 import { DealershipTask, Employee, TaskExtensionStatus } from '../types';
-import { User, Calendar, ChevronRight, Clock, MessageSquare } from 'lucide-react';
+import { User, Calendar, ChevronRight, Clock, MessageSquare, Flag } from 'lucide-react';
 
 interface TaskItemProps {
   task: DealershipTask;
@@ -27,7 +27,7 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCou
   const normalizedPriority = rawPriority === 'high' ? 'High' : rawPriority === 'low' ? 'Low' : 'Medium';
   const isHighPriority = normalizedPriority === 'High';
   const priorityCardClass = isHighPriority
-    ? 'border border-red-400 bg-red-50/70'
+    ? 'border-2 border-red-400 bg-red-50/70'
     : 'border border-slate-200 bg-white';
 
   const rawExtensionStatus = String(
@@ -55,8 +55,9 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCou
       <div className="flex items-center gap-3">
         <div className="flex-1 min-w-0">
           {isHighPriority && (
-            <div className="mb-1">
-              <span className="inline-flex items-center rounded-full border border-red-200 bg-white/70 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.2em] text-red-600">
+            <div className="mb-1 flex items-center gap-1.5 text-red-600">
+              <Flag className="w-3.5 h-3.5" />
+              <span className="text-[11px] font-extrabold uppercase tracking-[0.2em]">
                 High Priority
               </span>
             </div>
