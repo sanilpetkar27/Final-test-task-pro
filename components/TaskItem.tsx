@@ -25,12 +25,10 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCou
   const assigneeName = getEmployeeName(task.assignedTo);
   const rawPriority = String((task as any).priority || '').trim().toLowerCase();
   const normalizedPriority = rawPriority === 'high' ? 'High' : rawPriority === 'low' ? 'Low' : 'Medium';
-  const priorityAccentClass =
+  const priorityCardClass =
     normalizedPriority === 'High'
-      ? 'border-l-red-500'
-      : normalizedPriority === 'Low'
-      ? 'border-l-green-500'
-      : 'border-l-orange-500';
+      ? 'border border-red-500 bg-red-50'
+      : 'border border-slate-200 bg-white';
 
   const rawExtensionStatus = String(
     (task as any).extensionStatus ?? (task as any).extension_status ?? 'NONE'
@@ -52,7 +50,7 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCou
     <button
       type="button"
       onClick={onClick}
-      className={`w-full text-left bg-white rounded-2xl border border-slate-200 border-l-4 ${priorityAccentClass} shadow-sm px-5 py-4 active:scale-[0.98] transition-all duration-150 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-100`}
+      className={`w-full text-left rounded-2xl ${priorityCardClass} shadow-sm px-5 py-4 active:scale-[0.98] transition-all duration-150 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-100`}
     >
       <div className="flex items-center gap-3">
         <div className="flex-1 min-w-0">

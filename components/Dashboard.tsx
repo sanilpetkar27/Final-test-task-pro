@@ -1502,7 +1502,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 <div className="relative">
                   <select
                     value={taskType}
@@ -1536,24 +1536,19 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
                     <Calendar className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
                   </div>
                 )}
+              </div>
 
-                <div className="relative">
-                  <select
-                    value={priority}
-                    onChange={(e) => {
-                      const nextPriority = e.target.value;
-                      setPriority(
-                        nextPriority === 'High' || nextPriority === 'Low' ? (nextPriority as TaskPriority) : 'Medium'
-                      );
-                    }}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900 appearance-none transition-all pr-10"
-                  >
-                    <option value="High" className="text-slate-900">High Priority</option>
-                    <option value="Medium" className="text-slate-900">Medium Priority</option>
-                    <option value="Low" className="text-slate-900">Low Priority</option>
-                  </select>
-                  <AlertTriangle className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
-                </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="highPriority"
+                  checked={priority === 'High'}
+                  onChange={(e) => setPriority(e.target.checked ? 'High' : 'Medium')}
+                  className="w-4 h-4 text-red-500 rounded focus:ring-red-300 border-slate-300"
+                />
+                <label htmlFor="highPriority" className="text-sm text-slate-700">
+                  Mark as High Priority
+                </label>
               </div>
 
               <div className="flex items-center gap-2">
