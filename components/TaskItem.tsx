@@ -25,10 +25,10 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCou
   const assigneeName = getEmployeeName(task.assignedTo);
   const rawPriority = String((task as any).priority || '').trim().toLowerCase();
   const normalizedPriority = rawPriority === 'high' ? 'High' : rawPriority === 'low' ? 'Low' : 'Medium';
-  const priorityCardClass =
-    normalizedPriority === 'High'
-      ? 'border border-red-500 bg-red-50'
-      : 'border border-slate-200 bg-white';
+  const isHighPriority = normalizedPriority === 'High';
+  const priorityCardClass = isHighPriority
+    ? 'border border-red-400 bg-red-50/70'
+    : 'border border-slate-200 bg-white';
 
   const rawExtensionStatus = String(
     (task as any).extensionStatus ?? (task as any).extension_status ?? 'NONE'
@@ -54,6 +54,14 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCou
     >
       <div className="flex items-center gap-3">
         <div className="flex-1 min-w-0">
+          {isHighPriority && (
+            <div className="mb-1">
+              <span className="inline-flex items-center rounded-full border border-red-200 bg-white/70 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.2em] text-red-600">
+                High Priority
+              </span>
+            </div>
+          )}
+
           {/* Task Title */}
           <h3 className="text-[15px] font-semibold text-slate-900 leading-snug">
             {task.description}
