@@ -55,7 +55,7 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCou
       <div className="flex items-center gap-3">
         <div className="flex-1 min-w-0">
           {isHighPriority && (
-            <div className="mb-1 flex items-center gap-1.5 text-red-600">
+            <div className="mb-1 inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-white/70 px-2.5 py-0.5 text-red-600">
               <Flag className="w-3.5 h-3.5" />
               <span className="text-[11px] font-extrabold uppercase tracking-[0.2em]">
                 High Priority
