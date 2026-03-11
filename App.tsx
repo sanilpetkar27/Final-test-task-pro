@@ -217,6 +217,12 @@ const filterEmployeesByCompany = (employeeRows: Employee[], companyId: string | 
   return employeeRows.filter((employee) => String(employee?.company_id || '').trim() === companyId);
 };
 
+const isCompletedStatus = (status: unknown): boolean =>
+  String(status || '').toLowerCase() === 'completed';
+
+const filterActiveTasks = (taskRows: DealershipTask[]): DealershipTask[] =>
+  taskRows.filter((task) => !isCompletedStatus(task.status));
+
 const filterTasksByCompany = (taskRows: DealershipTask[], companyId: string | null): DealershipTask[] => {
   if (!companyId) {
     return taskRows;
@@ -853,6 +859,7 @@ const App: React.FC = () => {
       if (activeCompanyId) {
         tasksQuery = tasksQuery.eq('company_id', activeCompanyId);
       }
+      tasksQuery = tasksQuery.neq('status', 'completed');
       
       // Apply role-based filtering using all known IDs for the active user profile.
       tasksQuery = applyTaskVisibilityFilter(tasksQuery, currentUser, (employeesData || []) as Employee[]);
@@ -877,6 +884,7 @@ const App: React.FC = () => {
       const finalTasks = (tasksData && tasksData.length > 0)
         ? transformTasksToApp(tasksData as DatabaseTask[])
         : (cachedTasks.length > 0 ? cachedTasks : []);
+      const activeTasks = filterActiveTasks(finalTasks);
       const mergedEmployees = mergeCurrentUserIntoEmployees(finalEmployeesBase as Employee[], currentUser).map((employee) => {
         if (employee.role !== 'staff') {
           return employee;
@@ -894,7 +902,7 @@ const App: React.FC = () => {
       });
       const finalEmployees = scopeEmployeesForCurrentUser(
         mergedEmployees,
-        finalTasks,
+        activeTasks,
         currentUser,
         finalStaffManagerLinks
       );
@@ -908,12 +916,12 @@ const App: React.FC = () => {
       localStorage.setItem(EMPLOYEES_CACHE_KEY, JSON.stringify(mergedEmployees));
       localStorage.setItem(STAFF_MANAGER_LINKS_CACHE_KEY, JSON.stringify(finalStaffManagerLinks));
       if (tasksData && tasksData.length > 0) {
-        localStorage.setItem(TASKS_CACHE_KEY, JSON.stringify(transformTasksToApp(tasksData as DatabaseTask[])));
+        localStorage.setItem(TASKS_CACHE_KEY, JSON.stringify(activeTasks));
       }
 
       return {
         employees: finalEmployees,
-        tasks: finalTasks,
+        tasks: activeTasks,
         staffManagerLinks: finalStaffManagerLinks
       };
     } catch (error) {
@@ -923,10 +931,10 @@ const App: React.FC = () => {
         parseCachedArray<Employee>(EMPLOYEES_CACHE_KEY),
         activeCompanyId
       );
-      const cachedTasks = filterTasksByCompany(
+      const cachedTasks = filterActiveTasks(filterTasksByCompany(
         parseCachedArray<DealershipTask>(TASKS_CACHE_KEY),
         activeCompanyId
-      );
+      ));
       const cachedStaffManagerLinks = filterStaffManagerLinksByCompany(
         parseCachedArray<StaffManagerLink>(STAFF_MANAGER_LINKS_CACHE_KEY),
         activeCompanyId
@@ -942,7 +950,9 @@ const App: React.FC = () => {
     }
   };
 
-  const [tasks, setTasks] = useState<DealershipTask[]>(() => parseCachedArray<DealershipTask>(TASKS_CACHE_KEY));
+  const [tasks, setTasks] = useState<DealershipTask[]>(() =>
+    filterActiveTasks(parseCachedArray<DealershipTask>(TASKS_CACHE_KEY))
+  );
 
   // Ref for fetchTasks to prevent infinite loop
   const fetchTasksRef = useRef(null);
@@ -970,6 +980,7 @@ const App: React.FC = () => {
       if (activeCompanyId) {
         tasksQuery = tasksQuery.eq('company_id', activeCompanyId);
       }
+      tasksQuery = tasksQuery.neq('status', 'completed');
       
       // Apply role-based filtering using all known IDs for the active user profile.
       tasksQuery = applyTaskVisibilityFilter(tasksQuery, currentUser, (employeesData || []) as Employee[]);
@@ -979,7 +990,8 @@ const App: React.FC = () => {
       if (tasksError) {
         console.error('❌ Failed to fetch tasks:', tasksError);
       } else {
-        setTasks(transformTasksToApp((tasksData || []) as DatabaseTask[]));
+        const freshTasks = transformTasksToApp((tasksData || []) as DatabaseTask[]);
+        setTasks(filterActiveTasks(freshTasks));
       }
     } catch (err) {
       console.error('🚨 Unexpected error fetching tasks:', err);
@@ -1124,6 +1136,9 @@ const App: React.FC = () => {
           }
 
           const payloadRow = (payload.new || {}) as DatabaseTask;
+          if (isCompletedStatus(payloadRow.status)) {
+            return;
+          }
           if (!isTaskVisibleToUser(payloadRow, currentUser, taskScopeIdsForRealtime)) {
             triggerRealtimeTasksRefetch();
             return;
@@ -1200,6 +1215,10 @@ const App: React.FC = () => {
           }
 
           const payloadRow = (payload.new || {}) as DatabaseTask;
+          if (isCompletedStatus(payloadRow.status)) {
+            setTasks((prev) => prev.filter((task) => task.id !== payloadTaskId));
+            return;
+          }
           if (!isTaskVisibleToUser(payloadRow, currentUser, taskScopeIdsForRealtime)) {
             triggerRealtimeTasksRefetch();
             return;
@@ -1720,18 +1739,8 @@ const App: React.FC = () => {
         return;
       }
 
-      // Update local state
-      setTasks(prev => prev.map(t =>
-        t.id === taskId
-          ? {
-              ...t,
-              status: 'completed' as TaskStatus,
-              completedAt: proofData.timestamp,
-              proof: proofData,
-              ...(nextRecurrenceNotificationAt ? { nextRecurrenceNotificationAt } : {})
-            }
-          : t
-      ));
+      // Update local state (hide completed tasks immediately)
+      setTasks(prev => prev.filter(t => t.id !== taskId));
 
     } catch (error) {
       console.error('Error completing task:', error);
@@ -1769,17 +1778,8 @@ const App: React.FC = () => {
         return;
       }
 
-      // Update local state
-      setTasks(prev => prev.map(t =>
-        t.id === taskId
-          ? {
-              ...t,
-              status: 'completed' as TaskStatus,
-              completedAt: completionTimestamp,
-              ...(nextRecurrenceNotificationAt ? { nextRecurrenceNotificationAt } : {})
-            }
-          : t
-      ));
+      // Update local state (hide completed tasks immediately)
+      setTasks(prev => prev.filter(t => t.id !== taskId));
 
     } catch (error) {
       console.error('Error completing task:', error);
