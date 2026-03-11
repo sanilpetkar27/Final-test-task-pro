@@ -64,7 +64,7 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCou
           )}
 
           {/* Task Title */}
-          <h3 className="text-[15px] font-semibold text-slate-900 leading-snug">
+          <h3 className="text-[15px] font-semibold text-slate-900 leading-snug line-clamp-2 text-ellipsis overflow-hidden">
             {task.description}
           </h3>
 
