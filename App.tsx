@@ -5,6 +5,7 @@ import StatsScreen from './components/StatsScreen';
 import TeamManager from './components/TeamManager';
 import ApprovalsPanel from './components/ApprovalsPanel';
 import LoginScreen from './components/LoginScreen';
+import ErrorBoundary from './src/components/ErrorBoundary';
 import { supabase, supabaseAuth } from './src/lib/supabase';
 import { useNotificationSetup } from './src/hooks/useNotificationSetup';
 import { transformTaskToApp, transformTaskToDB, transformTasksToApp, DatabaseTask } from './src/utils/transformers';
@@ -2203,48 +2204,58 @@ const App: React.FC = () => {
 
   if (!appReady) {
     return (
-      <div className="h-screen bg-slate-50 flex flex-col items-center justify-center text-slate-900 p-8">
-        <Loader2 className="w-12 h-12 text-slate-800 animate-spin mb-4" />
-        <p className="text-xs font-black uppercase tracking-[0.3em] text-slate-500">Starting App...</p>
-      </div>
+      <ErrorBoundary>
+        <div className="min-h-screen w-full bg-slate-50 flex flex-col items-center justify-center text-slate-900 p-8 overflow-x-hidden">
+          <Loader2 className="w-12 h-12 text-slate-800 animate-spin mb-4" />
+          <p className="text-xs font-black uppercase tracking-[0.3em] text-slate-500">Starting App...</p>
+        </div>
+      </ErrorBoundary>
     );
   }
 
   if (loading) {
     return (
-      <div className="flex flex-col h-screen max-w-md mx-auto bg-slate-50 items-center justify-center p-8 relative overflow-hidden font-sans">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 text-slate-800 animate-spin mx-auto mb-4" />
-          <p className="text-slate-900 text-lg font-semibold">Loading data...</p>
-          <p className="text-slate-500 text-sm mt-2">Please wait while we connect to the database</p>
+      <ErrorBoundary>
+        <div className="flex flex-col min-h-screen w-full max-w-md sm:max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-auto bg-slate-50 items-center justify-center p-8 relative overflow-hidden font-sans">
+          <div className="text-center">
+            <Loader2 className="w-12 h-12 text-slate-800 animate-spin mx-auto mb-4" />
+            <p className="text-slate-900 text-lg font-semibold">Loading data...</p>
+            <p className="text-slate-500 text-sm mt-2">Please wait while we connect to the database</p>
+          </div>
         </div>
-      </div>
+      </ErrorBoundary>
     );
   }
 
   if (loadError) {
     return (
-      <div className="flex flex-col h-screen max-w-md mx-auto bg-red-600 items-center justify-center p-8 relative overflow-hidden font-sans">
-        <div className="text-center">
-          <AlertTriangle className="w-16 h-16 text-white mx-auto mb-6" />
-          <h1 className="text-white text-2xl font-bold mb-4">Database Connection Error</h1>
-          <div className="bg-red-800 rounded-lg p-4 mb-4 text-left">
-            <p className="text-red-100 text-sm font-mono break-all">{loadError}</p>
+      <ErrorBoundary>
+        <div className="flex flex-col min-h-screen w-full max-w-md sm:max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-auto bg-red-600 items-center justify-center p-8 relative overflow-hidden font-sans">
+          <div className="text-center">
+            <AlertTriangle className="w-16 h-16 text-white mx-auto mb-6" />
+            <h1 className="text-white text-2xl font-bold mb-4">Database Connection Error</h1>
+            <div className="bg-red-800 rounded-lg p-4 mb-4 text-left">
+              <p className="text-red-100 text-sm font-mono break-all">{loadError}</p>
+            </div>
+            <p className="text-red-100 text-sm">Please check your internet connection and try again.</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="mt-6 bg-white text-red-600 px-6 py-3 rounded-lg font-semibold hover:bg-red-50 transition-colors"
+            >
+              Retry Connection
+            </button>
           </div>
-          <p className="text-red-100 text-sm">Please check your internet connection and try again.</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="mt-6 bg-white text-red-600 px-6 py-3 rounded-lg font-semibold hover:bg-red-50 transition-colors"
-          >
-            Retry Connection
-          </button>
         </div>
-      </div>
+      </ErrorBoundary>
     );
   }
 
   if (!currentUser) {
-    return <LoginScreen employees={employees} onLogin={handleLogin} />;
+    return (
+      <ErrorBoundary>
+        <LoginScreen employees={employees} onLogin={handleLogin} />
+      </ErrorBoundary>
+    );
   }
 
   const isManager = currentUser.role === 'manager' || currentUser.role === 'super_admin' || currentUser.role === 'owner';
@@ -2252,11 +2263,13 @@ const App: React.FC = () => {
   const scopedEmployees = scopeEmployeesForCurrentUser(employees, tasks, currentUser, staffManagerLinks);
 
   return (
-    <div className="flex flex-col h-screen max-w-md mx-auto bg-white relative overflow-hidden font-sans sm:shadow-2xl sm:rounded-2xl sm:border sm:border-gray-200 sm:my-8">
+    <ErrorBoundary>
+      <div className="min-h-screen w-full bg-slate-50 overflow-x-hidden">
+        <div className="flex flex-col min-h-screen w-full max-w-md sm:max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-auto bg-white relative overflow-hidden font-sans sm:shadow-2xl sm:rounded-2xl sm:border sm:border-gray-200 sm:my-8">
 
       {/* Notification Banner */}
       {notification && (
-        <div className="fixed top-2 left-2 right-2 max-w-md mx-auto z-[100] animate-in slide-in-from-top-4 duration-500">
+        <div className="fixed top-2 left-2 right-2 max-w-md sm:max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-auto z-[100] animate-in slide-in-from-top-4 duration-500">
           <div className="bg-white text-slate-900 p-4 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-slate-200 flex items-center gap-4">
             <div className="bg-indigo-900 p-2 rounded-xl">
               <Bell className="w-5 h-5 animate-bounce text-white" />
@@ -2273,7 +2286,7 @@ const App: React.FC = () => {
       )}
 
       {/* Header */}
-      <header className="bg-white text-slate-900 p-5 pt-safe-top sticky top-0 z-30 flex items-center justify-between shadow-sm border-b border-slate-200" style={{ paddingTop: 'max(3rem, 1.25rem)' }}>
+      <header className="bg-white text-slate-900 px-4 py-4 sm:px-6 pt-safe-top sticky top-0 z-30 flex items-center justify-between shadow-sm border-b border-slate-200" style={{ paddingTop: 'max(3rem, 1.25rem)' }}>
         <div className="flex items-center gap-2">
           <div className="bg-indigo-900 p-1.5 rounded-lg shadow-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
             <LayoutDashboard className="w-5 h-5 text-white" />
@@ -2362,7 +2375,7 @@ const App: React.FC = () => {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto pb-24 px-4 pt-4">
+      <main className="flex-1 overflow-y-auto overflow-x-hidden pb-28 px-4 sm:px-6 lg:px-8 pt-4 w-full">
         {/* Hidden: Business Overview Content */}
         {/* {activeTab === AppTab.DASHBOARD && (
           <StatsScreen
@@ -2416,7 +2429,7 @@ const App: React.FC = () => {
       </main>
 
       {/* Simplified Bottom Nav (Dashboard, Tasks, Team) */}
-      <nav className="bg-white border-t border-slate-200 fixed bottom-0 left-0 right-0 max-w-md mx-auto z-40 safe-bottom shadow-[0_-2px_8px_rgba(0,0,0,0.04)] rounded-t-[2.5rem]">
+      <nav className="bg-white border-t border-slate-200 fixed bottom-0 left-0 right-0 w-full max-w-md sm:max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-auto z-40 safe-bottom shadow-[0_-2px_8px_rgba(0,0,0,0.04)] rounded-t-[2.5rem]">
         <div className="flex justify-around items-center h-20 px-2">
 
           {/* Hidden: Business Overview Tab */}
@@ -2452,8 +2465,10 @@ const App: React.FC = () => {
 
         </div>
       </nav>
-      <Toaster />
-    </div>
+        </div>
+        <Toaster />
+      </div>
+    </ErrorBoundary>
   );
 };
 
