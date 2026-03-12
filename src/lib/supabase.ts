@@ -1,19 +1,40 @@
 import { createClient } from '@supabase/supabase-js'
 
+const supabaseUrl = String(import.meta.env.VITE_SUPABASE_URL || '').trim();
+if (!supabaseUrl) {
+  throw new Error('Missing required environment variable: VITE_SUPABASE_URL');
+}
+
+const supabaseAnonKey = String(import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
+if (!supabaseAnonKey) {
+  throw new Error('Missing required environment variable: VITE_SUPABASE_ANON_KEY');
+}
+
 // Check if we have real Supabase credentials
-const hasRealCredentials = () => {
-  const url = import.meta.env.VITE_SUPABASE_URL;
-  const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
-  return url && key && url !== 'https://demo.supabase.co' && key !== 'demo-key';
-};
+const hasRealCredentials = () =>
+  !supabaseUrl.toLowerCase().includes('demo') && supabaseAnonKey !== 'demo-key';
+
+if (import.meta.env.PROD && !hasRealCredentials()) {
+  throw new Error(
+    'Production build requires valid Supabase credentials. ' +
+      'Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables.'
+  );
+}
+
+if (import.meta.env.DEV && !hasRealCredentials()) {
+  console.warn(
+    '\u26A0\uFE0F  Using mock Supabase client (development mode)\n' +
+      'Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env for real database connection'
+  );
+}
 
 // Create a comprehensive mock client
 const createMockClient = () => {
   const mockData = {
     employees: [
-      { id: 'emp-admin', name: 'Sanil Petkar', mobile: '8668678238', role: 'manager', points: 0 },
-      { id: 'emp-staff-1', name: 'Staff Member 1', mobile: '8888888888', role: 'staff', points: 0 },
-      { id: 'emp-staff-2', name: 'Staff Member 2', mobile: '7777777777', role: 'staff', points: 0 }
+      { id: 'emp-admin', name: 'Admin User', mobile: '9000000001', role: 'manager' },
+      { id: 'emp-staff-1', name: 'Staff Member 1', mobile: '8888888888', role: 'staff' },
+      { id: 'emp-staff-2', name: 'Staff Member 2', mobile: '7777777777', role: 'staff' }
     ],
     tasks: [
       { id: 'task-demo-1', description: 'Welcome to Universal Task App - Demo Mode', status: 'pending', created_at: new Date().toISOString(), assigned_by: 'emp-admin', assigned_to: 'emp-staff-1' },
@@ -94,8 +115,8 @@ const createMockClient = () => {
 // Use a single real client instance to avoid multiple GoTrueClient warnings and session races.
 const realClient = hasRealCredentials()
   ? createClient(
-      'https://taskpro-proxy.sanilpetkar99.workers.dev',
-      import.meta.env.VITE_SUPABASE_ANON_KEY!
+      supabaseUrl,
+      supabaseAnonKey
     )
   : null;
 
@@ -104,3 +125,4 @@ export const supabase = realClient ?? createMockClient();
 
 // Export auth from the same client instance.
 export const supabaseAuth = realClient ? realClient.auth : createMockClient().auth;
+

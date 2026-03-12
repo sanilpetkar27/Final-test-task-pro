@@ -7,6 +7,7 @@ import {
   Eye, GitFork
 } from 'lucide-react';
 import { supabase } from '../src/lib/supabase';
+import LoadingButton from '../src/components/ui/LoadingButton';
 
 interface TaskDetailsScreenProps {
   task: DealershipTask;
@@ -15,13 +16,13 @@ interface TaskDetailsScreenProps {
   employees: Employee[];
   currentUser: Employee;
   onBack: () => void;
-  onStartTask: () => void;
-  onReopenTask: () => void;
-  onCompleteTask: (proof: { imageUrl: string; timestamp: number }) => void;
-  onCompleteTaskWithoutPhoto: () => void;
+  onStartTask: () => Promise<void> | void;
+  onReopenTask: () => Promise<void> | void;
+  onCompleteTask: (proof: { imageUrl: string; timestamp: number }) => Promise<void> | void;
+  onCompleteTaskWithoutPhoto: () => Promise<void> | void;
   onReassign: () => void;
   onDelegate: () => void;
-  onDelete: () => void;
+  onDelete: () => Promise<void> | void;
   onInlineEditSave?: (
     taskId: string,
     payload: {
@@ -147,6 +148,9 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   const [isExtensionUpdating, setIsExtensionUpdating] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isReopening, setIsReopening] = useState(false);
   const [editDescription, setEditDescription] = useState(task.description);
   const [editAssigneeId, setEditAssigneeId] = useState(task.assignedTo || 'none');
   const [editDeadline, setEditDeadline] = useState('');
@@ -162,6 +166,18 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   const [selectedMentions, setSelectedMentions] = useState<MentionCandidate[]>([]);
   const remarksScrollRef = useRef<HTMLDivElement | null>(null);
   const remarkInputRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const withTimeout = useMemo(
+    () =>
+      <T,>(promise: Promise<T>, ms: number): Promise<T> =>
+        Promise.race([
+          promise,
+          new Promise<T>((_, reject) =>
+            setTimeout(() => reject(new Error('Operation timed out')), ms)
+          ),
+        ]),
+    []
+  );
 
   // --- Derived values ---
   const getEmployeeName = (id?: string | null): string => {
@@ -381,14 +397,22 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
 
   // --- Handlers ---
   const handlePhotoUpload = async (file: File) => {
+    if (isUploading) return;
     setIsUploading(true);
     try {
       const fileName = `task-proof-${task.id}-${Date.now()}.jpg`;
       const { data, error } = await supabase.storage.from('task-proofs').upload(fileName, file, { contentType: 'image/jpeg', cacheControl: '3600', upsert: false });
       if (error) { alert('Failed to upload photo: ' + error.message); return; }
       const { data: { publicUrl } } = supabase.storage.from('task-proofs').getPublicUrl(fileName);
-      onCompleteTask({ imageUrl: publicUrl, timestamp: Date.now() });
+      await withTimeout(
+        Promise.resolve(onCompleteTask({ imageUrl: publicUrl, timestamp: Date.now() })),
+        30000
+      );
     } catch (error) {
+      if (error instanceof Error && error.message === 'Operation timed out') {
+        alert('Request timed out. Please check your connection.');
+        return;
+      }
       alert('Failed to upload photo');
     } finally {
       setIsUploading(false);
@@ -551,6 +575,38 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
     if (error) alert(`Failed: ${error.message}`);
   };
 
+  const handleCompleteWithoutPhoto = async () => {
+    if (isCompleting) return;
+    setIsCompleting(true);
+    try {
+      await withTimeout(Promise.resolve(onCompleteTaskWithoutPhoto()), 30000);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Operation timed out') {
+        alert('Request timed out. Please check your connection.');
+        return;
+      }
+      alert(`Failed to complete task: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsCompleting(false);
+    }
+  };
+
+  const handleReopenTask = async () => {
+    if (isReopening) return;
+    setIsReopening(true);
+    try {
+      await withTimeout(Promise.resolve(onReopenTask()), 30000);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Operation timed out') {
+        alert('Request timed out. Please check your connection.');
+        return;
+      }
+      alert(`Failed to reopen task: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsReopening(false);
+    }
+  };
+
   const handleEditSave = async () => {
     if (!onInlineEditSave || isSavingEdit) return;
     const rec: RecurrenceFrequency | null = editTaskType === 'recurring' ? (editRecurrenceFrequency || null) : null;
@@ -569,9 +625,24 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
     if (ok) setIsEditing(false);
   };
 
-  const handleDeleteAndGoBack = () => {
-    onDelete();
-    onBack();
+  const handleDeleteAndGoBack = async () => {
+    if (!window.confirm('Are you sure you want to delete this task? This action cannot be undone.')) {
+      return;
+    }
+    if (isDeleting) return;
+    setIsDeleting(true);
+    try {
+      await withTimeout(Promise.resolve(onDelete()), 30000);
+      onBack();
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Operation timed out') {
+        alert('Request timed out. Please check your connection.');
+        return;
+      }
+      alert(`Failed to delete task: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   // Auto-start task when opened and status is pending
@@ -582,26 +653,49 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   }, [task.id]); // Only run when task ID changes (component mounts with new task)
 
   // --- Build Quick Actions ---
-  type QuickAction = { label: string; icon: React.ReactNode; onClick: () => void; className: string };
+  type QuickAction = {
+    key: string;
+    label: string;
+    icon: React.ReactNode;
+    onClick: () => void;
+    className: string;
+    useLoadingButton?: boolean;
+    isLoading?: boolean;
+    loadingText?: string;
+    disabled?: boolean;
+  };
   const actions: QuickAction[] = [];
 
   if (task.status === 'pending') {
     // Start Task button removed - task auto-starts when opened
     if (isManager) {
       actions.push({
-        label: 'Delegate', icon: <GitFork className="w-5 h-5" />, onClick: onDelegate,
+        key: 'delegate',
+        label: 'Delegate',
+        icon: <GitFork className="w-5 h-5" />,
+        onClick: onDelegate,
         className: 'bg-indigo-700 text-white hover:bg-indigo-600'
       });
     }
     if (canEdit) {
       actions.push({
-        label: 'Edit', icon: <Edit className="w-5 h-5" />, onClick: () => setIsEditing(true),
+        key: 'edit',
+        label: 'Edit',
+        icon: <Edit className="w-5 h-5" />,
+        onClick: () => setIsEditing(true),
         className: 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'
       });
     }
     if (canDelete) {
       actions.push({
-        label: 'Delete', icon: <Trash2 className="w-5 h-5" />, onClick: handleDeleteAndGoBack,
+        key: 'delete',
+        label: 'Delete',
+        icon: <Trash2 className="w-5 h-5" />,
+        onClick: handleDeleteAndGoBack,
+        useLoadingButton: true,
+        isLoading: isDeleting,
+        loadingText: 'Deleting...',
+        disabled: isDeleting,
         className: 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'
       });
     }
@@ -610,37 +704,66 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   if (task.status === 'in-progress') {
     if (isManager) {
       actions.push({
-        label: 'Delegate', icon: <GitFork className="w-5 h-5" />, onClick: onDelegate,
+        key: 'delegate',
+        label: 'Delegate',
+        icon: <GitFork className="w-5 h-5" />,
+        onClick: onDelegate,
         className: 'bg-indigo-700 text-white hover:bg-indigo-600'
       });
     }
     if (task.requirePhoto) {
       actions.push({
-        label: isUploading ? 'Uploading...' : 'Complete', icon: isUploading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Camera className="w-5 h-5" />,
+        key: 'complete-photo',
+        label: 'Complete',
+        icon: <Camera className="w-5 h-5" />,
         onClick: triggerPhotoUpload,
+        useLoadingButton: true,
+        isLoading: isUploading,
+        loadingText: 'Uploading...',
+        disabled: isUploading,
         className: 'bg-emerald-600 text-white hover:bg-emerald-700'
       });
     } else {
       actions.push({
-        label: 'Complete', icon: <Check className="w-5 h-5" />, onClick: () => onCompleteTaskWithoutPhoto(),
+        key: 'complete',
+        label: 'Complete',
+        icon: <Check className="w-5 h-5" />,
+        onClick: handleCompleteWithoutPhoto,
+        useLoadingButton: true,
+        isLoading: isCompleting,
+        loadingText: 'Completing...',
+        disabled: isCompleting,
         className: 'bg-emerald-600 text-white hover:bg-emerald-700'
       });
     }
     if (canRequestExtension) {
       actions.push({
-        label: 'Extension', icon: <Clock className="w-5 h-5" />, onClick: () => setShowExtensionInput(prev => !prev),
+        key: 'extension',
+        label: 'Extension',
+        icon: <Clock className="w-5 h-5" />,
+        onClick: () => setShowExtensionInput(prev => !prev),
         className: 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'
       });
     }
     if (canEdit) {
       actions.push({
-        label: 'Edit', icon: <Edit className="w-5 h-5" />, onClick: () => setIsEditing(true),
+        key: 'edit',
+        label: 'Edit',
+        icon: <Edit className="w-5 h-5" />,
+        onClick: () => setIsEditing(true),
         className: 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'
       });
     }
     if (canDelete) {
       actions.push({
-        label: 'Delete', icon: <Trash2 className="w-5 h-5" />, onClick: handleDeleteAndGoBack,
+        key: 'delete',
+        label: 'Delete',
+        icon: <Trash2 className="w-5 h-5" />,
+        onClick: handleDeleteAndGoBack,
+        useLoadingButton: true,
+        isLoading: isDeleting,
+        loadingText: 'Deleting...',
+        disabled: isDeleting,
         className: 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'
       });
     }
@@ -649,19 +772,36 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   if (task.status === 'completed') {
     if (task.proof) {
       actions.push({
-        label: 'View Proof', icon: <Eye className="w-5 h-5" />, onClick: () => setShowFullImage(true),
+        key: 'view-proof',
+        label: 'View Proof',
+        icon: <Eye className="w-5 h-5" />,
+        onClick: () => setShowFullImage(true),
         className: 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200'
       });
     }
     if (isManager) {
       actions.push({
-        label: 'Reopen', icon: <RotateCcw className="w-5 h-5" />, onClick: onReopenTask,
+        key: 'reopen',
+        label: 'Reopen',
+        icon: <RotateCcw className="w-5 h-5" />,
+        onClick: handleReopenTask,
+        useLoadingButton: true,
+        isLoading: isReopening,
+        loadingText: 'Reopening...',
+        disabled: isReopening,
         className: 'bg-indigo-700 text-white hover:bg-indigo-600'
       });
     }
     if (canDelete) {
       actions.push({
-        label: 'Delete', icon: <Trash2 className="w-5 h-5" />, onClick: handleDeleteAndGoBack,
+        key: 'delete',
+        label: 'Delete',
+        icon: <Trash2 className="w-5 h-5" />,
+        onClick: handleDeleteAndGoBack,
+        useLoadingButton: true,
+        isLoading: isDeleting,
+        loadingText: 'Deleting...',
+        disabled: isDeleting,
         className: 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'
       });
     }
@@ -672,25 +812,26 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   const statusColor = task.status === 'completed' ? 'text-emerald-600 bg-emerald-50 border-emerald-200' : task.status === 'in-progress' ? 'text-indigo-700 bg-indigo-50 border-indigo-200' : isOverdue ? 'text-red-600 bg-red-50 border-red-200' : 'text-slate-600 bg-slate-100 border-slate-200';
 
   return (
-    <div className="flex flex-col h-full bg-slate-50">
-      {/* ─── Header ─── */}
-      <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-3 flex-shrink-0">
-        <button
-          type="button"
-          onClick={onBack}
-          className="p-2 -ml-2 rounded-xl hover:bg-slate-100 transition-colors active:scale-95"
-          style={{ minHeight: 48, minWidth: 48 }}
-        >
-          <ArrowLeft className="w-5 h-5 text-slate-700" />
-        </button>
-        <h1 className="text-lg font-bold text-slate-900">Task Details</h1>
-      </div>
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-slate-900/40 md:p-4">
+      <div className="flex flex-col h-full w-full bg-slate-50 md:h-auto md:max-h-[90vh] md:max-w-2xl md:rounded-2xl md:shadow-xl overflow-hidden">
+        {/* ─── Header ─── */}
+        <div className="bg-white border-b border-slate-200 px-4 md:px-6 py-3 flex items-center gap-3 flex-shrink-0">
+          <button
+            type="button"
+            onClick={onBack}
+            className="p-2 -ml-2 rounded-xl hover:bg-slate-100 transition-colors active:scale-95"
+            style={{ minHeight: 48, minWidth: 48 }}
+          >
+            <ArrowLeft className="w-5 h-5 text-slate-700" />
+          </button>
+          <h1 className="text-lg font-bold text-slate-900">Task Details</h1>
+        </div>
 
-      {/* ─── Scrollable Content ─── */}
-      <div className="flex-1 overflow-y-auto">
+        {/* ─── Scrollable Content ─── */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden">
         {/* ── Section: Task Info ── */}
-        <div className="bg-white px-5 pt-5 pb-4 border-b border-slate-100">
-          <h2 className="text-xl font-bold text-slate-900 leading-snug">
+        <div className="bg-white px-4 md:px-6 pt-5 pb-4 border-b border-slate-100">
+          <h2 className="text-xl font-bold text-slate-900 leading-snug break-words">
             {task.description}
           </h2>
 
@@ -799,53 +940,73 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
 
         {/* ── Section: Quick Actions Grid ── */}
         {actions.length > 0 && (
-          <div className="px-5 py-4 border-b border-slate-100">
+          <div className="px-4 md:px-6 py-4 border-b border-slate-100">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Quick Actions</h3>
-            <div className={`grid gap-3 ${actions.length <= 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
-              {actions.map((action) => (
-                <button
-                  key={action.label}
-                  type="button"
-                  onClick={action.onClick}
-                  disabled={isUploading && action.label === 'Uploading...'}
-                  className={`flex flex-col items-center justify-center gap-1.5 rounded-xl py-3 px-2 font-bold text-sm transition-all active:scale-95 disabled:opacity-50 ${action.className}`}
-                  style={{ minHeight: 64 }}
-                >
-                  {action.icon}
-                  <span className="text-xs font-bold uppercase tracking-wide">{action.label}</span>
-                </button>
-              ))}
+            <div className={`grid gap-3 ${actions.length <= 2 ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3'}`}>
+              {actions.map((action) =>
+                action.useLoadingButton ? (
+                  <LoadingButton
+                    key={action.key}
+                    type="button"
+                    onClick={action.onClick}
+                    isLoading={Boolean(action.isLoading)}
+                    loadingText={action.loadingText}
+                    disabled={action.disabled}
+                    variant="primary"
+                    className={`flex flex-col items-center justify-center gap-1.5 rounded-xl py-3 px-2 font-bold text-sm transition-all active:scale-95 ${action.className}`}
+                    style={{ minHeight: 64 }}
+                  >
+                    {action.icon}
+                    <span className="text-xs font-bold uppercase tracking-wide">{action.label}</span>
+                  </LoadingButton>
+                ) : (
+                  <button
+                    key={action.key}
+                    type="button"
+                    onClick={action.onClick}
+                    disabled={action.disabled}
+                    className={`flex flex-col items-center justify-center gap-1.5 rounded-xl py-3 px-2 font-bold text-sm transition-all active:scale-95 disabled:opacity-50 ${action.className}`}
+                    style={{ minHeight: 64 }}
+                  >
+                    {action.icon}
+                    <span className="text-xs font-bold uppercase tracking-wide">{action.label}</span>
+                  </button>
+                )
+              )}
             </div>
           </div>
         )}
 
         {/* ── Section: Extension Request Input ── */}
         {canRequestExtension && showExtensionInput && (
-          <div className="px-5 py-4 border-b border-slate-100">
+          <div className="px-4 md:px-6 py-4 border-b border-slate-100">
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-3">
               <p className="text-sm font-bold text-amber-700">Request Deadline Extension</p>
               <input
                 type="datetime-local"
                 value={extensionDate}
                 onChange={(e) => setExtensionDate(e.target.value)}
-                className="w-full border border-amber-200 rounded-xl px-4 py-3 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-300"
+                className="w-full border border-amber-200 rounded-xl px-4 py-3 bg-white text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-300"
               />
-              <button
+              <LoadingButton
                 type="button"
                 onClick={handleRequestExtension}
+                isLoading={isExtensionUpdating}
+                loadingText="Sending..."
+                variant="secondary"
                 disabled={!extensionDate || isExtensionUpdating}
                 className="w-full bg-amber-600 hover:bg-amber-700 text-white rounded-xl py-3 text-sm font-bold disabled:opacity-50 transition-colors"
                 style={{ minHeight: 48 }}
               >
-                {isExtensionUpdating ? 'Sending...' : 'Send Extension Request'}
-              </button>
+                Send Extension Request
+              </LoadingButton>
             </div>
           </div>
         )}
 
         {/* Staff extension pending indicator */}
         {isAssignedWorker && extensionStatus === 'REQUESTED' && !canReviewExtensionRequest && (
-          <div className="px-5 py-4 border-b border-slate-100">
+          <div className="px-4 md:px-6 py-4 border-b border-slate-100">
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-center">
               <p className="text-sm font-bold text-amber-700">Extension Requested</p>
               <p className="text-xs text-amber-600 mt-1">Waiting for manager approval</p>
@@ -855,7 +1016,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
 
         {/* ── Section: Manager Approval ── */}
         {canReviewExtensionRequest && (
-          <div className="px-5 py-4 border-b border-slate-100">
+          <div className="px-4 md:px-6 py-4 border-b border-slate-100">
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 mb-3">
               <p className="text-base font-bold text-amber-700">Extension Requested</p>
               <p className="text-sm text-slate-600 mt-1">
@@ -863,30 +1024,36 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <button
+              <LoadingButton
                 type="button"
                 onClick={() => handleExtensionDecision('APPROVED')}
+                isLoading={isExtensionUpdating}
+                loadingText="Updating..."
+                variant="success"
                 disabled={isExtensionUpdating}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl py-3.5 text-base font-bold disabled:opacity-50 transition-colors active:scale-95"
                 style={{ minHeight: 52 }}
               >
-                {isExtensionUpdating ? 'Updating...' : 'Approve'}
-              </button>
-              <button
+                Approve
+              </LoadingButton>
+              <LoadingButton
                 type="button"
                 onClick={() => handleExtensionDecision('REJECTED')}
+                isLoading={isExtensionUpdating}
+                loadingText="Updating..."
+                variant="danger"
                 disabled={isExtensionUpdating}
                 className="bg-red-600 hover:bg-red-700 text-white rounded-xl py-3.5 text-base font-bold disabled:opacity-50 transition-colors active:scale-95"
                 style={{ minHeight: 52 }}
               >
-                {isExtensionUpdating ? 'Updating...' : 'Reject'}
-              </button>
+                Reject
+              </LoadingButton>
             </div>
           </div>
         )}
 
         {/* ── Section: Discussion ── */}
-        <div className="px-5 pt-4 pb-2">
+        <div className="px-4 md:px-6 pt-4 pb-2">
           <div className="flex items-center gap-2 mb-3">
             <div className="flex-1 h-px bg-slate-200" />
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 px-2">Discussion</h3>
@@ -942,7 +1109,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
       </div>
 
       {/* ─── Chat Input Bar (sticky bottom) ─── */}
-      <div className="bg-white border-t border-slate-200 px-4 py-3 flex-shrink-0">
+      <div className="bg-white border-t border-slate-200 px-4 md:px-6 py-3 pb-safe flex-shrink-0">
         <div className="relative">
           {mentionMenuOpen && (
             <div className="absolute left-0 right-0 bottom-[calc(100%+8px)] z-20 rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden">
@@ -986,7 +1153,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
                 syncMentionMenuFromInput(nextValue, caret);
               }}
               placeholder="Type a message... Use @ to mention"
-              className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-200 resize-none min-h-[48px] max-h-28"
+              className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-200 resize-none min-h-[48px] max-h-28"
               rows={1}
               onKeyDown={(e) => {
                 if (mentionMenuOpen && mentionCandidates.length > 0) {
@@ -1037,10 +1204,10 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
 
       {/* ─── Edit Task Modal ─── */}
       {isEditing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => !isSavingEdit && setIsEditing(false)} />
-          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-slate-200 p-4 flex items-center justify-between z-10">
+          <div className="relative bg-white w-full max-w-lg max-h-[90vh] rounded-t-3xl sm:rounded-2xl shadow-xl overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-slate-200 p-4 sm:p-5 flex items-center justify-between z-10">
               <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                 <Edit className="w-5 h-5 text-indigo-700" />
                 Edit Task
@@ -1051,17 +1218,17 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
                 </button>
               )}
             </div>
-            <div className="p-4 space-y-4">
+            <div className="p-4 sm:p-6 space-y-4">
               <textarea
                 value={editDescription}
                 onChange={(e) => setEditDescription(e.target.value)}
                 placeholder="Task description"
-                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-200 resize-none min-h-[80px]"
+                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-200 resize-none min-h-[80px]"
               />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="relative">
                   <select value={editTaskType} onChange={(e) => { setEditTaskType(e.target.value as TaskType); if (e.target.value === 'one_time') setEditRecurrenceFrequency(''); }}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-200 appearance-none pr-10">
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-200 appearance-none pr-10">
                     <option value="one_time">One-time Task</option>
                     <option value="recurring">Recurring Task</option>
                   </select>
@@ -1070,7 +1237,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
                 {editTaskType === 'recurring' && (
                   <div className="relative">
                     <select value={editRecurrenceFrequency} onChange={(e) => setEditRecurrenceFrequency(e.target.value === '' ? '' : (e.target.value as RecurrenceFrequency))}
-                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-200 appearance-none pr-10">
+                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-200 appearance-none pr-10">
                       <option value="">Select Frequency</option>
                       <option value="daily">Daily</option>
                       <option value="weekly">Weekly</option>
@@ -1083,7 +1250,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="relative">
                   <select value={editAssigneeId} onChange={(e) => setEditAssigneeId(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-200 appearance-none pr-10">
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-200 appearance-none pr-10">
                     <option value="none">Anyone / Unassigned</option>
                     {employees.map(emp => (
                       <option key={emp.id} value={emp.id}>{emp.name} ({emp.role === 'super_admin' || emp.role === 'owner' ? 'Owner' : emp.role === 'manager' ? 'Manager' : 'Staff'})</option>
@@ -1092,7 +1259,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
                   <UserPlus className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
                 </div>
                 <input type="datetime-local" value={editDeadline} onChange={(e) => setEditDeadline(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+                  className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-white text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
               </div>
               <label className="flex items-center gap-2 text-sm text-slate-700">
                 <input type="checkbox" checked={editRequirePhoto} onChange={(e) => setEditRequirePhoto(e.target.checked)}
@@ -1104,10 +1271,18 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
                   className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-xl font-semibold transition-all disabled:opacity-50" style={{ minHeight: 48 }}>
                   Cancel
                 </button>
-                <button type="button" onClick={handleEditSave} disabled={isSavingEdit}
-                  className="flex-1 bg-indigo-900 hover:bg-indigo-800 text-white py-3 rounded-xl font-bold transition-all disabled:opacity-60 active:scale-95" style={{ minHeight: 48 }}>
-                  {isSavingEdit ? 'Saving...' : 'Save Changes'}
-                </button>
+                <LoadingButton
+                  type="button"
+                  onClick={handleEditSave}
+                  isLoading={isSavingEdit}
+                  loadingText="Saving..."
+                  variant="primary"
+                  disabled={isSavingEdit}
+                  className="flex-1 bg-indigo-900 hover:bg-indigo-800 text-white py-3 rounded-xl font-bold transition-all disabled:opacity-60 active:scale-95"
+                  style={{ minHeight: 48 }}
+                >
+                  Save Changes
+                </LoadingButton>
               </div>
             </div>
           </div>
@@ -1129,6 +1304,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };

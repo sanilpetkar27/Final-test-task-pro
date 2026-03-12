@@ -3,13 +3,39 @@ import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getAuth } from "firebase/auth";
 
+const firebaseApiKey = String(import.meta.env.VITE_FIREBASE_API_KEY || '').trim();
+const firebaseAuthDomain = String(import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '').trim();
+const firebaseProjectId = String(import.meta.env.VITE_FIREBASE_PROJECT_ID || '').trim();
+const firebaseStorageBucket = String(import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || '').trim();
+const firebaseMessagingSenderId = String(import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '').trim();
+const firebaseAppId = String(import.meta.env.VITE_FIREBASE_APP_ID || '').trim();
+
+if (!firebaseApiKey) {
+  throw new Error('Missing required environment variable: VITE_FIREBASE_API_KEY');
+}
+if (!firebaseAuthDomain) {
+  throw new Error('Missing required environment variable: VITE_FIREBASE_AUTH_DOMAIN');
+}
+if (!firebaseProjectId) {
+  throw new Error('Missing required environment variable: VITE_FIREBASE_PROJECT_ID');
+}
+if (!firebaseStorageBucket) {
+  throw new Error('Missing required environment variable: VITE_FIREBASE_STORAGE_BUCKET');
+}
+if (!firebaseMessagingSenderId) {
+  throw new Error('Missing required environment variable: VITE_FIREBASE_MESSAGING_SENDER_ID');
+}
+if (!firebaseAppId) {
+  throw new Error('Missing required environment variable: VITE_FIREBASE_APP_ID');
+}
+
 const firebaseConfig = {
-  apiKey: "AIzaSyCpLC5lDG8gQinBSIS1mCdGc5zkLQHC_sY",
-  authDomain: "dealership-ops-pro.firebaseapp.com",
-  projectId: "dealership-ops-pro",
-  storageBucket: "dealership-ops-pro.firebasestorage.app",
-  messagingSenderId: "177028391946",
-  appId: "1:177028391946:web:b5ae83622d2ba86fc7ebf3"
+  apiKey: firebaseApiKey,
+  authDomain: firebaseAuthDomain,
+  projectId: firebaseProjectId,
+  storageBucket: firebaseStorageBucket,
+  messagingSenderId: firebaseMessagingSenderId,
+  appId: firebaseAppId,
 };
 
 const app = initializeApp(firebaseConfig);

@@ -43,7 +43,6 @@ const toFallbackEmployee = (authUser: any, overrides: Partial<Employee> = {}): E
     email: inferredEmail || `${authUser?.id || 'user'}@taskpro.local`,
     mobile: inferredMobile || String(authUser?.id || '0000000000').slice(0, 10),
     role: normalizeRole(overrides.role || metadata.role),
-    points: Number(overrides.points || 0),
     company_id: String(overrides.company_id || metadata.company_id || DEFAULT_COMPANY_ID),
   };
 };
@@ -170,7 +169,6 @@ const finalizeCompanySetupForUser = async (
     mobile: input.mobile.trim(),
     role: 'super_admin',
     company_id: newCompany.id,
-    points: 0,
   });
 
   let profileSynced = true;
@@ -183,7 +181,6 @@ const finalizeCompanySetupForUser = async (
       role: 'super_admin',
       email: input.email.trim(),
       company_id: newCompany.id,
-      points: 0,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'id' });
 
@@ -414,7 +411,6 @@ const handleAuthLogin = async (email: string, password: string) => {
         name: fallbackEmployee.name,
         mobile: fallbackEmployee.mobile,
         role: fallbackEmployee.role,
-        points: fallbackEmployee.points,
         company_id: fallbackEmployee.company_id,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'id' });
@@ -479,7 +475,6 @@ const handleAuthSignup = async (companyName: string, adminName: string, mobile: 
       mobile: mobile.trim(),
       role: 'super_admin',
       company_id: DEFAULT_COMPANY_ID,
-      points: 0,
     });
 
     return {
@@ -621,7 +616,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
   };
 
   return (
-    <div className="flex flex-col min-h-screen max-w-md mx-auto bg-slate-50 items-center justify-start sm:justify-center p-4 sm:p-6 relative overflow-x-hidden overflow-y-auto font-sans">
+    <div className="flex flex-col min-h-screen w-full max-w-md sm:max-w-lg mx-auto bg-slate-50 items-center justify-start sm:justify-center px-4 sm:px-6 py-4 relative overflow-x-hidden overflow-y-auto font-sans">
       {/* Premium Gradient Overlays */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[120%] h-[50%] bg-indigo-900/10 blur-[120px] rounded-full" />
@@ -690,7 +685,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="john@company.com"
-                      className="w-full bg-white border border-slate-200 rounded-xl px-12 py-4 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-800 focus:border-transparent transition-all"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-12 py-4 text-base text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-800 focus:border-transparent transition-all"
                       required
                     />
                   </div>
@@ -708,7 +703,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="Enter your password"
-                      className="w-full bg-white border border-slate-200 rounded-xl px-12 py-4 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-800 focus:border-transparent transition-all pr-12"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-12 py-4 text-base text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-800 focus:border-transparent transition-all pr-12"
                       required
                     />
                     <button
@@ -751,7 +746,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
                       value={companyName}
                       onChange={(e) => setCompanyName(e.target.value)}
                       placeholder="Your Company Name"
-                      className="w-full bg-white border border-slate-200 rounded-xl px-12 py-4 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-800 focus:border-transparent transition-all"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-12 py-4 text-base text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-800 focus:border-transparent transition-all"
                       required
                     />
                   </div>
@@ -769,7 +764,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
                       value={adminName}
                       onChange={(e) => setAdminName(e.target.value)}
                       placeholder="Admin Full Name"
-                      className="w-full bg-white border border-slate-200 rounded-xl px-12 py-4 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-800 focus:border-transparent transition-all"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-12 py-4 text-base text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-800 focus:border-transparent transition-all"
                       required
                     />
                   </div>
@@ -787,7 +782,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
                       value={adminMobile}
                       onChange={(e) => setAdminMobile(e.target.value)}
                       placeholder="+1234567890"
-                      className="w-full bg-white border border-slate-200 rounded-xl px-12 py-4 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-800 focus:border-transparent transition-all"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-12 py-4 text-base text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-800 focus:border-transparent transition-all"
                       required
                     />
                   </div>
@@ -823,7 +818,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="Create a strong password"
-                      className="w-full bg-white border border-slate-200 rounded-xl px-12 py-4 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-800 focus:border-transparent transition-all pr-12"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-12 py-4 text-base text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-800 focus:border-transparent transition-all pr-12"
                       required
                     />
                     <button

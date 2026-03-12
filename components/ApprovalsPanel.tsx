@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CheckCircle2, Download, Filter, Link2, MessageSquare, Paperclip, Plus, Send, X, XCircle, Calendar } from 'lucide-react';
 import { supabase } from '../src/lib/supabase';
 import { Employee } from '../types';
+import LoadingButton from '../src/components/ui/LoadingButton';
 
 type ApprovalStatus = 'PENDING' | 'NEEDS_REVIEW' | 'APPROVED' | 'REJECTED';
 type ApprovalView = 'my_requests' | 'needs_my_approval';
@@ -345,6 +346,17 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
   const [approvalReadAtById, setApprovalReadAtById] = useState<Record<string, number>>({});
   const [approvalUnreadCountById, setApprovalUnreadCountById] = useState<Record<string, number>>({});
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [processingApprovalId, setProcessingApprovalId] = useState<string | null>(null);
+  const [processingApprovalAction, setProcessingApprovalAction] = useState<
+    | 'approve'
+    | 'reject'
+    | 'escalate'
+    | 'admin_approve'
+    | 'admin_reject'
+    | 'final_approve'
+    | 'review'
+    | null
+  >(null);
   const [draftMessage, setDraftMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
   const attachmentsInputRef = useRef<HTMLInputElement | null>(null);
@@ -355,6 +367,33 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
   const selectedApproval = useMemo(
     () => approvals.find((item) => item.id === selectedApprovalId) || null,
     [approvals, selectedApprovalId]
+  );
+
+  const withTimeout = useCallback(<T,>(promise: Promise<T>, ms: number): Promise<T> => {
+    return Promise.race([
+      promise,
+      new Promise<T>((_, reject) =>
+        setTimeout(() => reject(new Error('Operation timed out')), ms)
+      ),
+    ]);
+  }, []);
+
+  const runApprovalAction = useCallback(
+    async (approvalId: string, action: NonNullable<typeof processingApprovalAction>, fn: () => Promise<void>) => {
+      if (!approvalId || processingApprovalId) return;
+      setProcessingApprovalId(approvalId);
+      setProcessingApprovalAction(action);
+      try {
+        await withTimeout(fn(), 30000);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Operation failed.';
+        setError(message);
+      } finally {
+        setProcessingApprovalId(null);
+        setProcessingApprovalAction(null);
+      }
+    },
+    [processingApprovalId, withTimeout]
   );
 
   const getLocalApprovalReadMap = useCallback((): Record<string, number> => {
@@ -852,6 +891,9 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         ? null
         : Number(rawAmount);
     const approverId = requestApproverId.trim();
+    if (creatingApproval) {
+      return;
+    }
 
     if (!title) {
       setError('Approval title is required.');
@@ -914,18 +956,21 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
       }
 
       const descriptionWithAttachments = appendAttachmentsToDescription(description, uploadedAttachments);
-      const { data: created, error: createError } = await supabase
-        .from('approvals')
-        .insert({
-          requester_id: currentUser.id,
-          approver_id: approverId,
-          title,
-          description: descriptionWithAttachments,
-          amount: amountValue,
-          status: 'PENDING',
-        })
-        .select('id, requester_id, approver_id, title, description, amount, status, created_at, updated_at')
-        .single();
+      const { data: created, error: createError } = await withTimeout(
+        supabase
+          .from('approvals')
+          .insert({
+            requester_id: currentUser.id,
+            approver_id: approverId,
+            title,
+            description: descriptionWithAttachments,
+            amount: amountValue,
+            status: 'PENDING',
+          })
+          .select('id, requester_id, approver_id, title, description, amount, status, created_at, updated_at')
+          .single(),
+        30000
+      );
       if (createError) throw createError;
 
       const createdApproval: ApprovalItem = {
@@ -956,27 +1001,33 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
       setIsApprovalModalOpen(false); // Close modal after creation
       await loadThreads(createdApproval.id);
     } catch (createErr: any) {
+      if (createErr instanceof Error && createErr.message === 'Operation timed out') {
+        setError('Request timed out. Please check your connection.');
+        return;
+      }
       setError(createErr?.message || 'Failed to create approval request.');
     } finally {
       setCreatingApproval(false);
     }
   };
 
-  const updateStatus = async (status: ApprovalStatus): Promise<void> => {
-    if (!selectedApproval) return;
+  const updateStatus = async (approvalId: string, status: ApprovalStatus): Promise<void> => {
+    if (!approvalId) return;
+    const targetApproval = approvals.find((item) => item.id === approvalId) || selectedApproval;
+    if (!targetApproval) return;
     setUpdatingStatus(true);
     setError(null);
     try {
       const { error: updateError } = await supabase
         .from('approvals')
         .update({ status })
-        .eq('id', selectedApproval.id);
+        .eq('id', approvalId);
       if (updateError) throw updateError;
 
       setApprovals((prev) =>
         sortApprovalsByRecency(
           prev.map((item) =>
-            item.id === selectedApproval.id
+            item.id === approvalId
               ? { ...item, status, updated_at: new Date().toISOString() }
               : item
           )
@@ -990,11 +1041,15 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
   };
 
   const handleApprove = async (approvalId: string): Promise<void> => {
-    await updateStatus('APPROVED');
+    await runApprovalAction(approvalId, 'approve', async () => {
+      await updateStatus(approvalId, 'APPROVED');
+    });
   };
 
   const handleReject = async (approvalId: string): Promise<void> => {
-    await updateStatus('REJECTED');
+    await runApprovalAction(approvalId, 'reject', async () => {
+      await updateStatus(approvalId, 'REJECTED');
+    });
   };
 
   const handleSendMessage = async (): Promise<void> => {
@@ -1060,144 +1115,155 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
       return;
     }
 
-    setUpdatingStatus(true);
-    setError(null);
-    try {
-      const { error: messageError } = await supabase
-        .from('approval_threads')
-        .insert({
-          approval_id: selectedApproval.id,
-          sender_id: currentUser.id,
-          message_text: trimmed,
-        });
-      if (messageError) throw messageError;
+    await runApprovalAction(selectedApproval.id, 'review', async () => {
+      setUpdatingStatus(true);
+      setError(null);
+      try {
+        const { error: messageError } = await supabase
+          .from('approval_threads')
+          .insert({
+            approval_id: selectedApproval.id,
+            sender_id: currentUser.id,
+            message_text: trimmed,
+          });
+        if (messageError) throw messageError;
 
-      const { error: statusError } = await supabase
-        .from('approvals')
-        .update({ status: 'NEEDS_REVIEW' })
-        .eq('id', selectedApproval.id);
-      if (statusError) throw statusError;
+        const { error: statusError } = await supabase
+          .from('approvals')
+          .update({ status: 'NEEDS_REVIEW' })
+          .eq('id', selectedApproval.id);
+        if (statusError) throw statusError;
 
-      setApprovals((prev) =>
-        sortApprovalsByRecency(
-          prev.map((item) =>
-            item.id === selectedApproval.id
-              ? { ...item, status: 'NEEDS_REVIEW', updated_at: new Date().toISOString() }
-              : item
+        setApprovals((prev) =>
+          sortApprovalsByRecency(
+            prev.map((item) =>
+              item.id === selectedApproval.id
+                ? { ...item, status: 'NEEDS_REVIEW', updated_at: new Date().toISOString() }
+                : item
+            )
           )
-        )
-      );
-      setDraftMessage('');
-      await loadThreads(selectedApproval.id);
-    } catch (reviewErr: any) {
-      setError(reviewErr?.message || 'Failed to request review.');
-    } finally {
-      setUpdatingStatus(false);
-    }
+        );
+        setDraftMessage('');
+        await loadThreads(selectedApproval.id);
+      } catch (reviewErr: any) {
+        setError(reviewErr?.message || 'Failed to request review.');
+      } finally {
+        setUpdatingStatus(false);
+      }
+    });
   };
 
   const handleEscalateToAdmin = async (approvalId: string) => {
-  const selectedEscalationAdmin = selectedEscalationAdminByApproval[approvalId] || '';
-  if (!selectedEscalationAdmin) {
-    alert("Please select a Super Admin to escalate to.");
-    return;
-  }
+    const selectedEscalationAdmin = selectedEscalationAdminByApproval[approvalId] || '';
+    if (!selectedEscalationAdmin) {
+      alert('Please select a Super Admin to escalate to.');
+      return;
+    }
 
-  try {
-    const { error: updateError } = await supabase
-      .from('approvals')
-      .update({
-        isEscalated: true,
-        adminEscalationStatus: 'PENDING',
-        escalated_to: selectedEscalationAdmin
-      })
-      .eq('id', approvalId);
+    await runApprovalAction(approvalId, 'escalate', async () => {
+      try {
+        const { error: updateError } = await supabase
+          .from('approvals')
+          .update({
+            isEscalated: true,
+            adminEscalationStatus: 'PENDING',
+            escalated_to: selectedEscalationAdmin,
+          })
+          .eq('id', approvalId);
 
-    if (updateError) throw updateError;
+        if (updateError) throw updateError;
 
-    setApprovals((prev) =>
-      sortApprovalsByRecency(
-        prev.map((app) =>
-          app.id === approvalId
-            ? {
-                ...app,
-                isEscalated: true,
-                adminEscalationStatus: 'PENDING',
-                escalated_to: selectedEscalationAdmin,
-                updated_at: new Date().toISOString(),
-              }
-            : app
-        )
-      )
-    );
-    
-    alert("Successfully escalated to Super Admin!");
-    setSelectedEscalationAdminByApproval((prev) => {
-      const next = { ...prev };
-      delete next[approvalId];
-      return next;
+        setApprovals((prev) =>
+          sortApprovalsByRecency(
+            prev.map((app) =>
+              app.id === approvalId
+                ? {
+                    ...app,
+                    isEscalated: true,
+                    adminEscalationStatus: 'PENDING',
+                    escalated_to: selectedEscalationAdmin,
+                    updated_at: new Date().toISOString(),
+                  }
+                : app
+            )
+          )
+        );
+
+        alert('Successfully escalated to Super Admin!');
+        setSelectedEscalationAdminByApproval((prev) => {
+          const next = { ...prev };
+          delete next[approvalId];
+          return next;
+        });
+      } catch (error: any) {
+        console.error('Escalation error:', error);
+        alert('Failed to escalate: ' + error.message);
+      }
     });
-
-  } catch (error: any) {
-    console.error("Escalation error:", error);
-    alert("Failed to escalate: " + error.message);
-  }
-};
+  };
 
   const handleAdminEscalationDecision = async (decision: 'APPROVED' | 'REJECTED'): Promise<void> => {
     if (!selectedApproval) return;
-    
-    setUpdatingStatus(true);
-    setError(null);
-    try {
-      const { error: decisionError } = await supabase
-        .from('approvals')
-        .update({ adminEscalationStatus: decision })
-        .eq('id', selectedApproval.id);
-      if (decisionError) throw decisionError;
 
-      setApprovals((prev) =>
-        sortApprovalsByRecency(
-          prev.map((item) =>
-            item.id === selectedApproval.id
-              ? { ...item, adminEscalationStatus: decision }
-              : item
-          )
-        )
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update escalation decision.');
-    } finally {
-      setUpdatingStatus(false);
-    }
+    await runApprovalAction(
+      selectedApproval.id,
+      decision === 'APPROVED' ? 'admin_approve' : 'admin_reject',
+      async () => {
+        setUpdatingStatus(true);
+        setError(null);
+        try {
+          const { error: decisionError } = await supabase
+            .from('approvals')
+            .update({ adminEscalationStatus: decision })
+            .eq('id', selectedApproval.id);
+          if (decisionError) throw decisionError;
+
+          setApprovals((prev) =>
+            sortApprovalsByRecency(
+              prev.map((item) =>
+                item.id === selectedApproval.id
+                  ? { ...item, adminEscalationStatus: decision }
+                  : item
+              )
+            )
+          );
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Failed to update escalation decision.');
+        } finally {
+          setUpdatingStatus(false);
+        }
+      }
+    );
   };
 
   const handleFinalApproval = async (): Promise<void> => {
     if (!selectedApproval) return;
-    
-    setUpdatingStatus(true);
-    setError(null);
-    try {
-      const { error: approveError } = await supabase
-        .from('approvals')
-        .update({ status: 'APPROVED' })
-        .eq('id', selectedApproval.id);
-      if (approveError) throw approveError;
 
-      setApprovals((prev) =>
-        sortApprovalsByRecency(
-          prev.map((item) =>
-            item.id === selectedApproval.id
-              ? { ...item, status: 'APPROVED' }
-              : item
+    await runApprovalAction(selectedApproval.id, 'final_approve', async () => {
+      setUpdatingStatus(true);
+      setError(null);
+      try {
+        const { error: approveError } = await supabase
+          .from('approvals')
+          .update({ status: 'APPROVED' })
+          .eq('id', selectedApproval.id);
+        if (approveError) throw approveError;
+
+        setApprovals((prev) =>
+          sortApprovalsByRecency(
+            prev.map((item) =>
+              item.id === selectedApproval.id
+                ? { ...item, status: 'APPROVED' }
+                : item
+            )
           )
-        )
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to approve request.');
-    } finally {
-      setUpdatingStatus(false);
-    }
+        );
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to approve request.');
+      } finally {
+        setUpdatingStatus(false);
+      }
+    });
   };
 
   const renderUnreadIndicator = (count: number) => (
@@ -1212,8 +1278,8 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
   );
 
   return (
-    <section className="bg-white border border-slate-200 rounded-3xl p-4 shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
-      <div className="flex items-center justify-between gap-3">
+    <section className="w-full bg-white border border-slate-200 rounded-2xl md:rounded-3xl p-4 md:p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">Approvals</p>
           <h2 className="text-lg font-black text-slate-900 mt-1">Requests & Decisions</h2>
@@ -1221,7 +1287,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         {currentUser.role !== 'owner' && currentUser.role !== 'super_admin' && (
           <button
             onClick={() => setIsApprovalModalOpen(true)}
-            className="bg-indigo-900 hover:bg-indigo-800 text-white rounded-full px-4 py-2.5 shadow-md shadow-indigo-900/20 flex items-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95"
+            className="w-full sm:w-auto min-h-[44px] bg-indigo-900 hover:bg-indigo-800 text-white rounded-full px-4 py-3 sm:py-2.5 shadow-md shadow-indigo-900/20 flex items-center justify-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95"
           >
             <Plus className="w-5 h-5" />
             <span className="font-semibold">Approval</span>
@@ -1229,11 +1295,11 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         )}
       </div>
 
-      <div className={`mt-4 gap-2 ${currentUser.role === 'owner' || currentUser.role === 'super_admin' ? '' : 'grid grid-cols-2'}`}>
+      <div className={`mt-4 flex flex-col sm:flex-row gap-2 ${currentUser.role === 'owner' || currentUser.role === 'super_admin' ? '' : ''}`}>
         {currentUser.role !== 'owner' && currentUser.role !== 'super_admin' && (
           <button
             onClick={() => setView('my_requests')}
-            className={`px-3 py-2 rounded-xl text-xs font-bold border ${
+            className={`w-full sm:w-auto min-h-[44px] px-3 py-2 rounded-xl text-sm font-bold border ${
               view === 'my_requests'
                 ? 'bg-indigo-900 text-white border-indigo-900'
                 : 'bg-white text-slate-700 border-slate-200'
@@ -1244,7 +1310,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         )}
         <button
           onClick={() => setView('needs_my_approval')}
-          className={`px-3 py-2 rounded-xl text-xs font-bold border ${
+          className={`w-full sm:w-auto min-h-[44px] px-3 py-2 rounded-xl text-sm font-bold border ${
             view === 'needs_my_approval'
               ? 'bg-indigo-900 text-white border-indigo-900'
               : 'bg-white text-slate-700 border-slate-200'
@@ -1256,8 +1322,8 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
 
       {/* Status Filter Pills - Only show for My Requests */}
       {view === 'my_requests' && (
-        <div className="mt-3 flex items-center justify-between">
-          <div className="flex gap-2">
+        <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex flex-wrap gap-2">
             {[
               { key: 'all' as const, label: 'All' },
               { key: 'pending' as const, label: 'Pending' },
@@ -1266,7 +1332,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
               <button
                 key={key}
                 onClick={() => setStatusFilter(key)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                className={`min-h-[36px] px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
                   statusFilter === key
                     ? 'bg-indigo-900 text-white'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -1356,7 +1422,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                         type="date"
                         value={startDate}
                         onChange={(e) => setStartDate(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
+                        className="w-full min-h-[48px] px-3 py-2 border border-slate-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
                       />
                     </div>
                     
@@ -1366,24 +1432,24 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                         type="date"
                         value={endDate}
                         onChange={(e) => setEndDate(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
+                        className="w-full min-h-[48px] px-3 py-2 border border-slate-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
                       />
                     </div>
                   </div>
                   
                   <div className="flex gap-2 mt-6">
-                    <button
-                      onClick={() => {
-                        setShowDatePicker(false);
-                        setStartDate('');
-                        setEndDate('');
-                        setDateRangeFilter('all');
-                        setMonthFilter(getCurrentMonth());
-                      }}
-                      className="flex-1 px-4 py-2 border border-slate-200 rounded-lg text-sm text-slate-700 hover:bg-slate-50"
-                    >
-                      Cancel
-                    </button>
+                      <button
+                        onClick={() => {
+                          setShowDatePicker(false);
+                          setStartDate('');
+                          setEndDate('');
+                          setDateRangeFilter('all');
+                          setMonthFilter(getCurrentMonth());
+                        }}
+                        className="flex-1 min-h-[44px] px-4 py-2 border border-slate-200 rounded-lg text-base text-slate-700 hover:bg-slate-50"
+                      >
+                        Cancel
+                      </button>
                     <button
                       onClick={() => {
                         if (startDate || endDate) {
@@ -1393,7 +1459,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                         }
                       }}
                       disabled={!startDate && !endDate}
-                      className="flex-1 px-4 py-2 bg-indigo-900 text-white rounded-lg text-sm hover:bg-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex-1 min-h-[44px] px-4 py-2 bg-indigo-900 text-white rounded-lg text-base hover:bg-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Apply
                     </button>
@@ -1407,7 +1473,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
 
       {/* Approval Creation Modal */}
       {isApprovalModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
           {/* Backdrop */}
           <div 
             className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
@@ -1415,9 +1481,9 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
           />
           
           {/* Modal Content */}
-          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95">
+          <div className="relative bg-white w-full max-w-lg sm:max-w-xl h-[90vh] sm:h-auto rounded-t-3xl sm:rounded-2xl shadow-xl overflow-y-auto animate-in fade-in zoom-in-95">
             {/* Header */}
-            <div className="sticky top-0 bg-white border-b border-slate-200 p-4 flex items-center justify-between z-10">
+            <div className="sticky top-0 bg-white border-b border-slate-200 p-4 sm:p-5 flex items-center justify-between z-10">
               <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                 <Plus className="w-5 h-5 text-indigo-900" />
                 Create Approval Request
@@ -1433,14 +1499,14 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
             </div>
 
             {/* Form */}
-            <div className="p-4 space-y-3">
+            <div className="p-4 sm:p-6 space-y-3">
               <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">Create Request</p>
               <div className="grid grid-cols-1 gap-2">
                 <input
                   value={requestTitle}
                   onChange={(event) => setRequestTitle(event.target.value)}
                   placeholder="Request title"
-                  className="h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
+                  className="min-h-[48px] px-3 rounded-xl border border-slate-200 bg-white text-base text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
                   autoFocus
                 />
                 <div className="relative">
@@ -1448,7 +1514,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                     value={requestDescription}
                     onChange={(event) => setRequestDescription(event.target.value)}
                     placeholder="Description"
-                    className="min-h-[70px] w-full px-3 py-2 pb-10 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-900/20 resize-none"
+                    className="min-h-[90px] w-full px-3 py-2 pb-10 rounded-xl border border-slate-200 bg-white text-base text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-900/20 resize-none"
                   />
                   <button
                     type="button"
@@ -1529,19 +1595,19 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                     ))}
                   </div>
                 )}
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <input
                     value={requestAmount}
                     onChange={(event) => setRequestAmount(event.target.value)}
                     placeholder="Amount (INR)"
                     type="number"
                     min="0"
-                    className="h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
+                    className="min-h-[48px] px-3 rounded-xl border border-slate-200 bg-white text-base text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
                   />
                   <select
                     value={requestApproverId}
                     onChange={(event) => setRequestApproverId(event.target.value)}
-                    className="h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
+                    className="min-h-[48px] px-3 rounded-xl border border-slate-200 bg-white text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
                   >
                     {loadingApprovers ? (
                       <option value="">Loading approvers...</option>
@@ -1562,18 +1628,20 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                     type="button"
                     onClick={() => setIsApprovalModalOpen(false)}
                     disabled={creatingApproval}
-                    className="flex-1 h-11 rounded-xl bg-slate-100 text-slate-700 text-sm font-bold hover:bg-slate-200 transition-all disabled:opacity-50"
+                    className="flex-1 min-h-[48px] rounded-xl bg-slate-100 text-slate-700 text-base font-bold hover:bg-slate-200 transition-all disabled:opacity-50"
                   >
                     Cancel
                   </button>
-                  <button
+                  <LoadingButton
                     type="button"
                     onClick={() => void handleCreateRequest()}
-                    disabled={creatingApproval}
-                    className="flex-1 h-11 rounded-xl bg-indigo-900 text-white text-sm font-bold disabled:opacity-60"
+                    isLoading={creatingApproval}
+                    loadingText="Creating..."
+                    variant="primary"
+                    className="flex-1 min-h-[48px] rounded-xl bg-indigo-900 hover:bg-indigo-800 text-white text-base font-bold disabled:opacity-60"
                   >
-                    {creatingApproval ? 'Creating...' : 'Create & Tag Approver'}
-                  </button>
+                    Create & Tag Approver
+                  </LoadingButton>
                 </div>
               </div>
             </div>
@@ -1587,7 +1655,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         </div>
       )}
 
-      <div className="mt-4 space-y-3">
+      <div className="mt-4 space-y-4">
         {loadingApprovals ? (
           <div className="text-sm text-slate-500">Loading approvals...</div>
         ) : (
@@ -1653,6 +1721,14 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                           approval.approver_id === currentUser.id ||
                           (currentUser.role === 'super_admin' && approval.isEscalated && approval.adminEscalationStatus === 'PENDING')
                         );
+                      const isProcessing = processingApprovalId === approval.id;
+                      const isApproving = isProcessing && processingApprovalAction === 'approve';
+                      const isRejecting = isProcessing && processingApprovalAction === 'reject';
+                      const isEscalating = isProcessing && processingApprovalAction === 'escalate';
+                      const isAdminApproving = isProcessing && processingApprovalAction === 'admin_approve';
+                      const isAdminRejecting = isProcessing && processingApprovalAction === 'admin_reject';
+                      const isFinalApproving = isProcessing && processingApprovalAction === 'final_approve';
+                      const isReviewing = isProcessing && processingApprovalAction === 'review';
 
                       return (
                         <div
@@ -1770,7 +1846,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                                 <div className="mt-3 space-y-2">
                                   {/* Manager Escalation with Admin Selection */}
                                   {currentUser.role === 'manager' && !approval.isEscalated && (
-                                    <div className="grid grid-cols-[1.35fr_1fr] gap-2">
+                                    <div className="grid grid-cols-1 sm:grid-cols-[1.35fr_1fr] gap-2">
                                       <select
                                         value={selectedEscalationAdminByApproval[approval.id] || ''}
                                         onChange={(e) =>
@@ -1779,7 +1855,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                                             [approval.id]: e.target.value,
                                           }))
                                         }
-                                        className="h-9 sm:h-10 w-full px-2.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-all disabled:opacity-50"
+                                        className="min-h-[44px] w-full px-2.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-base font-semibold hover:bg-slate-50 transition-all disabled:opacity-50"
                                       >
                                         <option value="">Select Super Admin...</option>
                                         {superAdmins.map(admin => (
@@ -1788,76 +1864,94 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                                           </option>
                                         ))}
                                       </select>
-                                      <button
+                                      <LoadingButton
                                         type="button"
                                         onClick={() => void handleEscalateToAdmin(approval.id)}
-                                        disabled={updatingStatus || !(selectedEscalationAdminByApproval[approval.id] || '')}
-                                        className="h-9 sm:h-10 w-full rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
+                                        isLoading={isEscalating}
+                                        loadingText="Escalating..."
+                                        variant="success"
+                                        disabled={updatingStatus || isProcessing || !(selectedEscalationAdminByApproval[approval.id] || '')}
+                                        className="min-h-[44px] w-full rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold transition-all disabled:opacity-50"
                                       >
                                         <Send className="w-3 h-3 inline mr-1" />
                                         Confirm Escalation
-                                      </button>
+                                      </LoadingButton>
                                     </div>
                                   )}
                                   
                                   {/* Admin Escalation Decision Buttons */}
                                   {currentUser.role === 'super_admin' && approval.isEscalated && approval.adminEscalationStatus === 'PENDING' && (
-                                    <div className="grid grid-cols-2 gap-2">
-                                      <button
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                      <LoadingButton
                                         type="button"
                                         onClick={() => void handleAdminEscalationDecision('APPROVED')}
-                                        disabled={updatingStatus}
-                                        className="h-9 sm:h-10 w-full rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
+                                        isLoading={isAdminApproving}
+                                        loadingText="Approving..."
+                                        variant="success"
+                                        disabled={updatingStatus || isProcessing}
+                                        className="min-h-[44px] w-full rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold transition-all disabled:opacity-50"
                                       >
                                         <CheckCircle2 className="w-3 h-3 inline mr-1" />
                                         Approve Escalation
-                                      </button>
-                                      <button
+                                      </LoadingButton>
+                                      <LoadingButton
                                         type="button"
                                         onClick={() => void handleAdminEscalationDecision('REJECTED')}
-                                        disabled={updatingStatus}
-                                        className="h-9 sm:h-10 w-full rounded-lg bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 transition-all disabled:opacity-50"
+                                        isLoading={isAdminRejecting}
+                                        loadingText="Rejecting..."
+                                        variant="danger"
+                                        disabled={updatingStatus || isProcessing}
+                                        className="min-h-[44px] w-full rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold transition-all disabled:opacity-50"
                                       >
                                         <XCircle className="w-3 h-3 inline mr-1" />
                                         Reject Escalation
-                                      </button>
+                                      </LoadingButton>
                                     </div>
                                   )}
 
                                   {/* Regular Approve/Reject for Admin after escalation approval */}
                                   {currentUser.role === 'manager' && approval.adminEscalationStatus === 'APPROVED' && (
-                                    <button
+                                    <LoadingButton
                                       type="button"
                                       onClick={() => void handleFinalApproval()}
-                                      disabled={updatingStatus}
-                                      className="h-9 sm:h-10 w-full sm:w-auto px-4 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
+                                      isLoading={isFinalApproving}
+                                      loadingText="Approving..."
+                                      variant="success"
+                                      disabled={updatingStatus || isProcessing}
+                                      className="min-h-[44px] w-full sm:w-auto px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold transition-all disabled:opacity-50"
                                     >
                                       <CheckCircle2 className="w-3 h-3 inline mr-1" />
                                       Approve
-                                    </button>
+                                    </LoadingButton>
                                   )}
 
                                   {/* Regular Approve/Reject for non-escalated requests */}
                                   {!approval.isEscalated && (
-                                    <div className="grid grid-cols-2 gap-2">
-                                      <button
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                      <LoadingButton
                                         type="button"
                                         onClick={() => void handleApprove(approval.id)}
-                                        disabled={updatingStatus}
-                                        className="h-9 sm:h-10 w-full rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
+                                        isLoading={isApproving}
+                                        loadingText="Approving..."
+                                        variant="success"
+                                        disabled={updatingStatus || isProcessing}
+                                        className="min-h-[44px] w-full rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold transition-all disabled:opacity-50"
                                       >
                                         <CheckCircle2 className="w-3 h-3 inline mr-1" />
                                         Approve
-                                      </button>
-                                      <button
+                                      </LoadingButton>
+                                      <LoadingButton
                                         type="button"
                                         onClick={() => void handleReject(approval.id)}
-                                        disabled={updatingStatus}
-                                        className="h-9 sm:h-10 w-full rounded-lg bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 transition-all disabled:opacity-50"
+                                        isLoading={isRejecting}
+                                        loadingText="Rejecting..."
+                                        variant="danger"
+                                        disabled={updatingStatus || isProcessing}
+                                        className="min-h-[44px] w-full rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold transition-all disabled:opacity-50"
                                       >
                                         <XCircle className="w-3 h-3 inline mr-1" />
                                         Reject
-                                      </button>
+                                      </LoadingButton>
                                     </div>
                                   )}
                                 </div>
@@ -1886,14 +1980,17 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                                     </button>
                                   </div>
                                   {approval.requester_id === currentUser.id && (
-                                    <button
+                                    <LoadingButton
                                       type="button"
                                       onClick={() => void handleAskForReview()}
-                                      disabled={updatingStatus || !draftMessage.trim()}
-                                      className="h-9 sm:h-10 px-4 rounded-lg bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 transition-all disabled:opacity-50"
+                                      isLoading={isReviewing}
+                                      loadingText="Requesting..."
+                                      variant="secondary"
+                                      disabled={updatingStatus || isProcessing || !draftMessage.trim()}
+                                      className="min-h-[44px] px-4 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold transition-all disabled:opacity-50"
                                     >
                                       Request Review
-                                    </button>
+                                    </LoadingButton>
                                   )}
                                 </div>
                               )}
@@ -1918,6 +2015,14 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                     approval.approver_id === currentUser.id ||
                     (currentUser.role === 'super_admin' && approval.isEscalated && approval.adminEscalationStatus === 'PENDING')
                   );
+                const isProcessing = processingApprovalId === approval.id;
+                const isApproving = isProcessing && processingApprovalAction === 'approve';
+                const isRejecting = isProcessing && processingApprovalAction === 'reject';
+                const isEscalating = isProcessing && processingApprovalAction === 'escalate';
+                const isAdminApproving = isProcessing && processingApprovalAction === 'admin_approve';
+                const isAdminRejecting = isProcessing && processingApprovalAction === 'admin_reject';
+                const isFinalApproving = isProcessing && processingApprovalAction === 'final_approve';
+                const isReviewing = isProcessing && processingApprovalAction === 'review';
 
                 return (
                   <div
@@ -2062,7 +2167,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                           <div className="mt-3 space-y-2">
                             {/* Manager Escalation with Admin Selection */}
                             {currentUser.role === 'manager' && !approval.isEscalated && (
-                              <div className="grid grid-cols-[1.35fr_1fr] gap-2">
+                              <div className="grid grid-cols-1 sm:grid-cols-[1.35fr_1fr] gap-2">
                                 <select
                                   value={selectedEscalationAdminByApproval[approval.id] || ''}
                                   onChange={(e) =>
@@ -2071,7 +2176,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                                       [approval.id]: e.target.value,
                                     }))
                                   }
-                                  className="h-9 sm:h-10 w-full px-2.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-all disabled:opacity-50"
+                                  className="min-h-[44px] w-full px-2.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-base font-semibold hover:bg-slate-50 transition-all disabled:opacity-50"
                                 >
                                   <option value="">Select Super Admin...</option>
                                   {superAdmins.map((admin) => (
@@ -2080,76 +2185,94 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                                     </option>
                                   ))}
                                 </select>
-                                <button
+                                <LoadingButton
                                   type="button"
                                   onClick={() => void handleEscalateToAdmin(approval.id)}
-                                  disabled={updatingStatus || !(selectedEscalationAdminByApproval[approval.id] || '')}
-                                  className="h-9 sm:h-10 w-full rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
+                                  isLoading={isEscalating}
+                                  loadingText="Escalating..."
+                                  variant="success"
+                                  disabled={updatingStatus || isProcessing || !(selectedEscalationAdminByApproval[approval.id] || '')}
+                                  className="min-h-[44px] w-full rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold transition-all disabled:opacity-50"
                                 >
                                   <Send className="w-3 h-3 inline mr-1" />
                                   Confirm Escalation
-                                </button>
+                                </LoadingButton>
                               </div>
                             )}
                             
                             {/* Admin Escalation Decision Buttons */}
                             {currentUser.role === 'super_admin' && approval.isEscalated && approval.adminEscalationStatus === 'PENDING' && (
-                              <div className="grid grid-cols-2 gap-2">
-                                <button
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <LoadingButton
                                   type="button"
                                   onClick={() => void handleAdminEscalationDecision('APPROVED')}
-                                  disabled={updatingStatus}
-                                  className="h-9 sm:h-10 w-full rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
+                                  isLoading={isAdminApproving}
+                                  loadingText="Approving..."
+                                  variant="success"
+                                  disabled={updatingStatus || isProcessing}
+                                  className="min-h-[44px] w-full rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold transition-all disabled:opacity-50"
                                 >
                                   <CheckCircle2 className="w-3 h-3 inline mr-1" />
                                   Approve Escalation
-                                </button>
-                                <button
+                                </LoadingButton>
+                                <LoadingButton
                                   type="button"
                                   onClick={() => void handleAdminEscalationDecision('REJECTED')}
-                                  disabled={updatingStatus}
-                                  className="h-9 sm:h-10 w-full rounded-lg bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 transition-all disabled:opacity-50"
+                                  isLoading={isAdminRejecting}
+                                  loadingText="Rejecting..."
+                                  variant="danger"
+                                  disabled={updatingStatus || isProcessing}
+                                  className="min-h-[44px] w-full rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold transition-all disabled:opacity-50"
                                 >
                                   <XCircle className="w-3 h-3 inline mr-1" />
                                   Reject Escalation
-                                </button>
+                                </LoadingButton>
                               </div>
                             )}
 
                             {/* Regular Approve/Reject for Admin after escalation approval */}
                             {currentUser.role === 'manager' && approval.adminEscalationStatus === 'APPROVED' && (
-                              <button
+                              <LoadingButton
                                 type="button"
                                 onClick={() => void handleFinalApproval()}
-                                disabled={updatingStatus}
-                                className="h-9 sm:h-10 w-full sm:w-auto px-4 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
+                                isLoading={isFinalApproving}
+                                loadingText="Approving..."
+                                variant="success"
+                                disabled={updatingStatus || isProcessing}
+                                className="min-h-[44px] w-full sm:w-auto px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold transition-all disabled:opacity-50"
                               >
                                 <CheckCircle2 className="w-3 h-3 inline mr-1" />
                                 Approve
-                              </button>
+                              </LoadingButton>
                             )}
 
                             {/* Regular Approve/Reject for non-escalated requests */}
                             {!approval.isEscalated && (
-                              <div className="grid grid-cols-2 gap-2">
-                                <button
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <LoadingButton
                                   type="button"
                                   onClick={() => void handleApprove(approval.id)}
-                                  disabled={updatingStatus}
-                                  className="h-9 sm:h-10 w-full rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all disabled:opacity-50"
+                                  isLoading={isApproving}
+                                  loadingText="Approving..."
+                                  variant="success"
+                                  disabled={updatingStatus || isProcessing}
+                                  className="min-h-[44px] w-full rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold transition-all disabled:opacity-50"
                                 >
                                   <CheckCircle2 className="w-3 h-3 inline mr-1" />
                                   Approve
-                                </button>
-                                <button
+                                </LoadingButton>
+                                <LoadingButton
                                   type="button"
                                   onClick={() => void handleReject(approval.id)}
-                                  disabled={updatingStatus}
-                                  className="h-9 sm:h-10 w-full rounded-lg bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 transition-all disabled:opacity-50"
+                                  isLoading={isRejecting}
+                                  loadingText="Rejecting..."
+                                  variant="danger"
+                                  disabled={updatingStatus || isProcessing}
+                                  className="min-h-[44px] w-full rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold transition-all disabled:opacity-50"
                                 >
                                   <XCircle className="w-3 h-3 inline mr-1" />
                                   Reject
-                                </button>
+                                </LoadingButton>
                               </div>
                             )}
                           </div>
@@ -2162,7 +2285,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                                 value={draftMessage}
                                 onChange={(e) => setDraftMessage(e.target.value)}
                                 placeholder="Type a message..."
-                                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-200 resize-none min-h-[48px] max-h-28"
+                                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-200 resize-none min-h-[48px] max-h-28"
                                 rows={1}
                                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void handleSendMessage(); } }}
                               />
@@ -2178,14 +2301,17 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                               </button>
                             </div>
                             {approval.requester_id === currentUser.id && (
-                              <button
+                              <LoadingButton
                                 type="button"
                                 onClick={() => void handleAskForReview()}
-                                disabled={updatingStatus || !draftMessage.trim()}
-                                className="h-9 sm:h-10 px-4 rounded-lg bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 transition-all disabled:opacity-50"
+                                isLoading={isReviewing}
+                                loadingText="Requesting..."
+                                variant="secondary"
+                                disabled={updatingStatus || isProcessing || !draftMessage.trim()}
+                                className="min-h-[44px] px-4 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold transition-all disabled:opacity-50"
                               >
                                 Request Review
-                              </button>
+                              </LoadingButton>
                             )}
                           </div>
                         )}

@@ -2,21 +2,28 @@
 import React, { useState } from 'react';
 import { Employee } from '../types';
 import { ArrowRight, X, UserCheck, AlertCircle } from 'lucide-react';
+import LoadingButton from '../src/components/ui/LoadingButton';
 
 interface ReassignModalProps {
   employees: Employee[];
   currentAssignee?: string;
   onClose: () => void;
-  onConfirm: (newAssigneeId: string) => void;
+  onConfirm: (newAssigneeId: string) => Promise<void> | void;
 }
 
 const ReassignModal: React.FC<ReassignModalProps> = ({ employees, currentAssignee, onClose, onConfirm }) => {
   const [targetId, setTargetId] = useState('none');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (targetId === 'none') return;
-    onConfirm(targetId);
+    if (targetId === 'none' || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      await Promise.resolve(onConfirm(targetId));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -29,7 +36,11 @@ const ReassignModal: React.FC<ReassignModalProps> = ({ employees, currentAssigne
             </div>
             <h2 className="text-xl font-bold text-slate-900">Delegate Task</h2>
           </div>
-          <button onClick={onClose} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200">
+          <button
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="p-2 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -48,7 +59,7 @@ const ReassignModal: React.FC<ReassignModalProps> = ({ employees, currentAssigne
               <select 
                 value={targetId}
                 onChange={(e) => setTargetId(e.target.value)}
-                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-4 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 appearance-none transition-all pr-12"
+                className="w-full min-h-[48px] bg-white border border-slate-200 rounded-xl px-4 py-4 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 appearance-none transition-all pr-12"
                 autoFocus
               >
                 <option value="none">Select Team Member...</option>
@@ -68,17 +79,21 @@ const ReassignModal: React.FC<ReassignModalProps> = ({ employees, currentAssigne
             <button 
               type="button"
               onClick={onClose}
-              className="flex-1 py-4 rounded-xl font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 active:scale-95 transition-all"
+              disabled={isSubmitting}
+              className="flex-1 min-h-[48px] py-4 rounded-xl font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
-            <button 
+            <LoadingButton
               type="submit"
+              isLoading={isSubmitting}
+              loadingText="Delegating..."
+              variant="primary"
               disabled={targetId === 'none'}
-              className="flex-[2] py-4 rounded-xl font-bold text-white bg-indigo-900 active:scale-95 transition-all shadow-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)] disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex-[2] min-h-[48px] py-4 rounded-xl font-bold text-white bg-indigo-900 hover:bg-indigo-800 active:scale-95 transition-all shadow-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)] disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Delegate Now
-            </button>
+            </LoadingButton>
           </div>
         </form>
       </div>

@@ -1,15 +1,17 @@
 
 import React, { useState, useRef } from 'react';
 import { Camera, X, CheckCircle2 } from 'lucide-react';
+import LoadingButton from '../src/components/ui/LoadingButton';
 
 interface CompletionModalProps {
   onClose: () => void;
-  onConfirm: (photoBase64: string) => void;
+  onConfirm: (photoBase64: string) => Promise<void> | void;
 }
 
 const CompletionModal: React.FC<CompletionModalProps> = ({ onClose, onConfirm }) => {
   const [photo, setPhoto] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -22,9 +24,13 @@ const CompletionModal: React.FC<CompletionModalProps> = ({ onClose, onConfirm })
     }
   };
 
-  const handleSubmit = () => {
-    if (photo) {
-      onConfirm(photo);
+  const handleSubmit = async () => {
+    if (!photo || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      await Promise.resolve(onConfirm(photo));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -41,7 +47,11 @@ const CompletionModal: React.FC<CompletionModalProps> = ({ onClose, onConfirm })
               <p className="text-xs text-indigo-700 font-bold">Cannot complete without image</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200">
+          <button
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="p-2 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -86,20 +96,25 @@ const CompletionModal: React.FC<CompletionModalProps> = ({ onClose, onConfirm })
           </div>
 
           <div className="flex gap-3">
-            <button 
+            <button
               onClick={onClose}
-              className="flex-1 py-4 px-6 rounded-xl font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 active:scale-95 transition-all"
+              disabled={isSubmitting}
+              className="flex-1 py-4 px-6 rounded-xl font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
-            <button 
+            <LoadingButton
+              type="button"
               onClick={handleSubmit}
+              isLoading={isSubmitting}
+              loadingText="Completing..."
+              variant="primary"
               disabled={!photo}
-              className={`flex-[2] py-4 px-6 rounded-xl font-bold text-white flex items-center justify-center gap-2 active:scale-95 transition-all shadow-sm ${photo ? 'bg-indigo-900 shadow-[0_2px_8px_rgba(0,0,0,0.04)]' : 'bg-slate-300 cursor-not-allowed'}`}
+              className={`flex-[2] py-4 px-6 rounded-xl font-bold text-white flex items-center justify-center gap-2 active:scale-95 transition-all shadow-sm ${photo ? 'bg-indigo-900 hover:bg-indigo-800 shadow-[0_2px_8px_rgba(0,0,0,0.04)]' : 'bg-slate-300'}`}
             >
               <CheckCircle2 className="w-5 h-5" />
               {photo ? 'Complete Task' : 'Photo Required'}
-            </button>
+            </LoadingButton>
           </div>
         </div>
       </div>

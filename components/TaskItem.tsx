@@ -50,10 +50,10 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCou
     <button
       type="button"
       onClick={onClick}
-      className={`w-full text-left rounded-2xl ${priorityCardClass} shadow-sm px-5 py-4 active:scale-[0.98] transition-all duration-150 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-100`}
+      className={`w-full text-left rounded-2xl ${priorityCardClass} shadow-sm p-4 sm:p-5 min-h-[120px] active:scale-[0.98] transition-all duration-150 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-100`}
     >
-      <div className="flex items-center gap-3">
-        <div className="flex-1 min-w-0">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <div className="flex-1 min-w-0 space-y-2">
           {isHighPriority && (
             <div className="mb-1 inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-white/70 px-2.5 py-0.5 text-red-600">
               <Flag className="w-3.5 h-3.5 text-red-600 fill-red-600" />
@@ -64,21 +64,21 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCou
           )}
 
           {/* Task Title */}
-          <h3 className="text-[15px] font-semibold text-slate-900 leading-snug line-clamp-2 text-ellipsis overflow-hidden">
+          <h3 className="text-base md:text-lg font-semibold text-slate-900 leading-snug line-clamp-2 text-ellipsis overflow-hidden break-words">
             {task.description}
           </h3>
 
           {/* Metadata Row */}
-          <div className="flex items-center gap-4 mt-1.5">
+          <div className="flex flex-wrap items-center gap-3">
             {assigneeName && (
-              <span className="flex items-center gap-1.5 text-sm text-slate-500">
+              <span className="flex items-center gap-1.5 text-base text-slate-500">
                 <User className="w-4 h-4 text-slate-400 flex-shrink-0" />
                 <span className="truncate max-w-[140px]">{assigneeName}</span>
               </span>
             )}
             {task.deadline != null && (
               <span
-                className={`flex items-center gap-1.5 text-sm ${
+                className={`flex items-center gap-1.5 text-base ${
                   isOverdue ? 'text-red-500 font-medium' : 'text-slate-500'
                 }`}
               >
@@ -132,9 +132,9 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCou
           )}
         </div>
 
-        <div className="flex flex-col items-center gap-2">
-          <div className="relative h-8 w-8 rounded-full border border-slate-200 bg-slate-50 flex items-center justify-center text-slate-500">
-            <MessageSquare className="w-4 h-4" />
+        <div className="flex items-center md:flex-col md:items-end gap-2">
+          <div className="relative h-10 w-10 rounded-full border border-slate-200 bg-slate-50 flex items-center justify-center text-slate-500">
+            <MessageSquare className="w-5 h-5" />
             {unreadCount > 0 && (
               <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold leading-none">
                 {unreadCount > 99 ? '99+' : unreadCount}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AppTab, DealershipTask, Employee, UserRole, TaskStatus, RewardConfig } from './types';
+import { AppTab, DealershipTask, Employee, UserRole, TaskStatus } from './types';
 import Dashboard from './components/Dashboard-demo';
 import StatsScreen from './components/StatsScreen';
 import TeamManager from './components/TeamManager-demo';
@@ -32,11 +32,10 @@ const App: React.FC = () => {
       id: 'emp-admin',
       name: 'Sanil Petkar',
       mobile: '8668678238',
-      role: 'manager',
-      points: 0
+      role: 'manager'
     },
-    { id: 'emp-staff-1', name: 'Staff Member 1', mobile: '8888888888', role: 'staff', points: 0 },
-    { id: 'emp-staff-2', name: 'Staff Member 2', mobile: '7777777777', role: 'staff', points: 0 }
+    { id: 'emp-staff-1', name: 'Staff Member 1', mobile: '8888888888', role: 'staff' },
+    { id: 'emp-staff-2', name: 'Staff Member 2', mobile: '7777777777', role: 'staff' }
   ];
 
   const DEFAULT_TASKS = [
@@ -60,10 +59,6 @@ const App: React.FC = () => {
 
   const [employees, setEmployees] = useState<Employee[]>(DEFAULT_EMPLOYEES);
   const [tasks, setTasks] = useState<DealershipTask[]>(DEFAULT_TASKS);
-  const [rewardConfig, setRewardConfig] = useState<RewardConfig>({
-    targetPoints: 100,
-    rewardName: 'Bonus Day Off'
-  });
 
   // --- 3. DEMO ACTIONS (No Supabase) ---
   const addTask = async (description: string, assignedTo?: string, parentTaskId?: string, deadline?: number, requirePhoto?: boolean) => {
@@ -106,16 +101,6 @@ const App: React.FC = () => {
         ? { ...t, status: 'completed' as TaskStatus, completedAt: proofData.timestamp, proof: proofData }
         : t
     ));
-
-    // Add 10 points to the user who completed the task
-    const task = tasks.find(t => t.id === taskId);
-    if (task && task.assignedTo) {
-      setEmployees(prev => prev.map(emp =>
-        emp.id === task.assignedTo
-          ? { ...emp, points: emp.points + 10 }
-          : emp
-      ));
-    }
   };
 
   const completeTaskWithoutPhoto = async (taskId: string) => {
@@ -124,16 +109,6 @@ const App: React.FC = () => {
         ? { ...t, status: 'completed' as TaskStatus, completedAt: Date.now() }
         : t
     ));
-
-    // Add 10 points to the user who completed the task
-    const task = tasks.find(t => t.id === taskId);
-    if (task && task.assignedTo) {
-      setEmployees(prev => prev.map(emp =>
-        emp.id === task.assignedTo
-          ? { ...emp, points: emp.points + 10 }
-          : emp
-      ));
-    }
   };
 
   const reassignTask = async (taskId: string, newAssigneeId: string) => {
@@ -150,7 +125,7 @@ const App: React.FC = () => {
   };
 
   const addEmployee = async (name: string, mobile: string, role: UserRole = 'staff') => {
-    const newEmployee = { id: `emp-${Date.now()}`, name, mobile, role, points: 0 };
+    const newEmployee = { id: `emp-${Date.now()}`, name, mobile, role };
     setEmployees(prev => [...prev, newEmployee]);
   };
 
@@ -252,7 +227,6 @@ const App: React.FC = () => {
             tasks={tasks}
             currentUser={currentUser}
             employees={employees}
-            rewardConfig={rewardConfig}
           />
         )}
 
@@ -276,8 +250,6 @@ const App: React.FC = () => {
             employees={employees}
             onAddEmployee={addEmployee}
             onRemoveEmployee={removeEmployee}
-            rewardConfig={rewardConfig}
-            onUpdateRewardConfig={setRewardConfig}
           />
         )}
       </main>

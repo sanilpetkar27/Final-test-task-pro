@@ -22,31 +22,14 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
--e 
+
 # Environment files
-*.env
-*.env.*
--e 
-# Environment files
-*.env
-*.env.*
--e 
-# Environment files
-*.env
-*.env.*
--e 
-# Environment files
-*.env
-*.env.*
--e 
-# Environment files
-*.env
-*.env.*
--e 
-# Environment files
-*.env
-*.env.*
--e 
-# Environment files
-*.env
-*.env.*
+.env
+.env.*
+.env.local
+mobile/.env
+!.env.example
+
+# Local artifacts
+memory/
+supabase/.temp/
