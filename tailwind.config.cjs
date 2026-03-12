@@ -8,7 +8,12 @@ module.exports = {
     './src/**/*.{js,ts,jsx,tsx}',
   ],
   theme: {
-    extend: {},
+    extend: {
+      padding: {
+        safe: 'env(safe-area-inset-bottom)',
+        'safe-top': 'env(safe-area-inset-top)',
+      },
+    },
   },
   plugins: [],
 };
