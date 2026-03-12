@@ -20,7 +20,7 @@ supabase secrets set RECURRING_CRON_SECRET=your_strong_random_secret
 
 Run this function from a scheduler every 15-60 minutes.
 
-- URL: `https://<PROJECT_REF>.supabase.co/functions/v1/send-recurring-reminders`
+- URL: `<SUPABASE_URL>/functions/v1/send-recurring-reminders`
 - Method: `POST`
 - Header: `Authorization: Bearer <RECURRING_CRON_SECRET>`
 - Header: `Content-Type: application/json`

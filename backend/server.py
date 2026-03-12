@@ -69,10 +69,17 @@ async def get_status_checks():
 # Include the router in the main app
 app.include_router(api_router)
 
+# CORS Security: Only allow requests from explicitly trusted origins.
+# NEVER use wildcard '*' in production as it allows any website to access our API.
+# Add all deployment URLs to CORS_ORIGINS environment variable.
+cors_origins = os.environ.get('CORS_ORIGINS')
+if not cors_origins:
+    raise ValueError("CORS_ORIGINS environment variable must be set for security")
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_origins=[origin.strip() for origin in cors_origins.split(',') if origin.strip()],
     allow_methods=["*"],
     allow_headers=["*"],
 )

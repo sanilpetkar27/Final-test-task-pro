@@ -1,6 +1,6 @@
 import OneSignal from 'react-onesignal';
 
-const ONE_SIGNAL_APP_ID = '531b5106-873b-443a-bcc6-b7074246401f';
+const ONE_SIGNAL_APP_ID = String(import.meta.env.VITE_ONESIGNAL_APP_ID || '').trim();
 let oneSignalInitPromise: Promise<void> | null = null;
 let oneSignalInitComplete = false;
 
@@ -16,6 +16,11 @@ export const initializeOneSignal = async (): Promise<void> => {
   if (isLocalhost) {
     console.log('Localhost test mode - using mock OneSignal');
     console.log('Test OneSignal ID:', TEST_ONE_SIGNAL_ID);
+    return;
+  }
+
+  if (!ONE_SIGNAL_APP_ID) {
+    console.error('Missing required environment variable: VITE_ONESIGNAL_APP_ID');
     return;
   }
 
