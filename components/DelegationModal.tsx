@@ -2,24 +2,31 @@
 import React, { useState } from 'react';
 import { Employee } from '../types';
 import { GitFork, X, UserCheck, AlertCircle } from 'lucide-react';
+import LoadingButton from '../src/components/ui/LoadingButton';
 
 interface DelegationModalProps {
   employees: Employee[];
   onClose: () => void;
-  onConfirm: (description: string, targetAssigneeId: string, deadline?: number) => void;
+  onConfirm: (description: string, targetAssigneeId: string, deadline?: number) => Promise<void> | void;
 }
 
 const DelegationModal: React.FC<DelegationModalProps> = ({ employees, onClose, onConfirm }) => {
   const [desc, setDesc] = useState('');
   const [targetId, setTargetId] = useState('none');
   const [deadline, setDeadline] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!desc.trim() || targetId === 'none') return;
+    if (!desc.trim() || targetId === 'none' || isSubmitting) return;
     
     const deadlineTimestamp = deadline ? new Date(deadline).getTime() : undefined;
-    onConfirm(desc.trim(), targetId, deadlineTimestamp);
+    setIsSubmitting(true);
+    try {
+      await Promise.resolve(onConfirm(desc.trim(), targetId, deadlineTimestamp));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -32,7 +39,11 @@ const DelegationModal: React.FC<DelegationModalProps> = ({ employees, onClose, o
             </div>
             <h2 className="text-xl font-bold text-slate-900">Allot Further</h2>
           </div>
-          <button onClick={onClose} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200">
+          <button
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="p-2 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -53,19 +64,19 @@ const DelegationModal: React.FC<DelegationModalProps> = ({ employees, onClose, o
                 value={desc}
                 onChange={(e) => setDesc(e.target.value)}
                 placeholder="What specifically should they do?"
-                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-4 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 transition-all placeholder:text-slate-400"
+                className="w-full min-h-[48px] bg-white border border-slate-200 rounded-xl px-4 py-4 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 transition-all placeholder:text-slate-400"
                 autoFocus
               />
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <div className="flex-1">
                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-1 block">Allot to Person</label>
                 <div className="relative">
                   <select 
                     value={targetId}
                     onChange={(e) => setTargetId(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-4 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 appearance-none transition-all pr-12"
+                    className="w-full min-h-[48px] bg-white border border-slate-200 rounded-xl px-4 py-4 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 appearance-none transition-all pr-12"
                   >
                     <option value="none">Select Team Member...</option>
                     {employees.map(emp => (
@@ -78,13 +89,13 @@ const DelegationModal: React.FC<DelegationModalProps> = ({ employees, onClose, o
                 </div>
               </div>
               
-              <div className="w-1/3">
+              <div className="w-full sm:w-1/3">
                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-1 block">Due By (Optional)</label>
                  <input 
                     type="datetime-local" 
                     value={deadline}
                     onChange={(e) => setDeadline(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-2 py-4 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 transition-all"
+                    className="w-full min-h-[48px] bg-white border border-slate-200 rounded-xl px-3 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 transition-all"
                   />
               </div>
             </div>
@@ -94,17 +105,21 @@ const DelegationModal: React.FC<DelegationModalProps> = ({ employees, onClose, o
             <button 
               type="button"
               onClick={onClose}
-              className="flex-1 py-4 rounded-xl font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 active:scale-95 transition-all"
+              disabled={isSubmitting}
+              className="flex-1 min-h-[48px] py-4 rounded-xl font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
-            <button 
+            <LoadingButton
               type="submit"
+              isLoading={isSubmitting}
+              loadingText="Delegating..."
+              variant="primary"
               disabled={!desc.trim() || targetId === 'none'}
-              className="flex-[2] py-4 rounded-xl font-bold text-white bg-indigo-900 active:scale-95 transition-all shadow-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)] disabled:opacity-40"
+              className="flex-[2] min-h-[48px] py-4 rounded-xl font-bold text-white bg-indigo-900 hover:bg-indigo-800 active:scale-95 transition-all shadow-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)] disabled:opacity-40"
             >
               Delegate Now
-            </button>
+            </LoadingButton>
           </div>
         </form>
       </div>

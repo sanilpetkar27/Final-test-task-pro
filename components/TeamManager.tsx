@@ -4,6 +4,7 @@ import { Employee, UserRole, StaffManagerLink } from '../types';
 import { UserPlus, Trash2, User, ShieldCheck, Phone, ChevronDown } from 'lucide-react';
 import { supabase } from '../src/lib/supabase';
 import { toast } from 'sonner';
+import LoadingButton from '../src/components/ui/LoadingButton';
 
 interface TeamManagerProps {
   employees: Employee[];
@@ -126,6 +127,13 @@ const TeamManager: React.FC<TeamManagerProps> = ({
   const [isAdding, setIsAdding] = useState(false);
   const [showCreateUserForm, setShowCreateUserForm] = useState(false);
   const [isRegisteredTeamOpen, setIsRegisteredTeamOpen] = useState(false);
+  const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T> =>
+    Promise.race([
+      promise,
+      new Promise<T>((_, reject) =>
+        setTimeout(() => reject(new Error('Operation timed out')), ms)
+      ),
+    ]);
   const canAddMembers = ['super_admin', 'manager', 'owner'].includes(currentUser.role);
   const canAssignMultipleManagers =
     currentUser.role === 'super_admin' || currentUser.role === 'owner' || isSuperAdmin;
@@ -376,6 +384,9 @@ const TeamManager: React.FC<TeamManagerProps> = ({
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isAdding) {
+      return;
+    }
 
     if (!canAddMembers) {
       toast.error('You do not have permission to add team members.');
@@ -416,14 +427,17 @@ const TeamManager: React.FC<TeamManagerProps> = ({
     try {
       setIsAdding(true);
       // 2. Call Server (RPC)
-      let { data, error } = await supabase.rpc('create_user_by_admin', {
-        email: newEmail.trim(),
-        password: newPassword.trim(),
-        name: newName.trim(),
-        role: roleToCreate,
-        mobile: formattedMobile,
-        company_id: currentUser.company_id
-      });
+      let { data, error } = await withTimeout(
+        supabase.rpc('create_user_by_admin', {
+          email: newEmail.trim(),
+          password: newPassword.trim(),
+          name: newName.trim(),
+          role: roleToCreate,
+          mobile: formattedMobile,
+          company_id: currentUser.company_id
+        }),
+        30000
+      );
 
       if (error) {
         const message = String(error.message || '').toLowerCase();
@@ -431,13 +445,16 @@ const TeamManager: React.FC<TeamManagerProps> = ({
 
         // Backward compatibility if database still has old RPC signature without company_id.
         if (isLegacySignature) {
-          const retry = await supabase.rpc('create_user_by_admin', {
-            email: newEmail.trim(),
-            password: newPassword.trim(),
-            name: newName.trim(),
-            role: roleToCreate,
-            mobile: formattedMobile
-          });
+          const retry = await withTimeout(
+            supabase.rpc('create_user_by_admin', {
+              email: newEmail.trim(),
+              password: newPassword.trim(),
+              name: newName.trim(),
+              role: roleToCreate,
+              mobile: formattedMobile
+            }),
+            30000
+          );
           data = retry.data;
           error = retry.error;
         }
@@ -765,6 +782,10 @@ const TeamManager: React.FC<TeamManagerProps> = ({
       setIsAdding(false);
     } catch (err: any) {
       console.error('Unexpected crash:', err);
+      if (err instanceof Error && err.message === 'Operation timed out') {
+        toast.error('Request timed out. Please check your connection.');
+        return;
+      }
       toast.error('Something went wrong. Please try again.');
     } finally {
       setIsAdding(false);
@@ -782,23 +803,35 @@ const TeamManager: React.FC<TeamManagerProps> = ({
   };
 
   const handleSaveManagerLinks = async (staffId: string) => {
+    if (isSavingManagers) {
+      return;
+    }
     setIsSavingManagers(true);
     try {
-      const success = await onUpdateStaffManagers(staffId, editingManagerIds);
+      const success = await withTimeout(
+        onUpdateStaffManagers(staffId, editingManagerIds),
+        30000
+      );
       if (success) {
         toast.success('Manager links updated.');
         closeManagerEditor();
       } else {
         toast.error('Could not update manager links.');
       }
+    } catch (err: any) {
+      if (err instanceof Error && err.message === 'Operation timed out') {
+        toast.error('Request timed out. Please check your connection.');
+        return;
+      }
+      toast.error(err?.message || 'Could not update manager links.');
     } finally {
       setIsSavingManagers(false);
     }
   };
 
   return (
-    <div className="space-y-6">
-      <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+    <div className="w-full space-y-6">
+      <div className="bg-white p-4 md:p-6 rounded-3xl shadow-sm border border-slate-200">
         <div className="flex items-center gap-2 mb-2">
           <ShieldCheck className="w-5 h-5 text-indigo-700" />
           <h2 className="text-xl font-bold italic text-slate-900">Team</h2>
@@ -810,7 +843,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
 
       {canAddMembers && (
         <section className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">
             <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Team Actions</h3>
             <button
               type="button"
@@ -818,7 +851,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
                 if (!isAdding) setShowCreateUserForm((prev) => !prev);
               }}
               disabled={isAdding}
-              className="h-10 rounded-xl bg-indigo-900 hover:bg-indigo-800 text-white px-4 text-sm font-bold inline-flex items-center gap-2 transition-all disabled:opacity-50"
+              className="w-full sm:w-auto min-h-[44px] rounded-xl bg-indigo-900 hover:bg-indigo-800 text-white px-4 py-2.5 text-sm font-bold inline-flex items-center justify-center gap-2 transition-all disabled:opacity-50"
             >
               <UserPlus className="w-4 h-4" />
               {showCreateUserForm ? 'Close Create User' : 'Create User'}
@@ -833,7 +866,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder="Full Name..."
-              className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 transition-all"
+              className="w-full min-h-[48px] bg-white border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 transition-all"
               required
             />
             <input 
@@ -841,7 +874,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
               value={newEmail}
               onChange={(e) => setNewEmail(e.target.value)}
               placeholder="Email Address..."
-              className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 transition-all"
+              className="w-full min-h-[48px] bg-white border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 transition-all"
               required
             />
             <input 
@@ -849,7 +882,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               placeholder="Password..."
-              className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 transition-all"
+              className="w-full min-h-[48px] bg-white border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 transition-all"
               required
             />
             <div className="relative">
@@ -861,16 +894,16 @@ const TeamManager: React.FC<TeamManagerProps> = ({
                   setNewMobile(val);
                 }}
                 placeholder="Mobile Number"
-                className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 transition-all"
+                className="w-full min-h-[48px] bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 transition-all"
                 required
               />
               <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <select 
                 value={newRole}
                 onChange={(e) => setNewRole(e.target.value as UserRole)}
-                className="flex-1 bg-white border border-slate-200 rounded-xl px-4 h-10 text-sm text-slate-900 outline-none"
+                className="flex-1 min-h-[44px] bg-white border border-slate-200 rounded-xl px-4 text-base text-slate-900 outline-none"
               >
                 {assignableRoles.map((roleOption) => (
                   <option key={roleOption} value={roleOption} className="text-slate-900">
@@ -878,14 +911,17 @@ const TeamManager: React.FC<TeamManagerProps> = ({
                   </option>
                 ))}
               </select>
-              <button 
+              <LoadingButton
                 type="submit"
+                isLoading={isAdding}
+                loadingText="Creating..."
+                variant="primary"
                 disabled={isAdding || !canSubmitCreateUser}
-                className="bg-indigo-900 hover:bg-indigo-800 text-white p-3 px-6 h-10 rounded-xl active:scale-95 transition-all duration-200 flex items-center gap-2 font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-indigo-900 hover:bg-indigo-800 text-white min-h-[44px] px-6 rounded-xl active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <UserPlus className="w-5 h-5" />
-                {isAdding ? 'Creating...' : 'Create User'}
-              </button>
+                Create User
+              </LoadingButton>
             </div>
             {canAssignMultipleManagers && (
               <div className="space-y-2">
@@ -947,146 +983,151 @@ const TeamManager: React.FC<TeamManagerProps> = ({
 
         {isRegisteredTeamOpen && (
           teamMembers.length > 0 ? (
-            teamMembers.map((emp) => {
-            // Strict safety filter: prevent all invalid data from rendering
-            if (!emp || !emp.id || !emp.name || emp.name.trim() === '') return null;
-            const addedByLabel = getAddedByLabel(emp);
-            const addedByManagers = getAddedByManagers(emp);
-            const showAddedBy =
-              Boolean(addedByLabel) &&
-              (currentUser.role === 'super_admin' || currentUser.role === 'owner');
-            
-            return (
-            <React.Fragment key={emp.id}>
-            <div 
-              className="bg-white p-4 rounded-2xl border border-slate-200 flex items-start justify-between gap-3 group transition-all hover:bg-slate-50"
-            >
-              <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${emp.role === 'manager' || emp.role === 'super_admin' ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-500'}`}>
-                  {emp.name.charAt(0).toUpperCase()}
-                </div>
-                <div>
-                  <p className="font-semibold text-slate-900">{emp.name}</p>
-                  <div className="space-y-0.5">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${emp.role === 'super_admin' || emp.role === 'owner' ? 'bg-slate-800 text-white' : emp.role === 'manager' ? 'bg-indigo-900 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                        {getRoleLabel(emp.role)}
-                      </span>
-                      <span className="text-[10px] text-slate-500 font-medium inline-flex items-center gap-1.5">
-                        {getTelHref(emp.mobile) && (
-                          <a
-                            href={getTelHref(emp.mobile) || '#'}
-                            onClick={(e) => e.stopPropagation()}
-                            className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors border border-emerald-200"
-                            title={`Call ${emp.name}`}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {teamMembers.map((emp) => {
+                // Strict safety filter: prevent all invalid data from rendering
+                if (!emp || !emp.id || !emp.name || emp.name.trim() === '') return null;
+                const addedByLabel = getAddedByLabel(emp);
+                const addedByManagers = getAddedByManagers(emp);
+                const showAddedBy =
+                  Boolean(addedByLabel) &&
+                  (currentUser.role === 'super_admin' || currentUser.role === 'owner');
+                
+                return (
+                  <div key={emp.id} className="space-y-3">
+                    <div 
+                      className="bg-white p-4 rounded-2xl border border-slate-200 flex flex-col sm:flex-row sm:items-start justify-between gap-3 group transition-all hover:bg-slate-50"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${emp.role === 'manager' || emp.role === 'super_admin' ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-500'}`}>
+                          {emp.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="font-semibold text-slate-900">{emp.name}</p>
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-2">
+                              <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${emp.role === 'super_admin' || emp.role === 'owner' ? 'bg-slate-800 text-white' : emp.role === 'manager' ? 'bg-indigo-900 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                                {getRoleLabel(emp.role)}
+                              </span>
+                              <span className="text-[10px] text-slate-500 font-medium inline-flex items-center gap-1.5">
+                                {getTelHref(emp.mobile) && (
+                                  <a
+                                    href={getTelHref(emp.mobile) || '#'}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors border border-emerald-200"
+                                    title={`Call ${emp.name}`}
+                                  >
+                                    <Phone className="w-5 h-5" />
+                                  </a>
+                                )}
+                                <span>{emp.mobile}</span>
+                              </span>
+                            </div>
+                            {showAddedBy && (
+                              <div className="text-[10px] text-slate-500 font-medium flex flex-wrap items-center gap-1">
+                                <span>Added by:</span>
+                                {addedByManagers.length === 0 ? (
+                                  <span className="text-amber-600">Unassigned</span>
+                                ) : (
+                                  addedByManagers.map((manager, index) => (
+                                    <span key={`${emp.id}-${manager.id}`} className="inline-flex items-center gap-1">
+                                      {index > 0 && <span className="text-slate-400">,</span>}
+                                      <span>{manager.name}</span>
+                                    </span>
+                                  ))
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex flex-row sm:flex-col items-center sm:items-end gap-2 shrink-0">
+                        <span className="text-[10px] font-semibold text-indigo-700">ACTIVE</span>
+                        {canManageMemberManagers(emp) && (
+                          <button
+                            type="button"
+                            onClick={() => openManagerEditor(emp)}
+                            className="text-[10px] font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-2 py-1 rounded-lg transition-all"
                           >
-                            <Phone className="w-4 h-4" />
-                          </a>
+                            Managers
+                          </button>
                         )}
-                        <span>{emp.mobile}</span>
-                      </span>
+                        {canDeleteMember(emp) && (
+                          <button 
+                            type="button"
+                            onClick={(e) => {
+                              console.log('🗑️ Delete button clicked for:', emp.name, emp.id);
+                              e.preventDefault();
+                              e.stopPropagation();
+                              
+                              if (window.confirm(`Are you sure you want to delete ${emp.name}? This action cannot be undone.`)) {
+                                console.log('✅ Delete confirmed, calling parent function');
+                                
+                                // Call parent function for database deletion
+                                console.log('📞 Calling onRemoveEmployee with ID:', emp.id);
+                                onRemoveEmployee(emp.id);
+                              } else {
+                                console.log('❌ Delete cancelled');
+                              }
+                            }}
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-full cursor-pointer transition-all"
+                            title="Delete employee"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    {showAddedBy && (
-                      <div className="text-[10px] text-slate-500 font-medium flex flex-wrap items-center gap-1">
-                        <span>Added by:</span>
-                        {addedByManagers.length === 0 ? (
-                          <span className="text-amber-600">Unassigned</span>
-                        ) : (
-	                          addedByManagers.map((manager, index) => (
-	                            <span key={`${emp.id}-${manager.id}`} className="inline-flex items-center gap-1">
-	                              {index > 0 && <span className="text-slate-400">,</span>}
-	                              <span>{manager.name}</span>
-	                            </span>
-	                          ))
-                        )}
+                    {editingStaffId === emp.id && canManageMemberManagers(emp) && (
+                      <div className="bg-white border border-slate-200 rounded-2xl p-3 space-y-3">
+                        <p className="text-[11px] font-semibold text-slate-600">Edit managers for {emp.name}</p>
+                        <div className="space-y-2">
+                          {managerOptions.map((manager) => (
+                            <label key={`${emp.id}-${manager.id}`} className="flex items-center gap-2 text-sm text-slate-800">
+                              <input
+                                type="checkbox"
+                                checked={editingManagerIds.includes(manager.id)}
+                                onChange={(e) => {
+                                  setEditingManagerIds((prev) => {
+                                    if (e.target.checked) {
+                                      return prev.includes(manager.id) ? prev : [...prev, manager.id];
+                                    }
+                                    return prev.filter((managerId) => managerId !== manager.id);
+                                  });
+                                }}
+                                className="w-4 h-4 rounded border-slate-300 text-indigo-900 focus:ring-slate-800"
+                              />
+                              <span>{manager.name}</span>
+                            </label>
+                          ))}
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={closeManagerEditor}
+                            className="flex-1 min-h-[44px] bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold py-2 rounded-xl transition-all"
+                            disabled={isSavingManagers}
+                          >
+                            Cancel
+                          </button>
+                          <LoadingButton
+                            type="button"
+                            onClick={() => handleSaveManagerLinks(emp.id)}
+                            isLoading={isSavingManagers}
+                            loadingText="Saving..."
+                            variant="primary"
+                            className="flex-1 min-h-[44px] bg-indigo-900 hover:bg-indigo-800 text-white text-sm font-semibold py-2 rounded-xl transition-all disabled:opacity-60"
+                            disabled={isSavingManagers}
+                          >
+                            Save Managers
+                          </LoadingButton>
+                        </div>
                       </div>
                     )}
                   </div>
-                </div>
-              </div>
-              <div className="flex flex-col items-end gap-2 shrink-0">
-                <span className="text-[10px] font-semibold text-indigo-700">ACTIVE</span>
-              {canManageMemberManagers(emp) && (
-                <button
-                  type="button"
-                  onClick={() => openManagerEditor(emp)}
-                  className="text-[10px] font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-2 py-1 rounded-lg transition-all"
-                >
-                  Managers
-                </button>
-              )}
-              {canDeleteMember(emp) && (
-                <button 
-                  type="button"
-                  onClick={(e) => {
-                    console.log('🗑️ Delete button clicked for:', emp.name, emp.id);
-                    e.preventDefault();
-                    e.stopPropagation();
-                    
-                    if (window.confirm(`Are you sure you want to delete ${emp.name}? This action cannot be undone.`)) {
-                      console.log('✅ Delete confirmed, calling parent function');
-                      
-                      // Call parent function for database deletion
-                      console.log('📞 Calling onRemoveEmployee with ID:', emp.id);
-                      onRemoveEmployee(emp.id);
-                    } else {
-                      console.log('❌ Delete cancelled');
-                    }
-                  }}
-                  className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-full cursor-pointer transition-all"
-                  title="Delete employee"
-                >
-                  <Trash2 className="w-5 h-5" />
-                </button>
-              )}
-              </div>
+                );
+              })}
             </div>
-            {editingStaffId === emp.id && canManageMemberManagers(emp) && (
-              <div className="bg-white border border-slate-200 rounded-2xl p-3 space-y-3">
-                <p className="text-[11px] font-semibold text-slate-600">Edit managers for {emp.name}</p>
-                <div className="space-y-2">
-                  {managerOptions.map((manager) => (
-                    <label key={`${emp.id}-${manager.id}`} className="flex items-center gap-2 text-sm text-slate-800">
-                      <input
-                        type="checkbox"
-                        checked={editingManagerIds.includes(manager.id)}
-                        onChange={(e) => {
-                          setEditingManagerIds((prev) => {
-                            if (e.target.checked) {
-                              return prev.includes(manager.id) ? prev : [...prev, manager.id];
-                            }
-                            return prev.filter((managerId) => managerId !== manager.id);
-                          });
-                        }}
-                        className="w-4 h-4 rounded border-slate-300 text-indigo-900 focus:ring-slate-800"
-                      />
-                      <span>{manager.name}</span>
-                    </label>
-                  ))}
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={closeManagerEditor}
-                    className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold py-2 rounded-xl transition-all"
-                    disabled={isSavingManagers}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSaveManagerLinks(emp.id)}
-                    className="flex-1 bg-indigo-900 hover:bg-indigo-800 text-white text-sm font-semibold py-2 rounded-xl transition-all disabled:opacity-60"
-                    disabled={isSavingManagers}
-                  >
-                    {isSavingManagers ? 'Saving...' : 'Save Managers'}
-                  </button>
-                </div>
-              </div>
-            )}
-            </React.Fragment>
-            );
-            })
           ) : (
             <div className="text-center py-12 bg-white rounded-3xl border border-dashed border-slate-200">
               <User className="w-10 h-10 mx-auto mb-2 text-slate-300" />

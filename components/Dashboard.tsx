@@ -8,6 +8,7 @@ import CompletionModal from './CompletionModal';
 import DelegationModal from './DelegationModal';
 import ReassignModal from './ReassignModal';
 import { Plus, Clock, CheckCircle2, UserPlus, ClipboardList as ClipboardIcon, CalendarClock, Timer, Camera, Bug, User, AlertTriangle, Calendar, Mic, MicOff, Filter, X } from 'lucide-react';
+import LoadingButton from '../src/components/ui/LoadingButton';
 
 interface DashboardProps {
   tasks: DealershipTask[];
@@ -24,12 +25,12 @@ interface DashboardProps {
     recurrenceFrequency?: RecurrenceFrequency | null,
     priority?: TaskPriority
   ) => Promise<void> | void;
-  onStartTask: (id: string) => void;
-  onReopenTask: (id: string) => void;
-  onCompleteTask: (id: string, proof: { imageUrl: string, timestamp: number }) => void;
-  onCompleteTaskWithoutPhoto: (id: string) => void;
-  onReassignTask: (taskId: string, newAssigneeId: string) => void;
-  onDeleteTask: (id: string) => void;
+  onStartTask: (id: string) => Promise<void> | void;
+  onReopenTask: (id: string) => Promise<void> | void;
+  onCompleteTask: (id: string, proof: { imageUrl: string, timestamp: number }) => Promise<void> | void;
+  onCompleteTaskWithoutPhoto: (id: string) => Promise<void> | void;
+  onReassignTask: (taskId: string, newAssigneeId: string) => Promise<void> | void;
+  onDeleteTask: (id: string) => Promise<void> | void;
   onUpdateTaskRemarks?: (taskId: string, remarks: TaskRemark[]) => void;
 }
 
@@ -195,6 +196,15 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
   const [taskReadAtById, setTaskReadAtById] = useState<Record<string, number>>({});
   const taskChatReadsTableMissingRef = useRef(false);
   const taskReadStorageKey = useMemo(() => `task-chat-read:${currentUser.id}`, [currentUser.id]);
+
+  const withTimeout = useCallback(<T,>(promise: Promise<T>, ms: number): Promise<T> => {
+    return Promise.race([
+      promise,
+      new Promise<T>((_, reject) =>
+        setTimeout(() => reject(new Error('Operation timed out')), ms)
+      ),
+    ]);
+  }, []);
 
   // Dashboard uses employees from props, no independent fetching needed
   const clearVoiceSafetyStopTimer = () => {
@@ -819,16 +829,21 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
 
     setIsCreatingTask(true);
     try {
-      await Promise.resolve(onAddTask(
-        newTaskDesc.trim(),
-        assigneeId === 'none' ? undefined : assigneeId,
-        undefined,
-        deadlineTimestamp,
-        requirePhoto,
-        normalizedTaskType,
-        normalizedRecurrenceFrequency,
-        priority
-      ));
+      await withTimeout(
+        Promise.resolve(
+          onAddTask(
+            newTaskDesc.trim(),
+            assigneeId === 'none' ? undefined : assigneeId,
+            undefined,
+            deadlineTimestamp,
+            requirePhoto,
+            normalizedTaskType,
+            normalizedRecurrenceFrequency,
+            priority
+          )
+        ),
+        30000
+      );
 
       // IMMEDIATELY reset form states
       setNewTaskDesc('');
@@ -849,6 +864,10 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
       setIsTaskModalOpen(false);
     } catch (err) {
       console.error('Unexpected error creating task:', err);
+      if (err instanceof Error && err.message === 'Operation timed out') {
+        alert('Request timed out. Please check your connection.');
+        return;
+      }
       alert('Unexpected Error: ' + (err instanceof Error ? err.message : 'Unknown error'));
     } finally {
       setIsCreatingTask(false);
@@ -954,19 +973,26 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
 
       // Route delegation through the main add-task pipeline so tenant/company_id
       // and recurrence-safe insert fallbacks stay consistent in one place.
-      await Promise.resolve(
-        onAddTask(
-          trimmedDescription,
-          targetAssigneeId,
-          parentTaskId,
-          deadlineTimestamp
-        )
+      await withTimeout(
+        Promise.resolve(
+          onAddTask(
+            trimmedDescription,
+            targetAssigneeId,
+            parentTaskId,
+            deadlineTimestamp
+          )
+        ),
+        30000
       );
 
       // Auto-reset filter to show new task
       setSelectedPersonFilter('ALL');
     } catch (err) {
       console.error('🚨 Unexpected error creating delegated task:', err);
+      if (err instanceof Error && err.message === 'Operation timed out') {
+        alert('Request timed out. Please check your connection.');
+        return;
+      }
       alert(`Unexpected Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setDelegatingTaskId(null);
@@ -974,8 +1000,16 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
   };
 
   const handleReassign = async (taskId: string, newAssigneeId: string) => {
-    await onReassignTask(taskId, newAssigneeId);
-    setReassigningTaskId(null);
+    try {
+      await withTimeout(Promise.resolve(onReassignTask(taskId, newAssigneeId)), 30000);
+      setReassigningTaskId(null);
+    } catch (err) {
+      if (err instanceof Error && err.message === 'Operation timed out') {
+        alert('Request timed out. Please check your connection.');
+        return;
+      }
+      alert(`Failed to reassign task: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
   };
 
   // Update task status in database and local state
@@ -1322,7 +1356,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
   // --- If a task is selected, render TaskDetailsScreen ---
   if (selectedTask) {
     return (
-      <div className="relative" style={{ height: 'calc(100vh - 120px)' }}>
+      <>
         <TaskDetailsScreen
           task={selectedTask}
           subTasks={tasks.filter(t => t.parentTaskId === selectedTask.id)}
@@ -1336,7 +1370,10 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
           onCompleteTaskWithoutPhoto={() => updateTaskStatus(selectedTask.id, 'completed')}
           onReassign={() => setReassigningTaskId(selectedTask.id)}
           onDelegate={() => setDelegatingTaskId(selectedTask.id)}
-          onDelete={() => { onDeleteTask(selectedTask.id); setSelectedTaskId(null); }}
+          onDelete={async () => {
+            await Promise.resolve(onDeleteTask(selectedTask.id));
+            setSelectedTaskId(null);
+          }}
           onInlineEditSave={handleInlineTaskUpdate}
           onAddRemark={(taskId, remark) => handleAddRemark(taskId, remark)}
         />
@@ -1357,23 +1394,23 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
             onConfirm={async (newAssigneeId) => await handleReassign(reassigningTaskId, newAssigneeId)}
           />
         )}
-      </div>
+      </>
     );
   }
 
   // --- Otherwise, render the unified task list ---
   return (
-    <div className="space-y-4 relative min-h-screen">
+    <div className="w-full space-y-4 relative">
       <div className="space-y-1">
-        <h2 className="text-2xl font-bold text-gray-900 tracking-tight">
+        <h2 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">
           {currentUserFirstName ? `Hello, ${currentUserFirstName}` : 'Hello,'}
         </h2>
         <p className="text-sm text-gray-500 mt-1">Here is your task overview for today.</p>
       </div>
 
       {/* Header with Title and New Button */}
-      <div className={`flex items-center ${canAssignTasks ? 'justify-end' : 'justify-start'}`}>
-        <div className={`flex items-center gap-3 ${canAssignTasks ? 'ml-auto mr-4' : ''}`}>
+      <div className={`flex flex-col gap-3 sm:flex-row sm:items-center ${canAssignTasks ? 'sm:justify-end' : 'sm:justify-start'}`}>
+        <div className={`flex items-center gap-3 ${canAssignTasks ? 'sm:mr-4' : ''}`}>
           <h1 className="text-xl font-bold text-slate-900">Tasks</h1>
           <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-sm font-medium">
             {tasks.length} total
@@ -1382,7 +1419,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
         {canAssignTasks && (
           <button
             onClick={() => setIsTaskModalOpen(true)}
-            className="bg-indigo-900 hover:bg-indigo-800 text-white rounded-full px-4 py-2.5 shadow-md shadow-indigo-900/20 flex items-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95"
+            className="w-full sm:w-auto min-h-[44px] bg-indigo-900 hover:bg-indigo-800 text-white rounded-full px-4 py-3 sm:py-2.5 shadow-md shadow-indigo-900/20 flex items-center justify-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95"
           >
             <Plus className="w-5 h-5" />
             <span className="font-semibold">New</span>
@@ -1392,7 +1429,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
 
       {/* Task Creation Modal */}
       {isTaskModalOpen && canAssignTasks && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
           {/* Backdrop */}
           <div 
             className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
@@ -1400,9 +1437,9 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
           />
           
           {/* Modal Content */}
-          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95">
+          <div className="relative bg-white w-full max-w-lg sm:max-w-xl h-[90vh] sm:h-auto rounded-t-3xl sm:rounded-2xl shadow-xl overflow-y-auto animate-in fade-in zoom-in-95">
             {/* Header */}
-            <div className="sticky top-0 bg-white border-b border-slate-200 p-4 flex items-center justify-between z-10">
+            <div className="sticky top-0 bg-white border-b border-slate-200 p-4 sm:p-5 flex items-center justify-between z-10">
               <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                 <Plus className="w-5 h-5 text-indigo-900" />
                 Create New Task
@@ -1420,14 +1457,14 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
             </div>
 
             {/* Form */}
-            <form onSubmit={handleAddTask} className="p-4 space-y-4">
+            <form onSubmit={handleAddTask} className="p-4 sm:p-6 space-y-4">
               <div className="relative">
                 <input 
                   type="text" 
                   value={newTaskDesc}
                   onChange={(e) => setNewTaskDesc(e.target.value)}
                   placeholder="What needs to be done?"
-                  className={`w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900 transition-all placeholder:text-slate-400 pr-12 ${
+                  className={`w-full min-h-[48px] bg-white border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900 transition-all placeholder:text-slate-400 pr-12 ${
                     isListening ? 'ring-2 ring-red-500 border-red-300' : ''
                   }`}
                   autoFocus
@@ -1473,12 +1510,12 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
                 </div>
               )}
 
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <div className="flex-1 relative">
                   <select 
                     value={assigneeId}
                     onChange={(e) => setAssigneeId(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900 appearance-none transition-all pr-10"
+                    className="w-full min-h-[48px] bg-white border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900 appearance-none transition-all pr-10"
                   >
                     <option value="none" className="text-slate-900">Anyone / Unassigned</option>
                     {employees.map(emp => (
@@ -1490,13 +1527,13 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
                   <UserPlus className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
                 </div>
                 
-                <div className="relative w-1/3 flex-shrink-0">
+                <div className="relative w-full sm:w-1/3 flex-shrink-0">
                   <input 
                     type="datetime-local" 
                     value={deadline}
                     onChange={(e) => setDeadline(e.target.value)}
                     onClick={(e) => openDateTimePicker(e.currentTarget)}
-                    className="w-full border rounded-xl px-3 py-3 bg-white border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-900 transition-all cursor-pointer"
+                    className="w-full min-h-[48px] border rounded-xl px-3 py-3 bg-white border-slate-200 text-base focus:outline-none focus:ring-2 focus:ring-indigo-900 transition-all cursor-pointer"
                   />
                   <CalendarClock className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 </div>
@@ -1507,7 +1544,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
                   <select
                     value={taskType}
                     onChange={(e) => setTaskType(e.target.value as TaskType)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900 appearance-none transition-all pr-10"
+                    className="w-full min-h-[48px] bg-white border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900 appearance-none transition-all pr-10"
                   >
                     <option value="one_time" className="text-slate-900">One-time Task</option>
                     <option value="recurring" className="text-slate-900">Recurring Task</option>
@@ -1525,7 +1562,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
                           value === '' ? '' : (value as RecurrenceFrequency)
                         );
                       }}
-                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900 appearance-none transition-all pr-10"
+                      className="w-full min-h-[48px] bg-white border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900 appearance-none transition-all pr-10"
                       required
                     >
                       <option value="" className="text-slate-900">Select Frequency</option>
@@ -1544,7 +1581,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
                   id="highPriority"
                   checked={priority === 'High'}
                   onChange={(e) => setPriority(e.target.checked ? 'High' : 'Medium')}
-                  className="w-4 h-4 text-red-500 rounded focus:ring-red-300 border-slate-300"
+                  className="w-5 h-5 text-red-500 rounded focus:ring-red-300 border-slate-300"
                 />
                 <label htmlFor="highPriority" className="text-sm text-slate-700">
                   Mark as High Priority
@@ -1557,7 +1594,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
                   id="requirePhoto"
                   checked={requirePhoto}
                   onChange={(e) => setRequirePhoto(e.target.checked)}
-                  className="w-4 h-4 text-indigo-900 rounded focus:ring-indigo-900 border-slate-300"
+                  className="w-5 h-5 text-indigo-900 rounded focus:ring-indigo-900 border-slate-300"
                 />
                 <label htmlFor="requirePhoto" className="text-sm text-slate-700">
                   Require photo proof
@@ -1569,18 +1606,20 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
                   type="button"
                   onClick={() => setIsTaskModalOpen(false)}
                   disabled={isCreatingTask}
-                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-xl font-semibold transition-all duration-200 disabled:opacity-50"
+                  className="flex-1 min-h-[48px] bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-xl font-semibold transition-all duration-200 disabled:opacity-50"
                 >
                   Cancel
                 </button>
-                <button 
+                <LoadingButton
                   type="submit"
-                  disabled={isCreatingTask}
-                  className="flex-1 bg-indigo-900 hover:bg-indigo-800 text-white py-3 rounded-xl font-bold active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 shadow-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)] disabled:opacity-60 disabled:cursor-not-allowed"
+                  isLoading={isCreatingTask}
+                  loadingText="Creating..."
+                  variant="primary"
+                  className="flex-1 min-h-[48px] bg-indigo-900 hover:bg-indigo-800 text-white py-3 rounded-xl font-bold active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 shadow-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)] disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <Plus className="w-5 h-5" />
-                  {isCreatingTask ? 'Creating...' : 'Create Task'}
-                </button>
+                  Create Task
+                </LoadingButton>
               </div>
             </form>
           </div>
@@ -1597,7 +1636,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
           value={assigneeNameFilter}
           onChange={(e) => setAssigneeNameFilter(e.target.value)}
           placeholder="Filter by assignee name..."
-          className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900 transition-all placeholder:text-slate-400"
+          className="w-full min-h-[48px] bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900 transition-all placeholder:text-slate-400"
         />
         {assigneeNameFilter && (
           <button
@@ -1610,7 +1649,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
       </div>
 
       {/* Unified Task List */}
-      <div className="space-y-3 pb-8 min-h-[500px]">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pb-8 min-h-[500px]">
         {allFilteredTasks.map(task => (
           <TaskItem 
             key={task.id} 
@@ -1621,7 +1660,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
           />
         ))}
         {allFilteredTasks.length === 0 && (
-          <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-200">
+          <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-200 md:col-span-2 xl:col-span-3">
             <ClipboardIcon className="w-12 h-12 mx-auto mb-3 text-slate-200" />
             <p className="text-slate-400 font-bold">No tasks found.</p>
           </div>
@@ -1632,8 +1671,19 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
         <CompletionModal 
           onClose={() => setCompletingTaskId(null)}
           onConfirm={async (photo) => {
-            await onCompleteTask(completingTaskId, { imageUrl: photo, timestamp: Date.now() });
-            setCompletingTaskId(null);
+            try {
+              await withTimeout(
+                Promise.resolve(onCompleteTask(completingTaskId, { imageUrl: photo, timestamp: Date.now() })),
+                30000
+              );
+              setCompletingTaskId(null);
+            } catch (err) {
+              if (err instanceof Error && err.message === 'Operation timed out') {
+                alert('Request timed out. Please check your connection.');
+                return;
+              }
+              alert(`Failed to complete task: ${err instanceof Error ? err.message : 'Unknown error'}`);
+            }
           }}
         />
       )}
