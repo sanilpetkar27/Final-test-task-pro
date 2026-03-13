@@ -1,4 +1,5 @@
 import React, { Component, ReactNode } from 'react';
+import * as Sentry from '@sentry/react';
 import { AlertTriangle } from 'lucide-react';
 
 interface Props {
@@ -56,7 +57,17 @@ class ErrorBoundary extends Component<Props, State> {
 
     this.setState({ errorInfo });
 
-    // TODO: Send to error reporting service (Sentry, LogRocket, etc.)
+    // Send to Sentry for error tracking
+    Sentry.captureException(error, {
+      contexts: {
+        react: {
+          componentStack: errorInfo.componentStack,
+        },
+      },
+      tags: {
+        error_boundary: 'true',
+      },
+    });
   }
 
   handleReload = () => {
