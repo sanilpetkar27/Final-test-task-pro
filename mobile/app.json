@@ -22,6 +22,12 @@
         {
           "mode": "development"
         }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "autoLink": true
+        }
       ]
     ]
   }
