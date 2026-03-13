@@ -1,6 +1,6 @@
-# TaskPro Mobile (Expo)
+# OpenTask Mobile (Expo)
 
-This app is the React Native mobile client for the existing TaskPro SaaS backend.
+This app is the React Native mobile client for the existing OpenTask SaaS backend.
 
 ## Stack
 

@@ -41,7 +41,7 @@ export function SignInScreen() {
     <AppScreen>
       <View style={styles.root}>
         <AppCard style={styles.glassHeader}>
-          <Text style={styles.brand}>TaskPro Mobile</Text>
+          <Text style={styles.brand}>OpenTask Mobile</Text>
           <Text style={styles.subtitle}>Secure workspace access for your team.</Text>
         </AppCard>
 

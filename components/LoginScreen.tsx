@@ -637,7 +637,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
               <div className="inline-flex items-center gap-3 bg-indigo-50 p-4 rounded-2xl mb-4">
                 {isLogin ? <ShieldCheck className="w-8 h-8 text-indigo-700" /> : <Building2 className="w-8 h-8 text-indigo-700" />}
                 <div>
-                  <h1 className="text-2xl font-black text-slate-900">TaskPro</h1>
+                  <h1 className="text-2xl font-black text-slate-900">OpenTask</h1>
                   <p className="text-indigo-700 text-sm">{isLogin ? 'Secure Employee Portal' : 'Create Company Account'}</p>
                 </div>
               </div>
