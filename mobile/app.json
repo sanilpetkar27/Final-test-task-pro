@@ -1,8 +1,8 @@
 {
   "expo": {
     "name": "OpenTask",
-    "slug": "taskpro-mobile",
-    "scheme": "taskpro",
+    "slug": "opentask-mobile",
+    "scheme": "opentask",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
@@ -11,10 +11,10 @@
     ],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.taskpro.mobile"
+      "bundleIdentifier": "com.opentask.mobile"
     },
     "android": {
-      "package": "com.taskpro.mobile"
+      "package": "com.opentask.mobile"
     },
     "plugins": [
       [
