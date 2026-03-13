@@ -1,6 +1,6 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { TasksScreen } from '../../features/tasks/screens/TasksScreen';
+import { TasksStack } from '../../features/tasks/navigation/TasksStack';
 import { TeamScreen } from '../../features/teams/screens/TeamScreen';
 import { SettingsScreen } from '../../features/settings/screens/SettingsScreen';
 import { NotificationsScreen } from '../../features/notifications/screens/NotificationsScreen';
@@ -35,7 +35,7 @@ export function AppTabs() {
         },
       }}
     >
-      <Tab.Screen name="Tasks" component={TasksScreen} />
+      <Tab.Screen name="Tasks" component={TasksStack} />
       <Tab.Screen name="Approvals" component={ApprovalsStack} />
       {showTeam && <Tab.Screen name="Team" component={TeamScreen} />}
       <Tab.Screen name="Settings" component={SettingsScreen} />

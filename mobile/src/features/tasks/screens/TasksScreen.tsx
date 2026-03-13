@@ -1,8 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { AppButton, AppCard, AppScreen } from '../../../components/ui';
+import type { TasksStackParamList } from '../navigation/TasksStack';
 import type { AppTabParamList } from '../../../app/navigation/AppTabs';
 import { useAuthStore } from '../../../state/authStore';
 import { lumina, spacing, typography } from '../../../theme';
@@ -14,7 +16,8 @@ import { Ionicons } from '@expo/vector-icons';
 
 export function TasksScreen() {
   const profile = useAuthStore((state) => state.profile);
-  const navigation = useNavigation<BottomTabNavigationProp<AppTabParamList>>();
+  const stackNavigation = useNavigation<NativeStackNavigationProp<TasksStackParamList>>();
+  const tabNavigation = useNavigation<any>(); // Composite navigation for tabs
   const companyId = profile?.companyId;
   const canCreate = profile ? canAssignTasks(profile.role) : false;
   const [assigneeFilter, setAssigneeFilter] = useState('');
@@ -52,7 +55,7 @@ export function TasksScreen() {
         <View style={styles.headerActions}>
           <BellIcon
             userId={profile.id}
-            onPress={() => navigation.navigate('Notifications')}
+            onPress={() => tabNavigation.navigate('Notifications')}
           />
           <AppButton
             label="Create"
@@ -107,7 +110,7 @@ export function TasksScreen() {
             <FlatList
               data={filteredTasks}
               keyExtractor={(item) => item.id}
-              renderItem={({ item }) => <TaskTile task={item} />}
+              renderItem={({ item }) => <TaskTile task={item} onPress={(taskId) => stackNavigation.navigate('TaskDetails', { taskId }) />} />}
               style={styles.list}
               contentContainerStyle={styles.listContent}
               showsVerticalScrollIndicator={false}

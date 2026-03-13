@@ -10,6 +10,7 @@ import {
   Text,
   TextInput,
   View,
+  SafeAreaView,
 } from 'react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
@@ -328,7 +329,7 @@ export function TaskDetailsScreen() {
   }
 
   return (
-    <AppScreen style={styles.screen}>
+    <SafeAreaView style={[styles.screen, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="chevron-back" size={18} color={lumina.text.primary} />
@@ -346,7 +347,7 @@ export function TaskDetailsScreen() {
           <Text style={styles.subtitle}>{String((taskError as Error)?.message || 'Task not found')}</Text>
         </AppCard>
       ) : (
-        <>
+        <View style={styles.content}>
           <AppCard style={styles.memoCard}>
             <View style={styles.badgesRow}>
               <Badge label={task.status} variant={statusToBadgeVariant(task.status)} />
@@ -506,21 +507,23 @@ export function TaskDetailsScreen() {
             </View>
             {draftError ? <Text style={styles.inputError}>{draftError}</Text> : null}
           </AppCard>
-        </>
+        </View>
       )}
-    </AppScreen>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
+    backgroundColor: lumina.bg.app,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
     marginBottom: spacing.md,
+    paddingHorizontal: spacing.md,
   },
   backButton: {
     width: 36,
@@ -542,6 +545,11 @@ const styles = StyleSheet.create({
     fontSize: typography.size.sm,
     fontWeight: typography.weight.medium,
   },
+  content: {
+    flex: 1,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.lg,
+  },
   centered: {
     flex: 1,
     alignItems: 'center',
@@ -555,6 +563,7 @@ const styles = StyleSheet.create({
   },
   memoCard: {
     gap: spacing.sm,
+    marginBottom: spacing.md,
   },
   badgesRow: {
     flexDirection: 'row',
@@ -574,6 +583,7 @@ const styles = StyleSheet.create({
   extensionCard: {
     marginTop: spacing.sm,
     gap: spacing.sm,
+    marginBottom: spacing.md,
   },
   extensionTitle: {
     color: lumina.text.primary,
