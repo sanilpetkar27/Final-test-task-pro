@@ -160,7 +160,7 @@ serve(async (req) => {
               ? `Ready again (${frequency}): ${task.description}`
               : `Your ${frequency} recurring task is active again.`,
           },
-          url: "https://final-test-task-pro.vercel.app/",
+          url: "https://opentask.in/",
           data: {
             type: "recurring_task_reopened",
             task_id: task.id,
@@ -211,7 +211,7 @@ serve(async (req) => {
             ? `Reminder (${frequency}): ${task.description}`
             : `You have a ${frequency} recurring task reminder.`,
         },
-        url: "https://final-test-task-pro.vercel.app/",
+        url: "https://opentask.in/",
         data: {
           type: "recurring_reminder",
           task_id: task.id,

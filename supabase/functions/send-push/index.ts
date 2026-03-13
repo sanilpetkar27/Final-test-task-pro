@@ -130,9 +130,9 @@ serve(async (req) => {
       include_player_ids: [employee.onesignal_id],
       headings: { en: "Task Update" },
       contents: { en: record.description || "You have a new task update" },
-      url: "https://final-test-task-pro.vercel.app/",
+      url: "https://opentask.in/",
       data: {
-        launch_url: "https://final-test-task-pro.vercel.app/?utm_source=pwa",
+        launch_url: "https://opentask.in/?utm_source=pwa",
       },
     };
 
