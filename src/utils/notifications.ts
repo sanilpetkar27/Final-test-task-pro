@@ -1,6 +1,6 @@
 import OneSignal from 'react-onesignal';
 
-const ONE_SIGNAL_APP_ID = String(import.meta.env.VITE_ONESIGNAL_APP_ID || '531b5106-873b-443a-bcc6-b7074246401f').trim();
+const ONE_SIGNAL_APP_ID = String(import.meta.env.VITE_ONESIGNAL_APP_ID || '9ee88105-7981-49b0-a15c-43ab25e326b9').trim();
 let oneSignalInitPromise: Promise<void> | null = null;
 let oneSignalInitComplete = false;
 
@@ -40,8 +40,7 @@ export const initializeOneSignal = async (): Promise<void> => {
         appId: ONE_SIGNAL_APP_ID,
         allowLocalhostAsSecureOrigin: true,
         serviceWorkerPath: '/OneSignalSDKWorker.js',
-        serviceWorkerUpdaterPath: '/OneSignalSDKUpdaterWorker.js',
-        subdomainName: 'final-test-task-pro.vercel.app'
+        serviceWorkerUpdaterPath: '/OneSignalSDKUpdaterWorker.js'
       });
 
       oneSignalInitComplete = true;
