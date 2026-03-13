@@ -128,7 +128,7 @@ serve(async (req) => {
     const notification = {
       app_id: APP_ID,
       include_player_ids: [employee.onesignal_id],
-      headings: { en: "Task Update" },
+      headings: { en: "OpenTask Update" },
       contents: { en: record.description || "You have a new task update" },
       url: "https://opentask.in/",
       data: {

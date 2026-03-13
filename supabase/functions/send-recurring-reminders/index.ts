@@ -154,7 +154,7 @@ serve(async (req) => {
         const reopenNotificationPayload = {
           app_id: APP_ID,
           include_player_ids: [oneSignalId],
-          headings: { en: "Recurring Task Reopened" },
+          headings: { en: "OpenTask: Task Reopened" },
           contents: {
             en: task.description
               ? `Ready again (${frequency}): ${task.description}`
@@ -205,7 +205,7 @@ serve(async (req) => {
       const notificationPayload = {
         app_id: APP_ID,
         include_player_ids: [oneSignalId],
-        headings: { en: "Recurring Task Reminder" },
+        headings: { en: "OpenTask: Task Reminder" },
         contents: {
           en: task.description
             ? `Reminder (${frequency}): ${task.description}`
