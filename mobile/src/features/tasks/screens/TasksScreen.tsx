@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -46,7 +47,7 @@ export function TasksScreen() {
   }
 
   return (
-    <AppScreen>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#ffffff' }}>
       <View style={styles.header}>
         <View style={styles.headerTextWrap}>
           <Text style={styles.title}>Tasks</Text>
@@ -110,7 +111,7 @@ export function TasksScreen() {
             <FlatList
               data={filteredTasks}
               keyExtractor={(item) => item.id}
-              renderItem={({ item }) => <TaskTile task={item} onPress={(taskId) => stackNavigation.navigate('TaskDetails', { taskId }) />} />}
+              renderItem={({ item }) => <TaskTile task={item} onPress={(taskId) => stackNavigation.navigate('TaskDetails', { taskId })} />}
               style={styles.list}
               contentContainerStyle={styles.listContent}
               showsVerticalScrollIndicator={false}

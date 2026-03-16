@@ -10,8 +10,8 @@ import {
   Text,
   TextInput,
   View,
-  SafeAreaView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -329,10 +329,14 @@ export function TaskDetailsScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.screen, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={18} color={lumina.text.primary} />
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#ffffff' }}>
+      <View style={[styles.header, { minHeight: 44 }]}>
+        <Pressable 
+          onPress={() => navigation.navigate('TasksList')} 
+          style={[styles.backButton, { padding: 12, minHeight: 44 }]}
+        >
+          <Ionicons name="chevron-back" size={20} color={lumina.text.primary} />
+          <Text style={[styles.backButtonText, { marginLeft: 8 }]}>Back to Tasks</Text>
         </Pressable>
         <Text style={styles.title}>Task Details</Text>
       </View>
@@ -526,14 +530,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
   },
   backButton: {
-    width: 36,
-    height: 36,
+    width: 40,
+    height: 40,
     borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: lumina.border.subtle,
     backgroundColor: lumina.bg.surface,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  backButtonText: {
+    fontSize: typography.size.sm,
+    fontWeight: typography.weight.medium,
+    color: lumina.text.primary,
   },
   title: {
     color: lumina.text.primary,

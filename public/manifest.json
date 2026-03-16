@@ -3,19 +3,23 @@
   "short_name": "OpenTask",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#ffffff",
+  "background_color": "#efeae2",
+  "theme_color": "#202c33",
   "scope": "/",
+  "description": "Professional task management and team collaboration platform",
+  "orientation": "portrait-primary",
   "icons": [
     {
       "src": "/icon-192.png",
       "type": "image/png",
-      "sizes": "192x192"
+      "sizes": "192x192",
+      "purpose": "any maskable"
     },
     {
       "src": "/icon-512.png",
       "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "512x512",
+      "purpose": "any maskable"
     }
   ]
 }
