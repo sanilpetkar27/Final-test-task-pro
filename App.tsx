@@ -6,8 +6,10 @@ import TeamManager from './components/TeamManager';
 import ApprovalsPanel from './components/ApprovalsPanel';
 import LoginScreen from './components/LoginScreen';
 import ErrorBoundary from './src/components/ErrorBoundary';
-import { supabase, supabaseAuth } from './src/lib/supabase';
+import BottomNavigation from './src/components/BottomNavigation';
+import TaskDetailPage from './src/pages/TaskDetailPage';
 import { useNotificationSetup } from './src/hooks/useNotificationSetup';
+import { supabase, supabaseAuth } from './src/lib/supabase';
 import { transformTaskToApp, transformTaskToDB, transformTasksToApp, DatabaseTask } from './src/utils/transformers';
 import { sendTaskAssignmentNotification } from './src/utils/pushNotifications';
 import { Toaster, toast } from 'sonner';
@@ -2405,27 +2407,13 @@ const App: React.FC = () => {
         {activeTab === AppTab.APPROVALS && (
           <ApprovalsPanel currentUser={currentUser} />
         )}
-
-        {isManager && activeTab === AppTab.TEAM && (
-          <TeamManager
-            employees={scopedEmployees}
-            staffManagerLinks={staffManagerLinks}
-            currentUser={currentUser}
-            onAddEmployee={addEmployee}
-            onRemoveEmployee={removeEmployee}
-            onUpdateStaffManagers={updateStaffManagers}
-            isSuperAdmin={isSuperAdmin}
-            setEmployees={setEmployees}
-            onRefreshData={async () => {
-              const data = await loadInitialData(false);
-              if (data) {
-                setEmployees(data.employees);
-                setStaffManagerLinks(data.staffManagerLinks || []);
-                setTasks(data.tasks);
-              }
-            }}
-          />
-        )}
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/approvals" element={<ApprovalsPanel />} />
+          <Route path="/team" element={<TeamManager />} />
+          <Route path="/settings" element={<StatsScreen />} />
+          <Route path="/task/:taskId" element={<TaskDetailPage />} />
+        </Routes>
       </main>
 
       {/* Simplified Bottom Nav (Dashboard, Tasks, Team) */}
