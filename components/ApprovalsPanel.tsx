@@ -304,13 +304,14 @@ const getApproverName = (approverId: string, approvers: ApproverOption[]): strin
   const approver = approvers.find(a => a.id === approverId);
   return approver ? approver.name : 'Unknown';
 };
-
-interface ApprovalsPanelProps {
   currentUser: Employee;
 }
 
 const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
-  const [view, setView] = useState<ApprovalView>(currentUser.role === 'owner' || currentUser.role === 'super_admin' ? 'needs_my_approval' : 'my_requests');
+  // Early return guard if currentUser is undefined
+  if (!currentUser) return null;
+  
+  const [view, setView] = useState<ApprovalView>(currentUser?.role === 'owner' || currentUser?.role === 'super_admin' ? 'needs_my_approval' : 'my_requests');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed'>('all');
   // Set default month filter to current month
   const getCurrentMonth = () => {
