@@ -35,12 +35,15 @@ const TaskItem: React.FC<TaskItemProps> = ({
   onReassign,
   onDelete
 }) => {
+  // Early return guard if currentUser is undefined
+  if (!currentUser) return null;
+  
   const [showFullImage, setShowFullImage] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
-  const isManager = currentUser.role === 'manager';
-  const canDelete = currentUser.id === task.assignedBy || isManager;
+  const isManager = currentUser?.role === 'manager';
+  const canDelete = currentUser?.id === task.assignedBy || isManager;
   
   const completedSubTasks = subTasks.filter(st => st.status === 'completed');
   const hasSubTasks = subTasks.length > 0;

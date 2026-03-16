@@ -140,6 +140,9 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   onStartTask, onReopenTask, onCompleteTask, onCompleteTaskWithoutPhoto,
   onReassign, onDelegate, onDelete, onInlineEditSave, onAddRemark
 }) => {
+  // Early return guard if currentUser is undefined
+  if (!currentUser) return null;
+
   const [newRemark, setNewRemark] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [showFullImage, setShowFullImage] = useState(false);
@@ -212,17 +215,17 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   const assigneeTelHref = getTelHref(getEmployeeMobile(task.assignedTo));
   const assignerTelHref = getTelHref(getEmployeeMobile(task.assignedBy));
 
-  const isManager = currentUser.role === 'manager' || currentUser.role === 'super_admin' || currentUser.role === 'owner';
+  const isManager = currentUser?.role === 'manager' || currentUser?.role === 'super_admin' || currentUser?.role === 'owner';
   const mentionableMembers = useMemo<MentionCandidate[]>(
     () =>
       (employees || [])
-        .filter((employee) => employee?.id && employee.id !== currentUser.id)
+        .filter((employee) => employee?.id && employee.id !== currentUser?.id)
         .map((employee) => ({
           id: employee.id,
           name: String(employee.name || '').trim() || String(employee.email || '').trim() || 'User',
           email: String(employee.email || '').trim() || undefined,
         })),
-    [employees, currentUser.id]
+    [employees, currentUser?.id]
   );
 
   const rawTaskType = String((task as any).taskType ?? (task as any).task_type ?? '').toLowerCase();
@@ -238,29 +241,29 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
 
   const assignedEmployee = task.assignedTo ? employees.find(e => e.id === task.assignedTo) : undefined;
   const assignerEmployee = task.assignedBy ? employees.find(e => e.id === task.assignedBy) : undefined;
-  const normalizedCurrentEmail = String(currentUser.email || '').trim().toLowerCase();
+  const normalizedCurrentEmail = String(currentUser?.email || '').trim().toLowerCase();
   const normalizedAssignedEmail = String(assignedEmployee?.email || '').trim().toLowerCase();
   const normalizedAssignerEmail = String(assignerEmployee?.email || '').trim().toLowerCase();
 
   const isAssignedWorker =
-    task.assignedTo === currentUser.id ||
-    (typeof currentUser.auth_user_id === 'string' && task.assignedTo === currentUser.auth_user_id) ||
-    (typeof assignedEmployee?.auth_user_id === 'string' && assignedEmployee.auth_user_id === currentUser.id) ||
-    (typeof assignedEmployee?.auth_user_id === 'string' && typeof currentUser.auth_user_id === 'string' && assignedEmployee.auth_user_id === currentUser.auth_user_id) ||
+    task.assignedTo === currentUser?.id ||
+    (typeof currentUser?.auth_user_id === 'string' && task.assignedTo === currentUser?.auth_user_id) ||
+    (typeof assignedEmployee?.auth_user_id === 'string' && assignedEmployee.auth_user_id === currentUser?.id) ||
+    (typeof assignedEmployee?.auth_user_id === 'string' && typeof currentUser?.auth_user_id === 'string' && assignedEmployee.auth_user_id === currentUser?.auth_user_id) ||
     Boolean(normalizedCurrentEmail && normalizedAssignedEmail && normalizedCurrentEmail === normalizedAssignedEmail);
 
   const isTaskAssigner =
-    task.assignedBy === currentUser.id ||
-    (typeof currentUser.auth_user_id === 'string' && task.assignedBy === currentUser.auth_user_id) ||
-    (typeof assignerEmployee?.auth_user_id === 'string' && assignerEmployee.auth_user_id === currentUser.id) ||
-    (typeof assignerEmployee?.auth_user_id === 'string' && typeof currentUser.auth_user_id === 'string' && assignerEmployee.auth_user_id === currentUser.auth_user_id) ||
+    task.assignedBy === currentUser?.id ||
+    (typeof currentUser?.auth_user_id === 'string' && task.assignedBy === currentUser?.auth_user_id) ||
+    (typeof assignerEmployee?.auth_user_id === 'string' && assignerEmployee.auth_user_id === currentUser?.id) ||
+    (typeof assignerEmployee?.auth_user_id === 'string' && typeof currentUser?.auth_user_id === 'string' && assignerEmployee.auth_user_id === currentUser?.auth_user_id) ||
     Boolean(normalizedCurrentEmail && normalizedAssignerEmail && normalizedCurrentEmail === normalizedAssignerEmail);
 
   // Only the task assigner can edit or delete the task
   const canDelete = isTaskAssigner;
   const canEdit = isTaskAssigner;
 
-  const canApproveExtension = currentUser.role === 'owner' || currentUser.role === 'super_admin' || isTaskAssigner;
+  const canApproveExtension = currentUser?.role === 'owner' || currentUser?.role === 'super_admin' || isTaskAssigner;
   const canRequestExtension = isAssignedWorker && task.status === 'in-progress' && extensionStatus !== 'REQUESTED';
   const canReviewExtensionRequest = canApproveExtension && !isAssignedWorker && task.status === 'in-progress' && extensionStatus === 'REQUESTED' && Boolean(requestedDueDate);
 
@@ -320,7 +323,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
     let isCancelled = false;
     const timer = window.setTimeout(async () => {
       setMentionLoading(true);
-      const companyId = String(currentUser.company_id || '').trim();
+      const companyId = String(currentUser?.company_id || '').trim();
       const queryText = mentionQuery.trim();
 
       try {
@@ -330,7 +333,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
             .from('employees')
             .select('id, name, email')
             .eq('company_id', companyId)
-            .neq('id', currentUser.id)
+            .neq('id', currentUser?.id)
             .order('name', { ascending: true })
             .limit(8);
 
@@ -379,7 +382,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
       isCancelled = true;
       window.clearTimeout(timer);
     };
-  }, [mentionMenuOpen, mentionQuery, mentionableMembers, currentUser.company_id, currentUser.id]);
+  }, [mentionMenuOpen, mentionQuery, mentionableMembers, currentUser?.company_id, currentUser?.id]);
 
   useEffect(() => {
     setShowExtensionInput(false);
@@ -1070,7 +1073,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
                     </span>
                   </div>
                   {group.remarks.map((remark, i) => {
-                    const isOwn = remark.employeeId === currentUser.id;
+                    const isOwn = remark.employeeId === currentUser?.id;
                     const remarkRole = getEmployeeRole(remark.employeeId);
                     const badge = getRoleBadge(remarkRole);
                     return (

@@ -115,6 +115,9 @@ const TeamManager: React.FC<TeamManagerProps> = ({
   setEmployees,
   onRefreshData
 }) => {
+  // Early return guard if currentUser is undefined
+  if (!currentUser) return null;
+  
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -134,22 +137,22 @@ const TeamManager: React.FC<TeamManagerProps> = ({
         setTimeout(() => reject(new Error('Operation timed out')), ms)
       ),
     ]);
-  const canAddMembers = ['super_admin', 'manager', 'owner'].includes(currentUser.role);
+  const canAddMembers = ['super_admin', 'manager', 'owner'].includes(currentUser?.role || '');
   const canAssignMultipleManagers =
-    currentUser.role === 'super_admin' || currentUser.role === 'owner' || isSuperAdmin;
+    currentUser?.role === 'super_admin' || currentUser?.role === 'owner' || isSuperAdmin;
   const requiresManagerSelection = canAssignMultipleManagers && newRole === 'staff';
 
   const assignableRoles = useMemo<UserRole[]>(() => {
-    if (currentUser.role === 'super_admin' || currentUser.role === 'owner') {
+    if (currentUser?.role === 'super_admin' || currentUser?.role === 'owner') {
       return ['super_admin', 'manager', 'staff'];
     }
 
-    if (currentUser.role === 'manager') {
+    if (currentUser?.role === 'manager') {
       return ['staff'];
     }
 
     return [];
-  }, [currentUser.role]);
+  }, [currentUser?.role]);
 
   const managerOptions = useMemo<Employee[]>(() => {
     const uniqueManagers = new Map<string, Employee>();
@@ -161,8 +164,8 @@ const TeamManager: React.FC<TeamManagerProps> = ({
       }
     });
 
-    if (currentUser.role === 'manager') {
-      uniqueManagers.set(currentUser.id, currentUser);
+    if (currentUser?.role === 'manager') {
+      uniqueManagers.set(currentUser?.id || '', currentUser);
     }
 
     return Array.from(uniqueManagers.values());
@@ -190,9 +193,9 @@ const TeamManager: React.FC<TeamManagerProps> = ({
     const fallbackCurrentUser: Employee = {
       ...currentUser,
       id: currentUserId,
-      email: String(currentUser.email || `${currentUserId}@taskpro.local`),
-      mobile: String(currentUser.mobile || currentUserId.slice(0, 10)),
-      company_id: String(currentUser.company_id || '00000000-0000-0000-0000-000000000001'),
+      email: String(currentUser?.email || `${currentUserId}@taskpro.local`),
+      mobile: String(currentUser?.mobile || currentUserId.slice(0, 10)),
+      company_id: String(currentUser?.company_id || '00000000-0000-0000-0000-000000000001'),
     };
 
     return [fallbackCurrentUser, ...normalizedEmployees];
@@ -206,9 +209,9 @@ const TeamManager: React.FC<TeamManagerProps> = ({
         managerMap.set(String(member.id), String(member.name));
       }
     });
-    managerMap.set(String(currentUser.id), String(currentUser.name));
+    managerMap.set(String(currentUser?.id || ''), String(currentUser?.name || ''));
     return managerMap;
-  }, [employees, teamMembers, currentUser.id, currentUser.name]);
+  }, [employees, teamMembers, currentUser?.id, currentUser?.name]);
 
   const managerById = useMemo(() => {
     const managerMap = new Map<string, { id: string; name: string; mobile: string }>();
@@ -222,19 +225,19 @@ const TeamManager: React.FC<TeamManagerProps> = ({
         });
       }
     });
-    managerMap.set(String(currentUser.id), {
-      id: String(currentUser.id),
-      name: String(currentUser.name),
-      mobile: String(currentUser.mobile || ''),
+    managerMap.set(String(currentUser?.id || ''), {
+      id: String(currentUser?.id || ''),
+      name: String(currentUser?.name || ''),
+      mobile: String(currentUser?.mobile || ''),
     });
     return managerMap;
-  }, [employees, teamMembers, currentUser.id, currentUser.name, currentUser.mobile]);
+  }, [employees, teamMembers, currentUser?.id, currentUser?.name, currentUser?.mobile]);
 
   const managerIdsByStaffId = useMemo(() => {
     const managerMap = new Map<string, string[]>();
     (staffManagerLinks || []).forEach((link) => {
       if (!link) return;
-      if (String(link.company_id || '').trim() !== String(currentUser.company_id || '').trim()) return;
+      if (String(link.company_id || '').trim() !== String(currentUser?.company_id || '').trim()) return;
 
       const staffId = String(link.staff_id || '').trim();
       const managerId = String(link.manager_id || '').trim();
@@ -246,7 +249,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
       }
     });
     return managerMap;
-  }, [staffManagerLinks, currentUser.company_id]);
+  }, [staffManagerLinks, currentUser?.company_id]);
 
   const getManagerIdsForMember = (member: Employee): string[] => {
     const linkManagerIds = managerIdsByStaffId.get(String(member.id || '').trim()) || [];
@@ -297,16 +300,16 @@ const TeamManager: React.FC<TeamManagerProps> = ({
   };
 
   const canDeleteMember = (member: Employee): boolean => {
-    if (!member || member.id === currentUser.id) {
+    if (!member || member.id === currentUser?.id) {
       return false;
     }
 
-    if (currentUser.role === 'super_admin' || currentUser.role === 'owner') {
+    if (currentUser?.role === 'super_admin' || currentUser?.role === 'owner') {
       return true;
     }
 
-    if (currentUser.role === 'manager') {
-      return member.role === 'staff' && getManagerIdsForMember(member).includes(currentUser.id);
+    if (currentUser?.role === 'manager') {
+      return member.role === 'staff' && getManagerIdsForMember(member).includes(currentUser?.id || '');
     }
 
     return false;
@@ -315,12 +318,12 @@ const TeamManager: React.FC<TeamManagerProps> = ({
   const canManageMemberManagers = (member: Employee): boolean => {
     if (!member || member.role !== 'staff') return false;
 
-    if (currentUser.role === 'super_admin' || currentUser.role === 'owner') {
+    if (currentUser?.role === 'super_admin' || currentUser?.role === 'owner') {
       return true;
     }
 
-    if (currentUser.role === 'manager') {
-      return getManagerIdsForMember(member).includes(currentUser.id);
+    if (currentUser?.role === 'manager') {
+      return getManagerIdsForMember(member).includes(currentUser?.id || '');
     }
 
     return false;
@@ -340,12 +343,12 @@ const TeamManager: React.FC<TeamManagerProps> = ({
       return;
     }
 
-    if (currentUser.role === 'manager') {
-      setSelectedManagerIds([currentUser.id]);
+    if (currentUser?.role === 'manager') {
+      setSelectedManagerIds([currentUser?.id || '']);
       return;
     }
 
-    if (currentUser.role === 'super_admin' || currentUser.role === 'owner') {
+    if (currentUser?.role === 'super_admin' || currentUser?.role === 'owner') {
       setSelectedManagerIds((prev) => {
         const allowedIds = new Set(managerOptions.map((manager) => manager.id));
         const retained = prev.filter((managerId) => allowedIds.has(managerId));
@@ -358,7 +361,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
     }
 
     setSelectedManagerIds([]);
-  }, [newRole, currentUser.role, currentUser.id, managerOptions]);
+  }, [newRole, currentUser?.role, currentUser?.id, managerOptions]);
 
   const handleRefresh = () => {
     window.location.reload();
@@ -370,7 +373,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
       const { data, error } = await supabase
         .from('employees')
         .select('*')
-        .eq('company_id', currentUser.company_id);
+        .eq('company_id', currentUser?.company_id);
       
       if (error) {
         console.error('❌ Connection Test Failed:', error);
@@ -397,9 +400,9 @@ const TeamManager: React.FC<TeamManagerProps> = ({
       ? newRole
       : (assignableRoles[0] || 'staff');
     const managerOwnerIds =
-      roleToCreate === 'staff' && currentUser.role === 'manager'
-        ? [currentUser.id]
-        : roleToCreate === 'staff' && (currentUser.role === 'super_admin' || currentUser.role === 'owner')
+      roleToCreate === 'staff' && currentUser?.role === 'manager'
+        ? [currentUser?.id || '']
+        : roleToCreate === 'staff' && (currentUser?.role === 'super_admin' || currentUser?.role === 'owner')
         ? selectedManagerIds
         : [];
     const managerOwnerId = managerOwnerIds[0] || null;
@@ -434,7 +437,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
           name: newName.trim(),
           role: roleToCreate,
           mobile: formattedMobile,
-          company_id: currentUser.company_id
+          company_id: currentUser?.company_id
         }),
         30000
       );
@@ -487,7 +490,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
 
       const buildPayload = (employeeId: string) => ({
         id: employeeId,
-        company_id: currentUser.company_id,
+        company_id: currentUser?.company_id,
         name: newName.trim(),
         mobile: formattedMobile,
         role: roleToCreate,
@@ -548,7 +551,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
           .limit(1);
 
         if (scopeToCompany) {
-          query = query.eq('company_id', currentUser.company_id);
+          query = query.eq('company_id', currentUser?.company_id);
         }
 
         if (canLookupByEmail) {
@@ -572,7 +575,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
           .limit(1);
 
         const { data: byMobileRow, error: byMobileError } = scopeToCompany
-          ? await mobileQuery.eq('company_id', currentUser.company_id).maybeSingle()
+          ? await mobileQuery.eq('company_id', currentUser?.company_id).maybeSingle()
           : await mobileQuery.maybeSingle();
 
         if (!byMobileError && byMobileRow) {
@@ -617,7 +620,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
           .from('employees')
           .select('*')
           .eq('id', resolvedEmployeeId)
-          .eq('company_id', currentUser.company_id)
+          .eq('company_id', currentUser?.company_id)
           .maybeSingle();
         return { data: data as Employee | null, error };
       };
@@ -632,7 +635,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
         // Recovery path: legacy RPCs may create the profile row in a default/wrong tenant.
         // Repair by identity and force current company mapping.
         let repairPayload: Record<string, any> = {
-          company_id: currentUser.company_id,
+          company_id: currentUser?.company_id,
           name: newName.trim(),
           mobile: formattedMobile,
           role: roleToCreate,
@@ -722,7 +725,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
         email: String((persistedEmployee as any).email || newEmail.trim() || `${formattedMobile}@taskpro.local`),
         mobile: String((persistedEmployee as any).mobile || formattedMobile),
         role: ((persistedEmployee as any).role || roleToCreate) as UserRole,
-        company_id: String((persistedEmployee as any).company_id || currentUser.company_id || '00000000-0000-0000-0000-000000000001'),
+        company_id: String((persistedEmployee as any).company_id || currentUser?.company_id || '00000000-0000-0000-0000-000000000001'),
         manager_id:
           typeof (persistedEmployee as any).manager_id === 'string' && (persistedEmployee as any).manager_id.trim()
             ? (persistedEmployee as any).manager_id.trim()
@@ -743,11 +746,11 @@ const TeamManager: React.FC<TeamManagerProps> = ({
       }
 
       // 4. Refresh team list for this company; fallback to local append if refresh fails.
-      if (setEmployees && currentUser.company_id) {
+      if (setEmployees && currentUser?.company_id) {
         const { data: refreshedEmployees, error: refreshError } = await supabase
           .from('employees')
           .select('*')
-          .eq('company_id', currentUser.company_id);
+          .eq('company_id', currentUser?.company_id);
 
         if (!refreshError && refreshedEmployees) {
           const employeeRows = refreshedEmployees as Employee[];
@@ -778,7 +781,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
       setNewPassword('');
       setNewMobile('');
       setNewRole('staff');
-      setSelectedManagerIds(currentUser.role === 'manager' ? [currentUser.id] : []);
+      setSelectedManagerIds(currentUser?.role === 'manager' ? [currentUser?.id || ''] : []);
       setIsAdding(false);
     } catch (err: any) {
       console.error('Unexpected crash:', err);
@@ -991,7 +994,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
                 const addedByManagers = getAddedByManagers(emp);
                 const showAddedBy =
                   Boolean(addedByLabel) &&
-                  (currentUser.role === 'super_admin' || currentUser.role === 'owner');
+                  (currentUser?.role === 'super_admin' || currentUser?.role === 'owner');
                 
                 return (
                   <div key={emp.id} className="space-y-3">
