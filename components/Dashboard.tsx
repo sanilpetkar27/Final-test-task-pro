@@ -195,7 +195,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
   const previousTaskStatusRef = useRef<Record<string, TaskStatus>>({});
   const [taskReadAtById, setTaskReadAtById] = useState<Record<string, number>>({});
   const taskChatReadsTableMissingRef = useRef(false);
-  const taskReadStorageKey = useMemo(() => `task-chat-read:${currentUser.id}`, [currentUser.id]);
+  const taskReadStorageKey = useMemo(() => `task-chat-read:${currentUser?.id || 'unknown'}`, [currentUser?.id]);
 
   const withTimeout = useCallback(<T,>(promise: Promise<T>, ms: number): Promise<T> => {
     return Promise.race([
@@ -260,7 +260,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
     const { data, error } = await supabase
       .from('task_chat_reads')
       .select('task_id, last_read_at')
-      .eq('user_id', currentUser.id)
+      .eq('user_id', currentUser?.id || 'unknown')
       .in('task_id', taskIds);
 
     if (error) {
@@ -304,7 +304,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
       .upsert(
         {
           task_id: taskId,
-          user_id: currentUser.id,
+          user_id: currentUser?.id || 'unknown',
           last_read_at: readAtIso,
         },
         { onConflict: 'task_id,user_id' }
@@ -332,14 +332,14 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
     if (taskChatReadsTableMissingRef.current) return;
 
     const channel = supabase
-      .channel(`task-chat-reads-${currentUser.id}`)
+      .channel(`task-chat-reads-${currentUser?.id || 'unknown'}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'task_chat_reads',
-          filter: `user_id=eq.${currentUser.id}`,
+          filter: `user_id=eq.${currentUser?.id || 'unknown'}`,
         },
         (payload: any) => {
           const taskId = String(payload?.new?.task_id || payload?.old?.task_id || '');
@@ -368,14 +368,14 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
         const remarkTs = parseDateToMs(remark?.timestamp);
         const senderId = String(remark?.employeeId || '');
         const isOwnMessage =
-          senderId === currentUser.id ||
-          (currentUser.auth_user_id ? senderId === currentUser.auth_user_id : false);
+          senderId === currentUser?.id ||
+          (currentUser?.auth_user_id ? senderId === currentUser.auth_user_id : false);
         if (isOwnMessage) return total;
         return remarkTs > lastReadAt ? total + 1 : total;
       }, 0);
     }
     return counts;
-  }, [tasks, taskReadAtById, currentUser.id, currentUser.auth_user_id]);
+  }, [tasks, taskReadAtById, currentUser?.id, currentUser?.auth_user_id]);
 
   const handleOpenTask = (task: DealershipTask) => {
     const latestRemarkMs = (Array.isArray(task.remarks) ? task.remarks : []).reduce((maxTs, remark: any) => {
