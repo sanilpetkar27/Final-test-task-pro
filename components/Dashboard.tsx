@@ -100,6 +100,9 @@ const parseDateToMs = (value: unknown): number => {
 };
 
 const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, tasksTabReselectSignal = 0, onAddTask, onStartTask, onReopenTask, onCompleteTask, onCompleteTaskWithoutPhoto, onReassignTask, onDeleteTask, onUpdateTaskRemarks }) => {
+  // Early return guard if currentUser is undefined
+  if (!currentUser) return null;
+  
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   
   // Voice recognition state
@@ -322,7 +325,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
       }
       console.warn('Failed to mark task chat as read:', error);
     }
-  }, [currentUser.id, saveLocalTaskReadMap]);
+  }, [currentUser?.id, saveLocalTaskReadMap]);
 
   useEffect(() => {
     void loadTaskChatReads(tasks.map((task) => task.id));
@@ -357,7 +360,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [currentUser.id, saveLocalTaskReadMap]);
+  }, [currentUser?.id, saveLocalTaskReadMap]);
 
   const taskUnreadCountById = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -369,7 +372,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
         const senderId = String(remark?.employeeId || '');
         const isOwnMessage =
           senderId === currentUser?.id ||
-          (currentUser?.auth_user_id ? senderId === currentUser.auth_user_id : false);
+          (currentUser?.auth_user_id ? senderId === currentUser?.auth_user_id : false);
         if (isOwnMessage) return total;
         return remarkTs > lastReadAt ? total + 1 : total;
       }, 0);
@@ -740,9 +743,9 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
 
   // Dashboard uses tasks from props, not fetched independently
 
-  const isManager = currentUser.role === 'manager' || currentUser.role === 'owner';
-  const isSuperAdmin = currentUser.role === 'super_admin';
-  const canAssignTasks = currentUser.role === 'manager' || currentUser.role === 'super_admin' || currentUser.role === 'owner'; // For UI permissions
+  const isManager = currentUser?.role === 'manager' || currentUser?.role === 'owner';
+  const isSuperAdmin = currentUser?.role === 'super_admin';
+  const canAssignTasks = currentUser?.role === 'manager' || currentUser?.role === 'super_admin' || currentUser?.role === 'owner'; // For UI permissions
 
   useEffect(() => {
     const previousStatuses = previousTaskStatusRef.current;
@@ -1067,7 +1070,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
                   if (taskCreator) {
                     await sendTaskCompletionNotification(
                       completedTask.description,
-                      currentUser.name,
+                      currentUser?.name,
                       taskCreator.id
                     );
                   }
@@ -1187,10 +1190,10 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
       const newRemark = {
         id: newRemarkId,
         taskId: taskId,
-        employeeId: currentUser.id,
+        employeeId: currentUser?.id,
         employeeName:
-          currentUser.name?.trim() ||
-          currentUser.email?.split('@')[0] ||
+          currentUser?.name?.trim() ||
+          currentUser?.email?.split('@')[0] ||
           'Unknown User',
         remark: remarkText,
         timestamp: Date.now(),
@@ -1226,11 +1229,11 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
         onUpdateTaskRemarks?.(taskId, updatedRemarks as TaskRemark[]);
 
         if (mentionedUserIds.length > 0) {
-          const targetUserIds = mentionedUserIds.filter((userId) => userId !== currentUser.id);
+          const targetUserIds = mentionedUserIds.filter((userId) => userId !== currentUser?.id);
           if (targetUserIds.length > 0) {
             const actorName =
-              currentUser.name?.trim() ||
-              currentUser.email?.split('@')[0] ||
+              currentUser?.name?.trim() ||
+              currentUser?.email?.split('@')[0] ||
               'A teammate';
             const taskTitle = task.description?.trim() || 'Task';
             const nowIso = new Date().toISOString();
@@ -1283,7 +1286,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
         return filtered;
       } else {
         // Managers/staff see only their relevant tasks
-        return filtered.filter(task => task.assignedTo === currentUser.id || task.assignedBy === currentUser.id);
+        return filtered.filter(task => task.assignedTo === currentUser?.id || task.assignedBy === currentUser?.id);
       }
     }
     
@@ -1322,10 +1325,10 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
 
   const allFilteredTasks = sortTasksByRecentActivity(getFilteredTasks(tasks));
   const currentUserFirstName = useMemo(() => {
-    const rawName = String(currentUser.name || '').trim();
+    const rawName = String(currentUser?.name || '').trim();
     if (!rawName) return '';
     return rawName.split(/\s+/)[0] || '';
-  }, [currentUser.name]);
+  }, [currentUser?.name]);
 
   // Auto-navigate back if selected task was deleted
   useEffect(() => {
