@@ -2378,7 +2378,7 @@ const App: React.FC = () => {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto overflow-x-hidden pb-28 px-4 sm:px-6 lg:px-8 pt-4 w-full">
+      <main className="flex-1 overflow-y-auto overflow-x-hidden pb-28 px-4 sm:px-6 lg:px-8 pt-4 w-full" style={{ paddingBottom: '80px' }}>
         {/* Hidden: Business Overview Content */}
         {/* {activeTab === AppTab.DASHBOARD && (
           <StatsScreen
@@ -2417,56 +2417,14 @@ const App: React.FC = () => {
         </Routes>
       </main>
 
-      {/* Simplified Bottom Nav (Dashboard, Tasks, Team) */}
-      <nav className="bg-white border-t border-slate-200 fixed bottom-0 left-0 right-0 w-full max-w-md sm:max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-auto z-40 safe-bottom shadow-[0_-2px_8px_rgba(0,0,0,0.04)] rounded-t-[2.5rem]">
-        <div className="flex justify-around items-center h-20 px-2">
-
-          {/* Hidden: Business Overview Tab */}
-          {/* <NavBtn
-            active={activeTab === AppTab.DASHBOARD}
-            onClick={() => setActiveTab(AppTab.DASHBOARD)}
-            icon={<LayoutDashboard className="w-6 h-6" />}
-            label="Dashboard"
-          /> */}
-
-          <NavBtn
-            active={activeTab === AppTab.TASKS}
-            onClick={handleTasksTabClick}
-            icon={<ClipboardList className="w-6 h-6" />}
-            label="Tasks"
-          />
-
-          <NavBtn
-            active={activeTab === AppTab.APPROVALS}
-            onClick={() => setActiveTab(AppTab.APPROVALS)}
-            icon={<CheckCircle2 className="w-6 h-6" />}
-            label="Approvals"
-          />
-
-          {isManager && (
-            <NavBtn
-              active={activeTab === AppTab.TEAM}
-              onClick={() => setActiveTab(AppTab.TEAM)}
-              icon={<Users className="w-6 h-6" />}
-              label="Team"
-            />
-          )}
-
-        </div>
-      </nav>
+      {/* Bottom Navigation - Always Visible */}
+      <BottomNavigation />
         </div>
         <Toaster />
       </div>
     </ErrorBoundary>
   );
 };
-
-const NavBtn = ({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: any, label: string }) => (
-  <button onClick={onClick} className={`flex-1 flex flex-col items-center gap-1.5 transition-all duration-200 min-w-[70px] ${active ? 'text-indigo-700' : 'text-slate-500'}`}>
-    <div className={`p-2.5 rounded-[1.2rem] transition-all duration-500 rounded-lg ${active ? 'bg-indigo-50 scale-110 shadow-inner ring-4 ring-slate-200' : ''}`}>{icon}</div>
-    <span className={`text-[8px] font-black uppercase tracking-[0.15em] ${active ? 'opacity-100' : 'opacity-40'}`}>{label}</span>
-  </button>
-);
 
 export default App;
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { DealershipTask, Employee, TaskRemark, TaskType, RecurrenceFrequency, TaskExtensionStatus } from '../types';
 import {
   ArrowLeft, User, Calendar, Clock, Check, Camera,
@@ -140,6 +141,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   onStartTask, onReopenTask, onCompleteTask, onCompleteTaskWithoutPhoto,
   onReassign, onDelegate, onDelete, onInlineEditSave, onAddRemark
 }) => {
+  const navigate = useNavigate();
   // Early return guard if currentUser is undefined
   if (!currentUser) return null;
 
@@ -817,21 +819,21 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-slate-900/40 md:p-4">
       <div className="flex flex-col h-full w-full bg-slate-50 md:h-auto md:max-h-[90vh] md:max-w-2xl md:rounded-2xl md:shadow-xl overflow-hidden">
-        {/* ─── Header ─── */}
-        <div className="bg-white border-b border-slate-200 px-4 md:px-6 py-3 flex items-center gap-3 flex-shrink-0">
+        {/* ─── Fixed Header with Large Back Button ─── */}
+        <div className="bg-white border-b border-slate-200 px-4 md:px-6 py-3 flex items-center gap-3 flex-shrink-0 sticky top-0 z-10" style={{ minHeight: '64px' }}>
           <button
             type="button"
-            onClick={onBack}
-            className="p-2 -ml-2 rounded-xl hover:bg-slate-100 transition-colors active:scale-95"
-            style={{ minHeight: 48, minWidth: 48 }}
+            onClick={() => navigate('/tasks')}
+            className="p-3 -ml-3 rounded-xl hover:bg-slate-100 transition-colors active:scale-95"
+            style={{ minHeight: 44, minWidth: 44 }}
           >
-            <ArrowLeft className="w-5 h-5 text-slate-700" />
+            <ArrowLeft className="w-6 h-6 text-slate-700" />
           </button>
           <h1 className="text-lg font-bold text-slate-900">Task Details</h1>
         </div>
 
         {/* ─── Scrollable Content ─── */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden" style={{ paddingBottom: '80px' }}>
         {/* ── Section: Task Info ── */}
         <div className="bg-white px-4 md:px-6 pt-5 pb-4 border-b border-slate-100">
           <h2 className="text-xl font-bold text-slate-900 leading-snug break-words">
