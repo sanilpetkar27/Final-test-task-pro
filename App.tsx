@@ -2410,8 +2410,8 @@ const App: React.FC = () => {
         )}
         <Routes>
           <Route path="/" element={<Dashboard />} />
-          <Route path="/approvals" element={<ApprovalsPanel />} />
-          <Route path="/team" element={<TeamManager />} />
+          <Route path="/approvals" element={<ApprovalsPanel currentUser={currentUser} />} />
+          <Route path="/team" element={<TeamManager currentUser={currentUser} />} />
           <Route path="/settings" element={<StatsScreen />} />
           <Route path="/task/:taskId" element={<TaskDetailPage />} />
         </Routes>
