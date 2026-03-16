@@ -286,7 +286,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
     }
     setTaskReadAtById((prev) => ({ ...prev, ...next }));
     saveLocalTaskReadMap(next);
-  }, [currentUser.id, getLocalTaskReadMap, saveLocalTaskReadMap]);
+  }, [currentUser?.id, getLocalTaskReadMap, saveLocalTaskReadMap]);
 
   const markTaskChatRead = useCallback(async (taskId: string, readAtMs?: number) => {
     if (!taskId || taskChatReadsTableMissingRef.current) return;
