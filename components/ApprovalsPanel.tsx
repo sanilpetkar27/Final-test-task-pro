@@ -304,7 +304,9 @@ const getApproverName = (approverId: string, approvers: ApproverOption[]): strin
   const approver = approvers.find(a => a.id === approverId);
   return approver ? approver.name : 'Unknown';
 };
-  currentUser: Employee;
+
+interface ApprovalsPanelProps {
+  currentUser: Employee | null;
 }
 
 const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
