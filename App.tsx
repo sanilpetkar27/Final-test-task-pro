@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Routes, Route } from 'react-router-dom';
 import { AppTab, DealershipTask, Employee, UserRole, TaskStatus, TaskType, RecurrenceFrequency, TaskPriority, TaskRemark, StaffManagerLink } from './types';
 import Dashboard from './components/Dashboard';
 import StatsScreen from './components/StatsScreen';
@@ -7,7 +8,7 @@ import ApprovalsPanel from './components/ApprovalsPanel';
 import LoginScreen from './components/LoginScreen';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import BottomNavigation from './src/components/BottomNavigation';
-import TaskDetailPage from './src/pages/TaskDetailPage';
+import { TaskDetailPage } from './src/pages/TaskDetailPage';
 import { useNotificationSetup } from './src/hooks/useNotificationSetup';
 import { supabase, supabaseAuth } from './src/lib/supabase';
 import { transformTaskToApp, transformTaskToDB, transformTasksToApp, DatabaseTask } from './src/utils/transformers';

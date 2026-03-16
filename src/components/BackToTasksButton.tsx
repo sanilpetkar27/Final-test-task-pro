@@ -1,7 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
-import { lumina, spacing } from '../theme';
 
 interface BackToTasksButtonProps {
   className?: string;
@@ -34,7 +33,7 @@ export const BackToTasksButton: React.FC<BackToTasksButtonProps> = ({ className 
         touchAction: 'manipulation',
       }}
     >
-      <ArrowLeft size={20} color={lumina.text.primary} className="mr-2" />
+      <ArrowLeft size={20} color="#374151" className="mr-2" />
       <span 
         className="text-gray-700 font-medium text-sm"
         style={{ minHeight: '44px' }}
