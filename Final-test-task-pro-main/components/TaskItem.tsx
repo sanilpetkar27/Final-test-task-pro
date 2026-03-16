@@ -1,0 +1,151 @@
+import React from 'react';
+import { DealershipTask, Employee, TaskExtensionStatus } from '../types';
+import { User, Calendar, ChevronRight, Clock, MessageSquare, Flag } from 'lucide-react';
+
+interface TaskItemProps {
+  task: DealershipTask;
+  employees: Employee[];
+  onClick: () => void;
+  unreadCount?: number;
+}
+
+const formatShortDate = (timestamp: number): string => {
+  const date = new Date(timestamp);
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${date.getDate()} ${months[date.getMonth()]}`;
+};
+
+const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCount = 0 }) => {
+  const getEmployeeName = (id?: string): string | null => {
+    if (!id) return null;
+    return employees.find(e => e.id === id)?.name || null;
+  };
+
+  const isOverdue = task.status !== 'completed' && task.deadline != null && Date.now() > task.deadline;
+  const assigneeName = getEmployeeName(task.assignedTo);
+  const rawPriority = String((task as any).priority || '').trim().toLowerCase();
+  const normalizedPriority = rawPriority === 'high' ? 'High' : rawPriority === 'low' ? 'Low' : 'Medium';
+  const isHighPriority = normalizedPriority === 'High';
+  const priorityCardClass = isHighPriority
+    ? 'border-2 border-red-400 bg-red-50/70'
+    : 'border border-slate-200 bg-white';
+
+  const rawExtensionStatus = String(
+    (task as any).extensionStatus ?? (task as any).extension_status ?? 'NONE'
+  ).toUpperCase();
+  const extensionStatus: TaskExtensionStatus =
+    rawExtensionStatus === 'REQUESTED' ||
+    rawExtensionStatus === 'APPROVED' ||
+    rawExtensionStatus === 'REJECTED'
+      ? (rawExtensionStatus as TaskExtensionStatus)
+      : 'NONE';
+
+  const showBadges =
+    isOverdue ||
+    extensionStatus !== 'NONE' ||
+    task.status === 'completed' ||
+    task.status === 'in-progress';
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full text-left rounded-2xl ${priorityCardClass} shadow-sm p-4 sm:p-5 min-h-[120px] active:scale-[0.98] transition-all duration-150 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-100`}
+    >
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <div className="flex-1 min-w-0 space-y-2">
+          {isHighPriority && (
+            <div className="mb-1 inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-white/70 px-2.5 py-0.5 text-red-600">
+              <Flag className="w-3.5 h-3.5 text-red-600 fill-red-600" />
+              <span className="text-[11px] font-extrabold uppercase tracking-[0.2em]">
+                High Priority
+              </span>
+            </div>
+          )}
+
+          {/* Task Title */}
+          <h3 className="text-base md:text-lg font-semibold text-slate-900 leading-snug line-clamp-2 text-ellipsis overflow-hidden break-words">
+            {task.description}
+          </h3>
+
+          {/* Metadata Row */}
+          <div className="flex flex-wrap items-center gap-3">
+            {assigneeName && (
+              <span className="flex items-center gap-1.5 text-base text-slate-500">
+                <User className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                <span className="truncate max-w-[140px]">{assigneeName}</span>
+              </span>
+            )}
+            {task.deadline != null && (
+              <span
+                className={`flex items-center gap-1.5 text-base ${
+                  isOverdue ? 'text-red-500 font-medium' : 'text-slate-500'
+                }`}
+              >
+                {isOverdue ? (
+                  <Clock className="w-4 h-4 text-red-400 flex-shrink-0" />
+                ) : (
+                  <Calendar className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                )}
+                <span>
+                  {formatShortDate(task.deadline)}
+                  {isOverdue && ' (Overdue)'}
+                </span>
+              </span>
+            )}
+          </div>
+
+          {/* Status Badges */}
+          {showBadges && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {extensionStatus === 'REQUESTED' && (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                  Extension Requested
+                </span>
+              )}
+              {extensionStatus === 'APPROVED' && (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  Extended
+                </span>
+              )}
+              {extensionStatus === 'REJECTED' && (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-50 text-red-600 border border-red-200">
+                  Extension Rejected
+                </span>
+              )}
+              {isOverdue && extensionStatus === 'NONE' && (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-50 text-red-600 border border-red-200">
+                  Overdue
+                </span>
+              )}
+              {task.status === 'completed' && (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  Completed
+                </span>
+              )}
+              {task.status === 'in-progress' && extensionStatus === 'NONE' && !isOverdue && (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  In Progress
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center md:flex-col md:items-end gap-2">
+          <div className="relative h-10 w-10 rounded-full border border-slate-200 bg-slate-50 flex items-center justify-center text-slate-500">
+            <MessageSquare className="w-5 h-5" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold leading-none">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
+          </div>
+          <ChevronRight className="w-5 h-5 text-slate-300 flex-shrink-0" />
+        </div>
+      </div>
+    </button>
+  );
+};
+
+export default TaskItem;

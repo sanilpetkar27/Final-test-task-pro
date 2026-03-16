@@ -1,0 +1,5 @@
+[functions.send-whatsapp]
+verify_jwt = false
+
+[functions.notify-task-completed]
+verify_jwt = false

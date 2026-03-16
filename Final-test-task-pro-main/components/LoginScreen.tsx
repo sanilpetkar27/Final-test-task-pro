@@ -1,0 +1,872 @@
+import React, { useState } from 'react';
+import { Employee } from '../types';
+import { ClipboardList, Mail, Eye, EyeOff, ArrowRight, Lock, Loader2, AlertCircle, ShieldCheck, Info, Building2, User, Phone } from 'lucide-react';
+import { supabase, supabaseAuth } from '../src/lib/supabase';
+import { toast } from 'sonner';
+
+// --- HELPER FUNCTIONS (Comprehensive Auth Fixes) ---
+
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const DEFAULT_COMPANY_ID = '00000000-0000-0000-0000-000000000001';
+const PENDING_COMPANY_SIGNUP_KEY = 'pending_company_signup';
+const VERIFICATION_RESEND_COOLDOWN_MS = 90 * 1000;
+
+interface PendingCompanySignup {
+  email: string;
+  companyName: string;
+  adminName: string;
+  mobile: string;
+  createdAt: number;
+}
+
+const normalizeRole = (role: unknown): Employee['role'] => {
+  return role === 'owner' || role === 'manager' || role === 'staff' || role === 'super_admin'
+    ? role
+    : 'staff';
+};
+
+const isEmployeesPolicyError = (error: any): boolean => {
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes('infinite recursion') && message.includes('employees');
+};
+
+const toFallbackEmployee = (authUser: any, overrides: Partial<Employee> = {}): Employee => {
+  const metadata = authUser?.user_metadata || {};
+  const inferredEmail = String(overrides.email || authUser?.email || metadata.email || '').trim();
+  const inferredName = String(overrides.name || metadata.name || inferredEmail.split('@')[0] || 'User').trim();
+  const inferredMobile = String(overrides.mobile || metadata.mobile || '').trim();
+
+  return {
+    id: String(overrides.id || authUser?.id || `temp-${Date.now()}`),
+    name: inferredName || 'User',
+    email: inferredEmail || `${authUser?.id || 'user'}@taskpro.local`,
+    mobile: inferredMobile || String(authUser?.id || '0000000000').slice(0, 10),
+    role: normalizeRole(overrides.role || metadata.role),
+    company_id: String(overrides.company_id || metadata.company_id || DEFAULT_COMPANY_ID),
+  };
+};
+
+const fetchEmployeeById = async (id: string) => {
+  return supabase
+    .from('employees')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+};
+
+const readPendingCompanySignup = (): PendingCompanySignup | null => {
+  try {
+    const raw = localStorage.getItem(PENDING_COMPANY_SIGNUP_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PendingCompanySignup;
+    if (!parsed?.email || !parsed?.companyName || !parsed?.adminName || !parsed?.mobile) {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+const writePendingCompanySignup = (payload: PendingCompanySignup) => {
+  localStorage.setItem(PENDING_COMPANY_SIGNUP_KEY, JSON.stringify(payload));
+};
+
+const clearPendingCompanySignup = () => {
+  localStorage.removeItem(PENDING_COMPANY_SIGNUP_KEY);
+};
+
+const getEmailRedirectTo = (): string | undefined => {
+  if (typeof window === 'undefined') return undefined;
+  return window.location.origin;
+};
+
+const getVerificationResendKey = (email: string): string =>
+  `verification_resend_${String(email || '').trim().toLowerCase()}`;
+
+const markVerificationResendAttempt = (email: string) => {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(getVerificationResendKey(email), Date.now().toString());
+};
+
+const getVerificationResendRemainingMs = (email: string): number => {
+  if (typeof window === 'undefined') return 0;
+  const raw = localStorage.getItem(getVerificationResendKey(email));
+  const lastAttempt = Number(raw || 0);
+  if (!lastAttempt) return 0;
+  const elapsed = Date.now() - lastAttempt;
+  return Math.max(0, VERIFICATION_RESEND_COOLDOWN_MS - elapsed);
+};
+
+const tryResendVerificationEmail = async (email: string) => {
+  const remainingMs = getVerificationResendRemainingMs(email);
+  if (remainingMs > 0) {
+    return { resent: false, rateLimited: false, waitMs: remainingMs };
+  }
+
+  try {
+    const { error } = await supabaseAuth.resend({
+      type: 'signup',
+      email: email.trim(),
+      options: {
+        emailRedirectTo: getEmailRedirectTo(),
+      },
+    });
+
+    if (error) {
+      const statusText = String((error as any)?.status || '').trim();
+      const message = String(error?.message || '').toLowerCase();
+      const isRateLimited = statusText === '429' || message.includes('rate limit');
+      if (isRateLimited) {
+        markVerificationResendAttempt(email);
+        return { resent: false, rateLimited: true, waitMs: VERIFICATION_RESEND_COOLDOWN_MS };
+      }
+      console.warn('Could not resend verification email:', error);
+      return { resent: false, rateLimited: false, waitMs: 0 };
+    }
+
+    markVerificationResendAttempt(email);
+    return { resent: true, rateLimited: false, waitMs: 0 };
+  } catch (resendError) {
+    console.warn('Could not resend verification email:', resendError);
+    return { resent: false, rateLimited: false, waitMs: 0 };
+  }
+};
+
+const finalizeCompanySetupForUser = async (
+  authUser: any,
+  input: { companyName: string; adminName: string; mobile: string; email: string }
+) => {
+  const { data: newCompany, error: companyError } = await supabase
+    .from('companies')
+    .insert({
+      name: input.companyName,
+      subscription_status: 'active',
+    })
+    .select()
+    .single();
+
+  if (companyError) throw companyError;
+
+  const { error: metadataError } = await supabaseAuth.updateUser({
+    data: {
+      company_id: newCompany.id,
+      role: 'super_admin',
+      name: input.adminName,
+      mobile: input.mobile,
+    },
+  });
+
+  if (metadataError) {
+    console.warn('Auth metadata update failed during company setup:', metadataError);
+  }
+
+  const fallbackEmployee = toFallbackEmployee(authUser, {
+    id: authUser.id,
+    email: input.email.trim(),
+    name: input.adminName.trim(),
+    mobile: input.mobile.trim(),
+    role: 'super_admin',
+    company_id: newCompany.id,
+  });
+
+  let profileSynced = true;
+  const { error: employeeError } = await supabase
+    .from('employees')
+    .upsert({
+      id: authUser.id,
+      name: input.adminName.trim(),
+      mobile: input.mobile.trim(),
+      role: 'super_admin',
+      email: input.email.trim(),
+      company_id: newCompany.id,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'id' });
+
+  if (employeeError) {
+    profileSynced = false;
+    if (isEmployeesPolicyError(employeeError)) {
+      console.warn('Employee profile sync skipped due to DB policy recursion.');
+    } else {
+      console.warn('Employee profile sync failed:', employeeError);
+    }
+  }
+
+  return { employee: fallbackEmployee, profileSynced };
+};
+
+const normalizeMobile = (mobile: unknown): string => {
+  return String(mobile || '').replace(/\D/g, '');
+};
+
+const isMissingColumnError = (error: any): boolean => {
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes('column') && message.includes('does not exist');
+};
+
+const findLegacyEmployeeProfile = async (authUser: any): Promise<Employee | null> => {
+  const authUserId = String(authUser?.id || '').trim();
+  const authEmail = String(authUser?.email || '').trim().toLowerCase();
+  const authMobile = normalizeMobile(authUser?.user_metadata?.mobile || authUser?.phone || '');
+  const authCompanyId = String(authUser?.user_metadata?.company_id || '').trim();
+
+  if (authUserId) {
+    let byAuthUserIdQuery = supabase
+      .from('employees')
+      .select('*')
+      .eq('auth_user_id', authUserId)
+      .limit(1);
+
+    if (authCompanyId) {
+      byAuthUserIdQuery = byAuthUserIdQuery.eq('company_id', authCompanyId);
+    }
+
+    const { data: byAuthUserId, error: authUserIdError } = await byAuthUserIdQuery.maybeSingle();
+
+    if (byAuthUserId) {
+      return byAuthUserId as Employee;
+    }
+
+    if (authUserIdError && !isMissingColumnError(authUserIdError) && !isEmployeesPolicyError(authUserIdError)) {
+      console.warn('Legacy profile lookup by auth_user_id failed:', authUserIdError);
+    }
+  }
+
+  if (authEmail) {
+    let byEmailQuery = supabase
+      .from('employees')
+      .select('*')
+      .eq('email', authEmail)
+      .limit(1);
+
+    if (authCompanyId) {
+      byEmailQuery = byEmailQuery.eq('company_id', authCompanyId);
+    }
+
+    const { data: byEmail, error: emailError } = await byEmailQuery.maybeSingle();
+
+    if (byEmail) {
+      return byEmail as Employee;
+    }
+
+    if (emailError && !isMissingColumnError(emailError) && !isEmployeesPolicyError(emailError)) {
+      console.warn('Legacy profile lookup by email failed:', emailError);
+    }
+  }
+
+  if (authMobile) {
+    let mobileQuery = supabase
+      .from('employees')
+      .select('*')
+      .limit(200);
+
+    if (authCompanyId) {
+      mobileQuery = mobileQuery.eq('company_id', authCompanyId);
+    }
+
+    const { data: mobileMatches, error: mobileError } = await mobileQuery;
+
+    if (mobileMatches && mobileMatches.length > 0) {
+      const matchedByMobile = mobileMatches.find((emp: any) => normalizeMobile(emp?.mobile) === authMobile);
+      if (matchedByMobile) {
+        return matchedByMobile as Employee;
+      }
+    }
+
+    if (mobileError && !isEmployeesPolicyError(mobileError)) {
+      console.warn('Legacy profile lookup by mobile failed:', mobileError);
+    }
+  }
+
+  return null;
+};
+
+/**
+ * Handles robust login with retry logic to prevent race conditions
+ */
+const handleAuthLogin = async (email: string, password: string) => {
+  console.log('Starting login for:', email);
+
+  // Add timeout wrapper for Supabase auth call
+  const signInWithTimeout = async () => {
+    const timeoutMs = 15000; // 15 second timeout
+    const signInPromise = supabaseAuth.signInWithPassword({
+      email,
+      password,
+    });
+    
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Connection timeout - Supabase is not responding')), timeoutMs);
+    });
+    
+    return Promise.race([signInPromise, timeoutPromise]);
+  };
+
+  let authData;
+  let authError;
+  
+  try {
+    const result = await signInWithTimeout() as any;
+    authData = result.data;
+    authError = result.error;
+  } catch (timeoutError: any) {
+    console.error('Auth timeout:', timeoutError);
+    throw new Error('Unable to connect to server. Please check your internet connection or try again later.');
+  }
+
+  if (authError) {
+    console.error('Auth error:', authError);
+    const authMessage = String(authError?.message || '').toLowerCase();
+    if (authMessage.includes('email not confirmed')) {
+      const resend = await tryResendVerificationEmail(email);
+      if (resend.rateLimited || resend.waitMs > 0) {
+        const waitSeconds = Math.max(1, Math.ceil(resend.waitMs / 1000));
+        throw new Error(`Email not confirmed. Check inbox/spam and retry after ${waitSeconds}s.`);
+      }
+      if (resend.resent) {
+        throw new Error('Email not confirmed. Verification email sent again. Check inbox/spam, then sign in.');
+      }
+      throw new Error('Email not confirmed. Please verify your email from inbox/spam, then sign in again.');
+    }
+    throw authError;
+  }
+
+  if (!authData.user) {
+    throw new Error('Login failed: missing auth user.');
+  }
+
+  console.log('Auth successful for user:', authData.user.id);
+
+  const pendingSignup = readPendingCompanySignup();
+  const pendingMatchesUser =
+    !!pendingSignup &&
+    String(pendingSignup.email || '').trim().toLowerCase() ===
+      String(authData.user.email || email || '').trim().toLowerCase();
+
+  const existingCompanyId = String(authData.user?.user_metadata?.company_id || '').trim();
+  if (pendingMatchesUser && !existingCompanyId) {
+    try {
+      const finalized = await finalizeCompanySetupForUser(authData.user, {
+        companyName: pendingSignup!.companyName,
+        adminName: pendingSignup!.adminName,
+        mobile: pendingSignup!.mobile,
+        email: pendingSignup!.email,
+      });
+      clearPendingCompanySignup();
+      return { user: authData.user, employee: finalized.employee, usedFallback: !finalized.profileSynced };
+    } catch (finalizeError) {
+      console.error('Deferred company setup failed after email confirmation:', finalizeError);
+      throw new Error('Login succeeded, but company setup failed. Please retry once or contact support.');
+    }
+  }
+
+  if (pendingMatchesUser && existingCompanyId) {
+    clearPendingCompanySignup();
+  }
+
+  let attempts = 0;
+  let employeeData: Employee | null = null;
+  let lastEmployeeError: any = null;
+
+  while (attempts < 3 && !employeeData) {
+    const { data, error } = await fetchEmployeeById(authData.user.id);
+    lastEmployeeError = error;
+
+    if (!error && data) {
+      employeeData = data as Employee;
+      console.log('Employee data found:', employeeData);
+      break;
+    }
+
+    if (isEmployeesPolicyError(error)) {
+      console.warn('Employee policy issue detected. Falling back to auth metadata profile.');
+      break;
+    }
+
+    console.log(`Attempt ${attempts + 1}: Employee DB record not ready yet, waiting...`);
+    await delay(1000);
+    attempts++;
+  }
+
+  if (!employeeData) {
+    const legacyEmployee = await findLegacyEmployeeProfile(authData.user);
+
+    if (legacyEmployee) {
+      if (legacyEmployee.id !== authData.user.id) {
+        console.log('Using legacy employee profile linked by identity:', legacyEmployee.id);
+      }
+      return { user: authData.user, employee: legacyEmployee, usedFallback: false };
+    }
+  }
+
+  if (!employeeData) {
+    const fallbackEmployee = toFallbackEmployee(authData.user);
+
+    const { error: upsertError } = await supabase
+      .from('employees')
+      .upsert({
+        id: fallbackEmployee.id,
+        email: fallbackEmployee.email,
+        name: fallbackEmployee.name,
+        mobile: fallbackEmployee.mobile,
+        role: fallbackEmployee.role,
+        company_id: fallbackEmployee.company_id,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' });
+
+    if (!upsertError) {
+      const { data: recoveredEmployee } = await fetchEmployeeById(authData.user.id);
+      if (recoveredEmployee) {
+        return { user: authData.user, employee: recoveredEmployee as Employee, usedFallback: false };
+      }
+    } else {
+      console.warn('Employee sync failed during login:', upsertError);
+    }
+
+    console.warn('Using fallback profile for login.', lastEmployeeError || upsertError);
+    return { user: authData.user, employee: fallbackEmployee, usedFallback: true };
+  }
+
+  return { user: authData.user, employee: employeeData, usedFallback: false };
+};
+
+/**
+ * Handles robust signup with forced logout to prevent data leakage
+ */
+const handleAuthSignup = async (companyName: string, adminName: string, mobile: string, email: string, password: string) => {
+  console.log('Starting clean signup process...');
+
+  await supabaseAuth.signOut();
+  localStorage.clear();
+  clearPendingCompanySignup();
+
+  const { data: authData, error: authError } = await supabaseAuth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: getEmailRedirectTo(),
+      data: {
+        role: 'super_admin',
+        name: adminName,
+        mobile,
+      },
+    },
+  });
+
+  if (authError) throw authError;
+  if (!authData.user) throw new Error('User creation failed');
+
+  let activeSession = authData.session || null;
+  if (!activeSession) {
+    writePendingCompanySignup({
+      email: email.trim().toLowerCase(),
+      companyName: companyName.trim(),
+      adminName: adminName.trim(),
+      mobile: mobile.trim(),
+      createdAt: Date.now(),
+    });
+    markVerificationResendAttempt(email);
+
+    const pendingEmployee = toFallbackEmployee(authData.user, {
+      id: authData.user.id,
+      email: email.trim(),
+      name: adminName.trim(),
+      mobile: mobile.trim(),
+      role: 'super_admin',
+      company_id: DEFAULT_COMPANY_ID,
+    });
+
+    return {
+      user: authData.user,
+      session: null,
+      employee: pendingEmployee,
+      profileSynced: false,
+      requiresEmailConfirmation: true,
+    };
+  }
+
+  const finalized = await finalizeCompanySetupForUser(authData.user, {
+    companyName,
+    adminName,
+    mobile,
+    email,
+  });
+
+  clearPendingCompanySignup();
+
+  return {
+    user: authData.user,
+    session: activeSession,
+    employee: finalized.employee,
+    profileSynced: finalized.profileSynced,
+    requiresEmailConfirmation: false,
+  };
+};
+
+interface LoginScreenProps {
+  employees: Employee[];
+  onLogin: (user: Employee) => void;
+}
+
+const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
+  const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  // Signup form states
+  const [companyName, setCompanyName] = useState('');
+  const [adminName, setAdminName] = useState('');
+  const [adminMobile, setAdminMobile] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      if (isLogin) {
+        // --- LOGIN FLOW ---
+        const result = await handleAuthLogin(email, password);
+        let loginEmployee = result.employee;
+        let usedFallback = result.usedFallback;
+
+        if (usedFallback) {
+          const emailMatch = employees.find(
+            (emp) => String(emp.email || '').trim().toLowerCase() === String(email).trim().toLowerCase()
+          );
+
+          if (emailMatch) {
+            loginEmployee = emailMatch;
+            usedFallback = false;
+          }
+        }
+
+        if (usedFallback) {
+          try {
+            const rawCached = localStorage.getItem('universal_app_user');
+            if (rawCached) {
+              const cached = JSON.parse(rawCached) as Employee;
+              const sameEmail =
+                String(cached?.email || '').trim().toLowerCase() === String(email).trim().toLowerCase();
+              const hasPrivilegedRole =
+                cached?.role === 'manager' || cached?.role === 'super_admin' || cached?.role === 'owner';
+
+              if (sameEmail && hasPrivilegedRole) {
+                loginEmployee = cached;
+                usedFallback = false;
+              }
+            }
+          } catch (cacheError) {
+            console.warn('Could not read cached profile during fallback login:', cacheError);
+          }
+        }
+
+        onLogin(loginEmployee);
+        if (usedFallback) {
+          toast.warning('Logged in, but profile sync is pending. Please contact admin if this persists.');
+        } else {
+          toast.success('Welcome back!');
+        }
+      } else {
+        // --- SIGNUP FLOW ---
+        const result = await handleAuthSignup(companyName, adminName, adminMobile, email, password);
+
+        if (result.session) {
+          // Auto-login if session exists (Email confirmation disabled)
+          onLogin(result.employee);
+          toast.success('Company registered successfully!');
+        } else {
+          // Email confirmation enabled
+          setIsLogin(true);
+          toast.success('Registration successful. Verify your email, then sign in to complete company setup.');
+        }
+
+        if (!result.profileSynced) {
+          toast.warning('Account created, but employee profile sync is pending.');
+        }
+      }
+    } catch (error: any) {
+      console.error('Auth Error:', error);
+      const message = error?.message || 'Authentication failed';
+
+      // Defensive fallback for any legacy path still returning the old profile-ready error.
+      if (isLogin && String(message).toLowerCase().includes('employee profile is not ready')) {
+        try {
+          const { data: { session } } = await supabaseAuth.getSession();
+          if (session?.user) {
+            const fallbackEmployee = toFallbackEmployee(session.user);
+            onLogin(fallbackEmployee);
+            toast.warning('Logged in with fallback profile. Profile sync will complete shortly.');
+            return;
+          }
+        } catch (sessionError) {
+          console.warn('Fallback login after legacy error failed:', sessionError);
+        }
+      }
+
+      setError(message);
+      toast.error(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col min-h-screen w-full max-w-md sm:max-w-lg mx-auto bg-slate-50 items-center justify-start sm:justify-center px-4 sm:px-6 py-4 relative overflow-x-hidden overflow-y-auto font-sans">
+      {/* Premium Gradient Overlays */}
+      <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[120%] h-[50%] bg-indigo-900/10 blur-[120px] rounded-full" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[80%] h-[40%] bg-indigo-800/10 blur-[120px] rounded-full" />
+      </div>
+
+      <div className="z-10 w-full py-4 sm:py-0 pb-8">
+        <div className="flex justify-center mb-8 sm:mb-12">
+          <div className="bg-indigo-900 p-5 rounded-[2.5rem] shadow-[0_2px_8px_rgba(0,0,0,0.04)] animate-pulse-slow">
+            <ClipboardList className="w-10 h-10 text-white" />
+          </div>
+        </div>
+
+        <div className="w-full max-w-sm mx-auto">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-[0_2px_8px_rgba(0,0,0,0.04)] ">
+            {/* Header */}
+            <div className="text-center mb-8">
+              <div className="inline-flex items-center gap-3 bg-indigo-50 p-4 rounded-2xl mb-4">
+                {isLogin ? <ShieldCheck className="w-8 h-8 text-indigo-700" /> : <Building2 className="w-8 h-8 text-indigo-700" />}
+                <div>
+                  <h1 className="text-2xl font-black text-slate-900">TaskPro</h1>
+                  <p className="text-indigo-700 text-sm">{isLogin ? 'Secure Employee Portal' : 'Create Company Account'}</p>
+                </div>
+              </div>
+              <p className="text-slate-500 text-xs">{isLogin ? 'Enter your credentials to access system' : 'Create your company account'}</p>
+            </div>
+
+            {/* Toggle Buttons */}
+            <div className="flex gap-2 mb-6">
+              <button
+                type="button"
+                onClick={() => setIsLogin(true)}
+                className={`flex-1 py-2 px-4 rounded-lg font-medium transition-all ${
+                  isLogin 
+                    ? 'bg-indigo-900 text-white shadow-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)]'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
+                }`}
+              >
+                Login
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsLogin(false)}
+                className={`flex-1 py-2 px-4 rounded-lg font-medium transition-all ${
+                  !isLogin 
+                    ? 'bg-indigo-900 text-white shadow-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)]'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
+                }`}
+              >
+                Sign Up
+              </button>
+            </div>
+
+            {/* Login Form */}
+            {isLogin ? (
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-2">
+                    Email Address
+                  </label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <input
+                      id="email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="john@company.com"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-12 py-4 text-base text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-800 focus:border-transparent transition-all"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-2">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Enter your password"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-12 py-4 text-base text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-800 focus:border-transparent transition-all pr-12"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                {error && (
+                  <div className="flex items-center gap-3 text-red-400 text-xs font-bold bg-red-400/10 p-4 rounded-2xl border border-red-400/20">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    {error}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={loading || !email.trim() || !password.trim()}
+                  className="w-full bg-indigo-900 hover:bg-indigo-800 text-white font-black py-5 rounded-lg shadow-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)] active:scale-95 transition-all duration-200 flex items-center justify-center gap-3 disabled:opacity-40"
+                >
+                  {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <><span>Sign In</span> <ArrowRight className="w-5 h-5" /></>}
+                </button>
+              </form>
+            ) : (
+              /* Signup Form */
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div>
+                  <label htmlFor="companyName" className="block text-sm font-medium text-slate-700 mb-2">
+                    Company Name
+                  </label>
+                  <div className="relative">
+                    <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <input
+                      id="companyName"
+                      type="text"
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                      placeholder="Your Company Name"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-12 py-4 text-base text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-800 focus:border-transparent transition-all"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="adminName" className="block text-sm font-medium text-slate-700 mb-2">
+                    Admin Name
+                  </label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <input
+                      id="adminName"
+                      type="text"
+                      value={adminName}
+                      onChange={(e) => setAdminName(e.target.value)}
+                      placeholder="Admin Full Name"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-12 py-4 text-base text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-800 focus:border-transparent transition-all"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="adminMobile" className="block text-sm font-medium text-slate-700 mb-2">
+                    Mobile Number
+                  </label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <input
+                      id="adminMobile"
+                      type="tel"
+                      value={adminMobile}
+                      onChange={(e) => setAdminMobile(e.target.value)}
+                      placeholder="+1234567890"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-12 py-4 text-base text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-800 focus:border-transparent transition-all"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="signupEmail" className="block text-sm font-medium text-slate-700 mb-2">
+                    Email Address
+                  </label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <input
+                      id="signupEmail"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="admin@company.com"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-12 py-4 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-800 focus:border-transparent transition-all"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="signupPassword" className="block text-sm font-medium text-slate-700 mb-2">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <input
+                      id="signupPassword"
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Create a strong password"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-12 py-4 text-base text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-800 focus:border-transparent transition-all pr-12"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                {error && (
+                  <div className="flex items-center gap-3 text-red-400 text-xs font-bold bg-red-400/10 p-4 rounded-2xl border border-red-400/20">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    {error}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={loading || !email.trim() || !password.trim() || !companyName.trim() || !adminName.trim() || !adminMobile.trim()}
+                  className="w-full bg-indigo-900 hover:bg-indigo-800 text-white font-black py-5 rounded-lg shadow-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)] active:scale-95 transition-all duration-200 flex items-center justify-center gap-3 disabled:opacity-40"
+                >
+                  {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <><span>Create Company</span> <ArrowRight className="w-5 h-5" /></>}
+                </button>
+              </form>
+            )}
+
+            {/* Info Section */}
+            <div className="mt-8 p-4 bg-slate-50 rounded-2xl border border-slate-200">
+              <div className="flex items-start gap-3">
+                <Info className="w-4 h-4 text-indigo-700 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-slate-600 text-xs leading-relaxed">
+                    <strong className="text-slate-800">{isLogin ? 'Secure Access:' : 'Company Setup:'}</strong> {isLogin ? 'Your login credentials are encrypted and protected with enterprise-grade security.' : 'Create your company account and start managing tasks efficiently.'}
+                  </p>
+                  <p className="text-slate-600 text-xs leading-relaxed mt-2">
+                    <strong className="text-slate-800">{isLogin ? 'Need Help?' : 'Questions?'}</strong> {isLogin ? 'Contact your system administrator for account access.' : 'Contact support for assistance with your company setup.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default LoginScreen;
