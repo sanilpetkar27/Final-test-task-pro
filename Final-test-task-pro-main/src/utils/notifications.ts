@@ -8,6 +8,13 @@ let oneSignalInitComplete = false;
 const isLocalhost = window.location.hostname === 'localhost';
 const TEST_ONE_SIGNAL_ID = 'test-localhost-device-id-' + Math.random().toString(36).substr(2, 9);
 
+// Check if OneSignal is configured
+const hasOneSignalConfig = !!ONE_SIGNAL_APP_ID && ONE_SIGNAL_APP_ID !== 'demo-app-id';
+
+if (!hasOneSignalConfig) {
+  console.warn('OneSignal not configured. Push notifications will be disabled.');
+}
+
 /**
  * Initialize OneSignal for push notifications.
  * This function is idempotent and safe to call multiple times.
@@ -19,8 +26,8 @@ export const initializeOneSignal = async (): Promise<void> => {
     return;
   }
 
-  if (!ONE_SIGNAL_APP_ID) {
-    console.error('Missing required environment variable: VITE_ONESIGNAL_APP_ID');
+  if (!hasOneSignalConfig) {
+    console.log('OneSignal not configured, skipping initialization');
     return;
   }
 
@@ -73,6 +80,10 @@ export const initializeOneSignal = async (): Promise<void> => {
  */
 export const areNotificationsEnabled = async (): Promise<boolean> => {
   try {
+    if (!hasOneSignalConfig || isLocalhost) {
+      return false;
+    }
+    
     const permission = await OneSignal.Notifications.permission;
     return permission === true;
   } catch (error) {
@@ -108,6 +119,11 @@ export const requestBrowserNotificationPermission = async (): Promise<boolean> =
  */
 export const requestPushSubscription = async (): Promise<void> => {
   try {
+    if (!hasOneSignalConfig || isLocalhost) {
+      console.log('OneSignal not configured or in localhost mode, skipping push subscription');
+      return;
+    }
+
     console.log('Requesting push subscription...');
 
     await OneSignal.User.PushSubscription.optIn();
@@ -124,6 +140,11 @@ export const requestPushSubscription = async (): Promise<void> => {
  */
 export const promptPushNotifications = async (): Promise<void> => {
   try {
+    if (!hasOneSignalConfig || isLocalhost) {
+      console.log('OneSignal not configured or in localhost mode, skipping push prompt');
+      return;
+    }
+
     console.log('Showing push notification prompt...');
 
     const browserPermission = await requestBrowserNotificationPermission();
@@ -151,6 +172,11 @@ export const getOneSignalSubscriptionId = async (): Promise<string | null> => {
       return TEST_ONE_SIGNAL_ID;
     }
 
+    if (!hasOneSignalConfig) {
+      console.log('OneSignal not configured');
+      return null;
+    }
+
     if (!window.OneSignal) {
       console.error('OneSignal not available on window object');
       return null;
@@ -174,6 +200,10 @@ export const isOneSignalInitialized = (): boolean => {
       return true;
     }
 
+    if (!hasOneSignalConfig) {
+      return false;
+    }
+
     return oneSignalInitComplete || !!(window.OneSignal && window.OneSignal.User);
   } catch (error) {
     console.error('Error checking OneSignal initialization:', error);
@@ -187,6 +217,11 @@ export const isOneSignalInitialized = (): boolean => {
  */
 export const setOneSignalExternalUserId = async (userId: string): Promise<void> => {
   try {
+    if (!hasOneSignalConfig || isLocalhost) {
+      console.log('OneSignal not configured or in localhost mode, skipping user binding');
+      return;
+    }
+
     // OneSignal reserves `external_id`; use login when available.
     if (typeof (OneSignal as any).login === 'function') {
       await (OneSignal as any).login(userId);
@@ -205,6 +240,11 @@ export const setOneSignalExternalUserId = async (userId: string): Promise<void> 
  */
 export const requestNotificationPermission = async (): Promise<boolean> => {
   try {
+    if (!hasOneSignalConfig || isLocalhost) {
+      console.log('OneSignal not configured or in localhost mode');
+      return false;
+    }
+
     const permission = await OneSignal.Notifications.requestPermission();
     return permission;
   } catch (error) {
