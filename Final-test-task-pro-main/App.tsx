@@ -802,7 +802,7 @@ const App: React.FC = () => {
   const DEFAULT_TASKS = [
     {
       id: 'task-demo-1',
-      description: 'Welcome to your new TaskPro',
+      description: 'Welcome to your new OpenTask',
       status: 'pending' as TaskStatus,
       priority: 'Medium' as TaskPriority,
       createdAt: Date.now(),
@@ -2292,7 +2292,7 @@ const App: React.FC = () => {
             <LayoutDashboard className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-lg font-black tracking-tighter italic leading-none text-slate-900">TaskPro</h1>
+            <h1 className="text-lg font-black tracking-tighter italic leading-none text-slate-900">OpenTask</h1>
             <div className="flex items-center gap-1.5 mt-1">
               <div className={`w-1.5 h-1.5 rounded-full ${isSyncing ? 'bg-emerald-400 animate-pulse' : 'bg-emerald-400'}`} />
               <span className="text-[7px] font-black uppercase tracking-widest text-slate-500">

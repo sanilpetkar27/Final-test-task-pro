@@ -1,6 +1,6 @@
 {
-  "name": "TaskPro",
-  "short_name": "TaskPro",
+  "name": "OpenTask",
+  "short_name": "OpenTask",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
