@@ -1,23 +1,24 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
+import type { NavigatorScreenParams } from '@react-navigation/native';
 import { TasksStack } from '../../features/tasks/navigation/TasksStack';
 import { TeamScreen } from '../../features/teams/screens/TeamScreen';
 import { SettingsScreen } from '../../features/settings/screens/SettingsScreen';
 import { NotificationsScreen } from '../../features/notifications/screens/NotificationsScreen';
 import { ApprovalsStack } from '../../features/approvals/navigation/ApprovalsStack';
-import { TaskDetailsScreen } from '../../features/tasks/screens/TaskDetailsScreen';
 import { useAuthStore } from '../../state/authStore';
 import { canManageTeam } from '../../utils/roleGuards';
 import { lumina } from '../../theme';
+import type { TasksStackParamList } from '../../features/tasks/navigation/TasksStack';
+import type { ApprovalsStackParamList } from '../../features/approvals/navigation/ApprovalsStack';
 
 export type AppTabParamList = {
-  Tasks: undefined;
-  Approvals: undefined;
+  Tasks: NavigatorScreenParams<TasksStackParamList> | undefined;
+  Approvals: NavigatorScreenParams<ApprovalsStackParamList> | undefined;
   Team: undefined;
   Settings: undefined;
   Notifications: undefined;
-  TaskDetails: { taskId: string };
 };
 
 const TabIcon = ({ name, color, size }: { name: string; color: string; size: number }) => (
@@ -56,6 +57,12 @@ export function AppTabs() {
             <TabIcon name="list-outline" color={color} size={size} />
           ),
         }}
+        listeners={({ navigation }) => ({
+          tabPress: (event) => {
+            event.preventDefault();
+            navigation.navigate('Tasks', { screen: 'TasksList' });
+          },
+        })}
       />
       <Tab.Screen 
         name="Approvals" 
@@ -66,6 +73,12 @@ export function AppTabs() {
             <TabIcon name="checkmark-circle-outline" color={color} size={size} />
           ),
         }}
+        listeners={({ navigation }) => ({
+          tabPress: (event) => {
+            event.preventDefault();
+            navigation.navigate('Approvals', { screen: 'ApprovalsList' });
+          },
+        })}
       />
       {showTeam && (
         <Tab.Screen 
@@ -94,14 +107,6 @@ export function AppTabs() {
         component={NotificationsScreen}
         options={{
           tabBarButton: () => null,
-        }}
-      />
-      <Tab.Screen 
-        name="TaskDetails" 
-        component={TaskDetailsScreen}
-        options={{
-          tabBarButton: () => null,
-          tabBarStyle: { display: 'none' },
         }}
       />
     </Tab.Navigator>

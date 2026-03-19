@@ -126,7 +126,7 @@ export function TasksScreen() {
           )}
         </>
       )}
-    </AppScreen>
+    </SafeAreaView>
   );
 }
 

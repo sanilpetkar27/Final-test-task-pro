@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { lumina, radii, spacing, typography } from '../../theme';
 
 type BadgeVariant = 'info' | 'success' | 'warning' | 'danger' | 'neutral';
@@ -7,7 +7,7 @@ type BadgeVariant = 'info' | 'success' | 'warning' | 'danger' | 'neutral';
 type BadgeProps = {
   label: string;
   variant?: BadgeVariant;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 };
 
 const variantStyle = (variant: BadgeVariant): ViewStyle => {

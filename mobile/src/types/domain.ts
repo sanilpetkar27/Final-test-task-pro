@@ -23,6 +23,8 @@ export interface TaskItem {
   status: TaskStatus;
   assignedTo: string | null;
   assignedBy: string | null;
+  assignedToName?: string | null;
+  assignedByName?: string | null;
   companyId: string;
   createdAt: number;
   deadline: number | null;

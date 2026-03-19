@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, ViewStyle } from 'react-native';
+import { ActivityIndicator, Pressable, StyleProp, StyleSheet, Text, ViewStyle } from 'react-native';
 import { lumina, radii, spacing, typography } from '../../theme';
 
 type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost';
@@ -11,7 +11,7 @@ type AppButtonProps = {
   loading?: boolean;
   variant?: ButtonVariant;
   fullWidth?: boolean;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 };
 
 const variantStyle = (variant: ButtonVariant): ViewStyle => {

@@ -28,6 +28,8 @@ const mapTask = (row: any): TaskItem => {
     status: (row.status || 'pending') as TaskStatus,
     assignedTo: row.assignedTo ?? row.assigned_to ?? null,
     assignedBy: row.assignedBy ?? row.assigned_by ?? null,
+    assignedToName: row.assignedToName ?? row.assigned_to_name ?? null,
+    assignedByName: row.assignedByName ?? row.assigned_by_name ?? null,
     companyId: String(row.company_id || ''),
     createdAt: Number(row.createdAt ?? row.created_at ?? Date.now()),
     deadline: row.deadline ? Number(row.deadline) : null,

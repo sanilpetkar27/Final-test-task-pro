@@ -9,10 +9,9 @@ import {
   View,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { AppCard, AppScreen, Badge } from '../../../components/ui';
+import { AppButton, AppCard, AppScreen, Badge } from '../../../components/ui';
 import { useAuthStore } from '../../../state/authStore';
 import { lumina, radii, spacing, typography } from '../../../theme';
-import { BellIcon } from '../../notifications/components/BellIcon';
 import { ApprovalsView, useApprovals } from '../hooks/useApprovals';
 import type { ApprovalItem } from '../repository/approvalsRepository';
 
