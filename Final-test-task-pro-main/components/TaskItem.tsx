@@ -132,7 +132,7 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCou
           )}
         </div>
 
-        <div className="flex items-center md:flex-col md:items-end gap-2">
+        <div className="ml-auto self-end flex items-center justify-end md:flex-col md:items-end gap-2">
           <div className="relative h-10 w-10 rounded-full border border-slate-200 bg-slate-50 flex items-center justify-center text-slate-500">
             <MessageSquare className="w-5 h-5" />
             {unreadCount > 0 && (
