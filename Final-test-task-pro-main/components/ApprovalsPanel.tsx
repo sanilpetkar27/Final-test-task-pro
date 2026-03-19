@@ -310,6 +310,7 @@ interface ApprovalsPanelProps {
 }
 
 const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
+  const isAdminApprover = currentUser.role === 'owner' || currentUser.role === 'super_admin';
   const [view, setView] = useState<ApprovalView>(currentUser.role === 'owner' || currentUser.role === 'super_admin' ? 'needs_my_approval' : 'my_requests');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed'>('all');
   // Set default month filter to current month
@@ -367,6 +368,24 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
   const selectedApproval = useMemo(
     () => approvals.find((item) => item.id === selectedApprovalId) || null,
     [approvals, selectedApprovalId]
+  );
+
+  const filterNeedsMyApprovalQueue = useCallback(
+    (items: ApprovalItem[]): ApprovalItem[] =>
+      items.filter((approval) => {
+        const directApproval =
+          approval.approver_id === currentUser.id &&
+          (approval.status === 'PENDING' || approval.status === 'NEEDS_REVIEW');
+
+        const escalatedApproval =
+          isAdminApprover &&
+          approval.isEscalated &&
+          approval.escalated_to === currentUser.id &&
+          approval.adminEscalationStatus === 'PENDING';
+
+        return directApproval || escalatedApproval;
+      }),
+    [currentUser.id, isAdminApprover]
   );
 
   const withTimeout = useCallback(<T,>(promise: Promise<T>, ms: number): Promise<T> => {
@@ -621,9 +640,8 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         if (requesterError) throw requesterError;
         rows = requesterData || [];
       } else {
-        if (currentUser.role === 'super_admin') {
-          // Super Admins see their own direct approvals OR any escalated requests
-          query = query.or(`and(approver_id.eq.${currentUser.id},status.in.(PENDING,NEEDS_REVIEW)),and(escalated_to.eq.${currentUser.id})`);
+        if (isAdminApprover) {
+          query = query.or(`and(approver_id.eq.${currentUser.id},status.in.(PENDING,NEEDS_REVIEW)),and(escalated_to.eq.${currentUser.id},adminEscalationStatus.eq.PENDING)`);
         } else {
           // Regular Managers only see requests directly assigned to them
           query = query.eq('approver_id', currentUser.id).in('status', ['PENDING', 'NEEDS_REVIEW']);
@@ -634,7 +652,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         rows = approverData || [];
       }
 
-      const mapped = sortApprovalsByRecency((rows || []).map((row: any) => ({
+      const mappedRows = (rows || []).map((row: any) => ({
         id: String(row.id),
         requester_id: String(row.requester_id || ''),
         approver_id: String(row.approver_id || ''),
@@ -647,7 +665,13 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         isEscalated: Boolean(row.isEscalated || false),
         adminEscalationStatus: String(row.adminEscalationStatus || 'NONE'),
         escalated_to: row.escalated_to ? String(row.escalated_to) : null,
-      })));
+      }));
+
+      const mapped = sortApprovalsByRecency(
+        view === 'needs_my_approval'
+          ? filterNeedsMyApprovalQueue(mappedRows)
+          : mappedRows
+      );
 
       setApprovals((prev) => (approvalsAreEqual(prev, mapped) ? prev : mapped));
 
@@ -673,7 +697,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         setLoadingApprovals(false);
       }
     }
-  }, [currentUser.id, currentUser.role, view]);
+  }, [currentUser.id, currentUser.role, filterNeedsMyApprovalQueue, isAdminApprover, view]);
 
   const loadThreads = useCallback(async (approvalId: string, options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false;
@@ -771,7 +795,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
       const approverId = String(row?.approver_id || '');
       const isEscalated = Boolean(row?.isEscalated);
       return requesterId === currentUser.id || approverId === currentUser.id ||
-        (currentUser.role === 'super_admin' && isEscalated);
+        (isAdminApprover && isEscalated && String(row?.escalated_to || '') === currentUser.id);
     };
     const refreshUnreadCounts = () => {
       const approvalIds = approvals.map((item) => item.id);
@@ -1663,7 +1687,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
             // Filter approvals based on status filter (only for My Requests)
             let filteredApprovals = view === 'my_requests' 
               ? filterApprovalsByStatus(approvals, statusFilter)
-              : approvals;
+              : filterNeedsMyApprovalQueue(approvals);
 
             // Apply month filter for My Requests view
             if (view === 'my_requests') {
@@ -1719,7 +1743,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                         !LOCKED_STATUSES.includes(approval.status) &&
                         (
                           approval.approver_id === currentUser.id ||
-                          (currentUser.role === 'super_admin' && approval.isEscalated && approval.adminEscalationStatus === 'PENDING')
+                          (isAdminApprover && approval.isEscalated && approval.adminEscalationStatus === 'PENDING')
                         );
                       const isProcessing = processingApprovalId === approval.id;
                       const isApproving = isProcessing && processingApprovalAction === 'approve';
@@ -1880,7 +1904,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                                   )}
                                   
                                   {/* Admin Escalation Decision Buttons */}
-                                  {currentUser.role === 'super_admin' && approval.isEscalated && approval.adminEscalationStatus === 'PENDING' && (
+                                  {isAdminApprover && approval.isEscalated && approval.adminEscalationStatus === 'PENDING' && (
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                       <LoadingButton
                                         type="button"
@@ -2013,7 +2037,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                   !LOCKED_STATUSES.includes(approval.status) &&
                   (
                     approval.approver_id === currentUser.id ||
-                    (currentUser.role === 'super_admin' && approval.isEscalated && approval.adminEscalationStatus === 'PENDING')
+                    (isAdminApprover && approval.isEscalated && approval.adminEscalationStatus === 'PENDING')
                   );
                 const isProcessing = processingApprovalId === approval.id;
                 const isApproving = isProcessing && processingApprovalAction === 'approve';
@@ -2146,7 +2170,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                         )}
 
                         {/* Admin Escalation Banner */}
-                        {approval.isEscalated && currentUser.role === 'super_admin' && (
+                        {approval.isEscalated && isAdminApprover && (
                           <div className="mt-3 p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
                             <p className="text-xs font-medium text-indigo-800">
                               Escalated by {getApproverName(approval.approver_id, approvers)}
@@ -2201,7 +2225,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                             )}
                             
                             {/* Admin Escalation Decision Buttons */}
-                            {currentUser.role === 'super_admin' && approval.isEscalated && approval.adminEscalationStatus === 'PENDING' && (
+                            {isAdminApprover && approval.isEscalated && approval.adminEscalationStatus === 'PENDING' && (
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 <LoadingButton
                                   type="button"
@@ -2330,3 +2354,4 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
 };
 
 export default ApprovalsPanel;
+
