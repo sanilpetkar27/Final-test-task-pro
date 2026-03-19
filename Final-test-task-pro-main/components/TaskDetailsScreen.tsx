@@ -813,13 +813,13 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
 
   return (
     <div className="fixed inset-x-0 top-0 bottom-24 z-30 flex items-end justify-center bg-slate-900/40 md:inset-0 md:z-50 md:items-center md:p-4">
-      <div className="flex flex-col h-full w-full bg-slate-50 md:h-auto md:max-h-[90vh] md:max-w-2xl md:rounded-2xl md:shadow-xl overflow-hidden">
+      <div className="flex flex-col h-full w-full bg-slate-50 pt-[env(safe-area-inset-top)] md:h-auto md:max-h-[90vh] md:max-w-2xl md:rounded-2xl md:shadow-xl md:pt-0 overflow-hidden">
         {/* ─── Header ─── */}
-        <div className="bg-white border-b border-slate-200 px-5 md:px-6 py-3 flex items-center gap-3 flex-shrink-0">
+        <div className="sticky top-0 z-10 bg-white border-b border-slate-200 px-4 md:px-6 py-3 flex items-center gap-3 flex-shrink-0">
           <button
             type="button"
             onClick={onBack}
-            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-slate-700 shadow-sm transition-colors hover:bg-slate-100 active:scale-95"
+            className="inline-flex min-h-[48px] min-w-[48px] shrink-0 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-slate-700 shadow-sm transition-colors hover:bg-slate-100 active:scale-95"
             aria-label="Back to tasks"
           >
             <ArrowLeft className="w-6 h-6 text-slate-700" />
@@ -1311,4 +1311,3 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
 };
 
 export default TaskDetailsScreen;
-
