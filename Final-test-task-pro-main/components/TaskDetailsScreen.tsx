@@ -812,17 +812,18 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   const statusColor = task.status === 'completed' ? 'text-emerald-600 bg-emerald-50 border-emerald-200' : task.status === 'in-progress' ? 'text-indigo-700 bg-indigo-50 border-indigo-200' : isOverdue ? 'text-red-600 bg-red-50 border-red-200' : 'text-slate-600 bg-slate-100 border-slate-200';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-slate-900/40 md:p-4">
+    <div className="fixed inset-x-0 top-0 bottom-24 z-30 flex items-end justify-center bg-slate-900/40 md:inset-0 md:z-50 md:items-center md:p-4">
       <div className="flex flex-col h-full w-full bg-slate-50 md:h-auto md:max-h-[90vh] md:max-w-2xl md:rounded-2xl md:shadow-xl overflow-hidden">
         {/* ─── Header ─── */}
-        <div className="bg-white border-b border-slate-200 px-4 md:px-6 py-3 flex items-center gap-3 flex-shrink-0">
+        <div className="bg-white border-b border-slate-200 px-5 md:px-6 py-3 flex items-center gap-3 flex-shrink-0">
           <button
             type="button"
             onClick={onBack}
-            className="p-2 -ml-2 rounded-xl hover:bg-slate-100 transition-colors active:scale-95"
-            style={{ minHeight: 48, minWidth: 48 }}
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-slate-700 shadow-sm transition-colors hover:bg-slate-100 active:scale-95"
+            aria-label="Back to tasks"
           >
-            <ArrowLeft className="w-5 h-5 text-slate-700" />
+            <ArrowLeft className="w-6 h-6 text-slate-700" />
+            <span className="text-sm font-semibold text-slate-700">Back</span>
           </button>
           <h1 className="text-lg font-bold text-slate-900">Task Details</h1>
         </div>
@@ -1310,3 +1311,4 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
 };
 
 export default TaskDetailsScreen;
+

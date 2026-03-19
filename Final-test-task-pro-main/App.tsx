@@ -2429,7 +2429,7 @@ const App: React.FC = () => {
       </main>
 
       {/* Simplified Bottom Nav (Dashboard, Tasks, Team) */}
-      <nav className="bg-white border-t border-slate-200 fixed bottom-0 left-0 right-0 w-full max-w-md sm:max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-auto z-40 safe-bottom shadow-[0_-2px_8px_rgba(0,0,0,0.04)] rounded-t-[2.5rem]">
+      <nav className="bg-white border-t border-slate-200 fixed bottom-0 left-0 right-0 w-full max-w-md sm:max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-auto z-50 safe-bottom shadow-[0_-2px_8px_rgba(0,0,0,0.04)] rounded-t-[2.5rem]">
         <div className="flex justify-around items-center h-20 px-2">
 
           {/* Hidden: Business Overview Tab */}
