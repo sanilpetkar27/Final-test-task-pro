@@ -8,7 +8,7 @@ export async function initializeOneSignal(): Promise<void> {
 
   try {
     const module = await import('react-native-onesignal');
-    const OneSignal = module.default;
+    const OneSignal = module.default as any;
     OneSignal.initialize(appId);
     initialized = true;
   } catch (error) {
