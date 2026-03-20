@@ -1,2 +1,1 @@
-[functions.send-daily-digest]
 verify_jwt = false
