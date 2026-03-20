@@ -88,8 +88,7 @@ serve(async (req) => {
 
     const { data: companies, error: companiesError } = await db
       .from("companies")
-      .select("id, name")
-      .eq("subscription_status", "active");
+      .select("id, name");
 
     if (companiesError) throw companiesError;
 
