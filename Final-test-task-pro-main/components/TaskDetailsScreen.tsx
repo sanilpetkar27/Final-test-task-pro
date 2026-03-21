@@ -979,6 +979,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
                     disabled={action.disabled}
                     variant="primary"
                     className={`flex flex-col items-center justify-center gap-1.5 rounded-2xl py-3 px-2 font-bold text-sm transition-all active:scale-95 ${action.className} ${action.key.includes('complete') ? 'shadow-[0_8px_20px_rgba(16,185,129,0.24)]' : action.key === 'delegate' || action.key === 'reopen' ? 'shadow-[0_8px_20px_rgba(79,70,229,0.22)]' : ''}`}
+              style={{ backgroundColor: action.key.includes('complete') ? '#10B981' : action.key === 'delete' ? '#EF4444' : undefined, color: action.key.includes('complete') || action.key === 'delete' ? 'white' : undefined }}
                     style={{ minHeight: 64 }}
                   >
                     {action.icon}
@@ -1335,6 +1336,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
 };
 
 export default TaskDetailsScreen;
+
 
 
 
