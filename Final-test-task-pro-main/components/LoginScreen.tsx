@@ -619,13 +619,13 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
     <div className="flex flex-col min-h-screen w-full max-w-md sm:max-w-lg mx-auto bg-slate-50 items-center justify-start sm:justify-center px-4 sm:px-6 py-4 relative overflow-x-hidden overflow-y-auto font-sans">
       {/* Premium Gradient Overlays */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[120%] h-[50%] bg-indigo-900/10 blur-[120px] rounded-full" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[80%] h-[40%] bg-indigo-800/10 blur-[120px] rounded-full" />
+        <div className="absolute top-[-10%] left-[-10%] w-[120%] h-[50%] bg-[var(--accent)]/10 blur-[120px] rounded-full" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[80%] h-[40%] bg-[var(--accent)]/10 blur-[120px] rounded-full" />
       </div>
 
       <div className="z-10 w-full py-4 sm:py-0 pb-8">
         <div className="flex justify-center mb-8 sm:mb-12">
-          <div className="bg-indigo-900 p-5 rounded-[2.5rem] shadow-[0_2px_8px_rgba(0,0,0,0.04)] animate-pulse-slow">
+          <div className="bg-[var(--accent)] p-5 rounded-[2.5rem] shadow-[0_2px_8px_rgba(0,0,0,0.04)] animate-pulse-slow">
             <ClipboardList className="w-10 h-10 text-white" />
           </div>
         </div>
@@ -634,11 +634,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
           <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-[0_2px_8px_rgba(0,0,0,0.04)] ">
             {/* Header */}
             <div className="text-center mb-8">
-              <div className="inline-flex items-center gap-3 bg-indigo-50 p-4 rounded-2xl mb-4">
-                {isLogin ? <ShieldCheck className="w-8 h-8 text-indigo-700" /> : <Building2 className="w-8 h-8 text-indigo-700" />}
+              <div className="inline-flex items-center gap-3 bg-[var(--accent-light)] p-4 rounded-2xl mb-4">
+                {isLogin ? <ShieldCheck className="w-8 h-8 text-[var(--accent)]" /> : <Building2 className="w-8 h-8 text-[var(--accent)]" />}
                 <div>
                   <h1 className="text-2xl font-black text-slate-900">OpenTask</h1>
-                  <p className="text-indigo-700 text-sm">{isLogin ? 'Secure Employee Portal' : 'Create Company Account'}</p>
+                  <p className="text-[var(--accent)] text-sm">{isLogin ? 'Secure Employee Portal' : 'Create Company Account'}</p>
                 </div>
               </div>
               <p className="text-slate-500 text-xs">{isLogin ? 'Enter your credentials to access system' : 'Create your company account'}</p>
@@ -651,7 +651,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
                 onClick={() => setIsLogin(true)}
                 className={`flex-1 py-2 px-4 rounded-lg font-medium transition-all ${
                   isLogin 
-                    ? 'bg-indigo-900 text-white shadow-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)]'
+                    ? 'bg-[var(--accent)] text-white shadow-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)]'
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
                 }`}
               >
@@ -662,7 +662,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
                 onClick={() => setIsLogin(false)}
                 className={`flex-1 py-2 px-4 rounded-lg font-medium transition-all ${
                   !isLogin 
-                    ? 'bg-indigo-900 text-white shadow-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)]'
+                    ? 'bg-[var(--accent)] text-white shadow-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)]'
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
                 }`}
               >
@@ -726,7 +726,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
                 <button
                   type="submit"
                   disabled={loading || !email.trim() || !password.trim()}
-                  className="w-full bg-indigo-900 hover:bg-indigo-800 text-white font-black py-5 rounded-lg shadow-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)] active:scale-95 transition-all duration-200 flex items-center justify-center gap-3 disabled:opacity-40"
+                  className="w-full bg-[var(--accent)] hover:bg-[#4338CA] text-white font-black py-5 rounded-lg shadow-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)] active:scale-95 transition-all duration-200 flex items-center justify-center gap-3 disabled:opacity-40"
                 >
                   {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <><span>Sign In</span> <ArrowRight className="w-5 h-5" /></>}
                 </button>
@@ -841,7 +841,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
                 <button
                   type="submit"
                   disabled={loading || !email.trim() || !password.trim() || !companyName.trim() || !adminName.trim() || !adminMobile.trim()}
-                  className="w-full bg-indigo-900 hover:bg-indigo-800 text-white font-black py-5 rounded-lg shadow-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)] active:scale-95 transition-all duration-200 flex items-center justify-center gap-3 disabled:opacity-40"
+                  className="w-full bg-[var(--accent)] hover:bg-[#4338CA] text-white font-black py-5 rounded-lg shadow-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)] active:scale-95 transition-all duration-200 flex items-center justify-center gap-3 disabled:opacity-40"
                 >
                   {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <><span>Create Company</span> <ArrowRight className="w-5 h-5" /></>}
                 </button>
@@ -851,7 +851,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
             {/* Info Section */}
             <div className="mt-8 p-4 bg-slate-50 rounded-2xl border border-slate-200">
               <div className="flex items-start gap-3">
-                <Info className="w-4 h-4 text-indigo-700 mt-0.5 shrink-0" />
+                <Info className="w-4 h-4 text-[var(--accent)] mt-0.5 shrink-0" />
                 <div>
                   <p className="text-slate-600 text-xs leading-relaxed">
                     <strong className="text-slate-800">{isLogin ? 'Secure Access:' : 'Company Setup:'}</strong> {isLogin ? 'Your login credentials are encrypted and protected with enterprise-grade security.' : 'Create your company account and start managing tasks efficiently.'}
@@ -870,3 +870,4 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
 };
 
 export default LoginScreen;
+
