@@ -851,7 +851,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
                 if (!isAdding) setShowCreateUserForm((prev) => !prev);
               }}
               disabled={isAdding}
-              className="w-full sm:w-auto min-h-[44px] rounded-xl bg-indigo-900 hover:bg-indigo-800 text-white px-4 py-2.5 text-sm font-bold inline-flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+              className="w-full sm:w-auto min-h-[44px] rounded-xl bg-[var(--accent)] hover:bg-[#4338CA] text-white px-4 py-2.5 text-sm font-bold inline-flex items-center justify-center gap-2 transition-all disabled:opacity-50"
             >
               <UserPlus className="w-4 h-4" />
               {showCreateUserForm ? 'Close Create User' : 'Create User'}
@@ -917,7 +917,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
                 loadingText="Creating..."
                 variant="primary"
                 disabled={isAdding || !canSubmitCreateUser}
-                className="bg-indigo-900 hover:bg-indigo-800 text-white min-h-[44px] px-6 rounded-xl active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-[var(--accent)] hover:bg-[#4338CA] text-white min-h-[44px] px-6 rounded-xl active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <UserPlus className="w-5 h-5" />
                 Create User
@@ -1006,7 +1006,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
                           <p className="font-semibold text-slate-900">{emp.name}</p>
                           <div className="space-y-0.5">
                             <div className="flex items-center gap-2">
-                              <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${emp.role === 'super_admin' || emp.role === 'owner' ? 'bg-slate-800 text-white' : emp.role === 'manager' ? 'bg-indigo-900 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                              <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${emp.role === 'super_admin' || emp.role === 'owner' ? 'bg-slate-800 text-white' : emp.role === 'manager' ? 'bg-[var(--accent)] text-white' : 'bg-slate-100 text-slate-500'}`}>
                                 {getRoleLabel(emp.role)}
                               </span>
                               <span className="text-[10px] text-slate-500 font-medium inline-flex items-center gap-1.5">
@@ -1116,7 +1116,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
                             isLoading={isSavingManagers}
                             loadingText="Saving..."
                             variant="primary"
-                            className="flex-1 min-h-[44px] bg-indigo-900 hover:bg-indigo-800 text-white text-sm font-semibold py-2 rounded-xl transition-all disabled:opacity-60"
+                            className="flex-1 min-h-[44px] bg-[var(--accent)] hover:bg-[#4338CA] text-white text-sm font-semibold py-2 rounded-xl transition-all disabled:opacity-60"
                             disabled={isSavingManagers}
                           >
                             Save Managers
@@ -1141,3 +1141,4 @@ const TeamManager: React.FC<TeamManagerProps> = ({
 };
 
 export default TeamManager;
+
