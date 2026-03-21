@@ -237,6 +237,24 @@ const filterApprovalsByStatus = (approvals: ApprovalItem[], filter: 'all' | 'pen
   return approvals;
 };
 
+const normalizeApprovalStatusKey = (status: unknown): string => String(status || '').toUpperCase();
+
+const isPendingApprovalStatus = (status: unknown): boolean => {
+  const key = normalizeApprovalStatusKey(status);
+  return key === 'PENDING' || key === 'NEEDS_REVIEW' || key === 'IN_PROGRESS' || key === 'IN-PROGRESS';
+};
+
+const isApprovedApprovalStatus = (status: unknown): boolean => {
+  const key = normalizeApprovalStatusKey(status);
+  return key === 'APPROVED' || key === 'REJECTED';
+};
+
+const getApprovalUpdatedAtValue = (approval: ApprovalItem): string | null => {
+  const camel = (approval as any).updatedAt;
+  if (typeof camel === 'string' && camel) return camel;
+  return approval.updated_at || null;
+};
+
 // Helper function to group approvals by month and year
 const groupApprovalsByMonth = (approvals: ApprovalItem[]): Record<string, ApprovalItem[]> => {
   return approvals.reduce((groups, approval) => {
@@ -310,8 +328,17 @@ interface ApprovalsPanelProps {
 }
 
 const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
+  type ApprovedDateFilter = 'today' | 'yesterday' | 'last7' | 'custom';
   const isAdminApprover = currentUser.role === 'owner' || currentUser.role === 'super_admin';
+  const canUsePendingApprovedTabs =
+    currentUser.role === 'super_admin' || currentUser.role === 'owner' || currentUser.role === 'manager';
+  const isStaffOnly = currentUser.role === 'staff';
   const [view, setView] = useState<ApprovalView>(currentUser.role === 'owner' || currentUser.role === 'super_admin' ? 'needs_my_approval' : 'my_requests');
+  const [approvalTab, setApprovalTab] = useState<'pending' | 'approved'>('pending');
+  const [approvedDateFilter, setApprovedDateFilter] = useState<ApprovedDateFilter>('today');
+  const [approvedFromDate, setApprovedFromDate] = useState('');
+  const [approvedToDate, setApprovedToDate] = useState('');
+  const [showApprovedDateFilterMenu, setShowApprovedDateFilterMenu] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed'>('all');
   // Set default month filter to current month
   const getCurrentMonth = () => {
@@ -361,27 +388,118 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
   const [draftMessage, setDraftMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
   const attachmentsInputRef = useRef<HTMLInputElement | null>(null);
+  const approvedDateFilterRef = useRef<HTMLDivElement | null>(null);
   const attachmentFilesRef = useRef<Record<string, File>>({});
   const approvalChatReadsTableMissingRef = useRef(false);
   const approvalReadStorageKey = useMemo(() => `approval-chat-read:${currentUser.id}`, [currentUser.id]);
+  const [employeeNamesById, setEmployeeNamesById] = useState<Record<string, string>>({});
 
   const selectedApproval = useMemo(
     () => approvals.find((item) => item.id === selectedApprovalId) || null,
     [approvals, selectedApprovalId]
   );
 
+  const dayStartMs = useCallback((date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime(), []);
+  const nowMs = Date.now();
+  const todayStartMs = dayStartMs(new Date(nowMs));
+  const yesterdayStartMs = todayStartMs - 24 * 60 * 60 * 1000;
+  const last7StartMs = todayStartMs - 6 * 24 * 60 * 60 * 1000;
+  const approvedFromStartMs = approvedFromDate
+    ? dayStartMs(new Date(`${approvedFromDate}T00:00:00`))
+    : null;
+  const approvedToEndMs = approvedToDate
+    ? dayStartMs(new Date(`${approvedToDate}T00:00:00`)) + (24 * 60 * 60 * 1000) - 1
+    : null;
+
+  const scopedApprovalsForTabs = useMemo(() => {
+    const base = view === 'my_requests'
+      ? approvals
+      : approvals.filter((approval) => {
+          const directApproval = approval.approver_id === currentUser.id;
+          const escalatedApproval =
+            isAdminApprover && approval.isEscalated && approval.escalated_to === currentUser.id;
+          return directApproval || escalatedApproval;
+        });
+    return sortApprovalsByRecency(base);
+  }, [approvals, currentUser.id, isAdminApprover, view]);
+
+  const pendingApprovalCount = useMemo(
+    () => scopedApprovalsForTabs.filter((item) => isPendingApprovalStatus(item.status)).length,
+    [scopedApprovalsForTabs]
+  );
+
+  const approvedTodayCount = useMemo(
+    () =>
+      scopedApprovalsForTabs.filter((item) => {
+        if (!isApprovedApprovalStatus(item.status)) return false;
+        const updatedMs = parseDateTimeMs(getApprovalUpdatedAtValue(item));
+        return updatedMs >= todayStartMs && updatedMs <= nowMs;
+      }).length,
+    [scopedApprovalsForTabs, todayStartMs, nowMs]
+  );
+
+  const handleOpenPendingTab = () => {
+    setApprovalTab('pending');
+    setShowApprovedDateFilterMenu(false);
+  };
+
+  const handleOpenApprovedTab = () => {
+    setApprovalTab('approved');
+    setApprovedDateFilter('today');
+    setApprovedFromDate('');
+    setApprovedToDate('');
+    setShowApprovedDateFilterMenu(false);
+  };
+
+  const approvedFilterLabel =
+    approvedDateFilter === 'today'
+      ? 'Today'
+      : approvedDateFilter === 'yesterday'
+      ? 'Yesterday'
+      : approvedDateFilter === 'last7'
+      ? 'Last 7 days'
+      : 'Custom range';
+
+  const isDecisionWithinApprovedFilter = useCallback(
+    (approval: ApprovalItem): boolean => {
+      const updatedMs = parseDateTimeMs(getApprovalUpdatedAtValue(approval));
+      if (!updatedMs) return false;
+      if (approvedDateFilter === 'today') {
+        return updatedMs >= todayStartMs && updatedMs <= nowMs;
+      }
+      if (approvedDateFilter === 'yesterday') {
+        return updatedMs >= yesterdayStartMs && updatedMs < todayStartMs;
+      }
+      if (approvedDateFilter === 'last7') {
+        return updatedMs >= last7StartMs && updatedMs <= nowMs;
+      }
+      if (approvedDateFilter === 'custom') {
+        const from = approvedFromStartMs ?? Number.MIN_SAFE_INTEGER;
+        const to = approvedToEndMs ?? Number.MAX_SAFE_INTEGER;
+        return updatedMs >= from && updatedMs <= to;
+      }
+      return true;
+    },
+    [
+      approvedDateFilter,
+      approvedFromStartMs,
+      approvedToEndMs,
+      last7StartMs,
+      nowMs,
+      todayStartMs,
+      yesterdayStartMs,
+    ]
+  );
+
   const filterNeedsMyApprovalQueue = useCallback(
     (items: ApprovalItem[]): ApprovalItem[] =>
       items.filter((approval) => {
-        const directApproval =
-          approval.approver_id === currentUser.id &&
-          (approval.status === 'PENDING' || approval.status === 'NEEDS_REVIEW');
+        const directApproval = approval.approver_id === currentUser.id;
 
         const escalatedApproval =
           isAdminApprover &&
           approval.isEscalated &&
-          approval.escalated_to === currentUser.id &&
-          approval.adminEscalationStatus === 'PENDING';
+          approval.escalated_to === currentUser.id;
 
         return directApproval || escalatedApproval;
       }),
@@ -609,7 +727,15 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         .filter((item) => item.id && item.role !== 'staff')
         .sort((a, b) => a.name.localeCompare(b.name));
 
+      const names = (data || []).reduce<Record<string, string>>((acc, row: any) => {
+        const id = String(row.id || '');
+        if (!id) return acc;
+        acc[id] = String(row.name || 'Unknown');
+        return acc;
+      }, {});
+
       setApprovers(candidates);
+      setEmployeeNamesById(names);
       if (!requestApproverId && candidates.length) {
         setRequestApproverId(candidates[0].id);
       }
@@ -641,10 +767,10 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         rows = requesterData || [];
       } else {
         if (isAdminApprover) {
-          query = query.or(`and(approver_id.eq.${currentUser.id},status.in.(PENDING,NEEDS_REVIEW)),and(escalated_to.eq.${currentUser.id},adminEscalationStatus.eq.PENDING)`);
+          query = query.or(`approver_id.eq.${currentUser.id},escalated_to.eq.${currentUser.id}`);
         } else {
           // Regular Managers only see requests directly assigned to them
-          query = query.eq('approver_id', currentUser.id).in('status', ['PENDING', 'NEEDS_REVIEW']);
+          query = query.eq('approver_id', currentUser.id);
         }
 
         const { data: approverData, error: approverError } = await query.order('id', { ascending: false });
@@ -760,6 +886,24 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
   useEffect(() => {
     void loadApprovers();
   }, [loadApprovers]);
+
+  useEffect(() => {
+    if (!isStaffOnly) return;
+    setView('my_requests');
+  }, [isStaffOnly]);
+
+  useEffect(() => {
+    if (!showApprovedDateFilterMenu) return;
+    const handleOutside = (event: MouseEvent) => {
+      if (!approvedDateFilterRef.current) return;
+      const target = event.target as Node;
+      if (!approvedDateFilterRef.current.contains(target)) {
+        setShowApprovedDateFilterMenu(false);
+      }
+    };
+    window.addEventListener('mousedown', handleOutside);
+    return () => window.removeEventListener('mousedown', handleOutside);
+  }, [showApprovedDateFilterMenu]);
 
   useEffect(() => {
     if (!selectedApprovalId) return;
@@ -1332,20 +1476,144 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
             My Requests
           </button>
         )}
-        <button
-          onClick={() => setView('needs_my_approval')}
-          className={`w-full sm:w-auto min-h-[44px] px-3 py-2 rounded-xl text-sm font-bold border ${
-            view === 'needs_my_approval'
-              ? 'bg-indigo-900 text-white border-indigo-900'
-              : 'bg-white text-slate-700 border-slate-200'
-          }`}
-        >
-          Needs My Approval
-        </button>
+        {!isStaffOnly && (
+          <button
+            onClick={() => setView('needs_my_approval')}
+            className={`w-full sm:w-auto min-h-[44px] px-3 py-2 rounded-xl text-sm font-bold border ${
+              view === 'needs_my_approval'
+                ? 'bg-indigo-900 text-white border-indigo-900'
+                : 'bg-white text-slate-700 border-slate-200'
+            }`}
+          >
+            Needs My Approval
+          </button>
+        )}
       </div>
 
+      {canUsePendingApprovedTabs && (
+        <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-2 rounded-2xl bg-slate-100 border border-slate-200 p-1.5 shadow-sm w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={handleOpenPendingTab}
+              className={`flex-1 sm:flex-none min-h-[40px] rounded-xl px-4 py-1.5 text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+                approvalTab === 'pending'
+                  ? 'bg-white text-amber-700 shadow-sm'
+                  : 'text-slate-500 hover:bg-slate-100'
+              }`}
+            >
+              <span>Pending</span>
+              <span className="inline-flex min-w-[22px] h-[22px] px-1.5 items-center justify-center rounded-full bg-amber-500 text-white text-xs font-bold leading-none">
+                {pendingApprovalCount}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={handleOpenApprovedTab}
+              className={`flex-1 sm:flex-none min-h-[40px] rounded-xl px-4 py-1.5 text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+                approvalTab === 'approved'
+                  ? 'bg-white text-emerald-700 shadow-sm'
+                  : 'text-slate-500 hover:bg-slate-100'
+              }`}
+            >
+              <span>Approved</span>
+              <span className="inline-flex min-w-[22px] h-[22px] px-1.5 items-center justify-center rounded-full bg-emerald-500 text-white text-xs font-bold leading-none">
+                {approvedTodayCount}
+              </span>
+            </button>
+          </div>
+
+          {approvalTab === 'approved' && (
+            <div className="relative self-end sm:self-auto" ref={approvedDateFilterRef}>
+              <button
+                type="button"
+                onClick={() => setShowApprovedDateFilterMenu((prev) => !prev)}
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+                title="Filter approved decisions by date"
+              >
+                <Filter className="w-3.5 h-3.5" />
+                <span>{approvedFilterLabel}</span>
+              </button>
+
+              {showApprovedDateFilterMenu && (
+                <div className="absolute right-0 mt-2 w-60 rounded-xl border border-slate-200 bg-white p-2 shadow-lg z-20 space-y-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setApprovedDateFilter('today');
+                      setShowApprovedDateFilterMenu(false);
+                    }}
+                    className={`w-full text-left rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                      approvedDateFilter === 'today' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    Today
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setApprovedDateFilter('yesterday');
+                      setShowApprovedDateFilterMenu(false);
+                    }}
+                    className={`w-full text-left rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                      approvedDateFilter === 'yesterday' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    Yesterday
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setApprovedDateFilter('last7');
+                      setShowApprovedDateFilterMenu(false);
+                    }}
+                    className={`w-full text-left rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                      approvedDateFilter === 'last7' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    Last 7 days
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setApprovedDateFilter('custom')}
+                    className={`w-full text-left rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                      approvedDateFilter === 'custom' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    Custom range
+                  </button>
+
+                  {approvedDateFilter === 'custom' && (
+                    <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-2 space-y-2">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">From</label>
+                        <input
+                          type="date"
+                          value={approvedFromDate}
+                          onChange={(event) => setApprovedFromDate(event.target.value)}
+                          className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-900"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">To</label>
+                        <input
+                          type="date"
+                          value={approvedToDate}
+                          onChange={(event) => setApprovedToDate(event.target.value)}
+                          className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-900"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Status Filter Pills - Only show for My Requests */}
-      {view === 'my_requests' && (
+      {view === 'my_requests' && !canUsePendingApprovedTabs && (
         <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex flex-wrap gap-2">
             {[
@@ -1684,13 +1952,13 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
           <div className="text-sm text-slate-500">Loading approvals...</div>
         ) : (
           (() => {
-            // Filter approvals based on status filter (only for My Requests)
-            let filteredApprovals = view === 'my_requests' 
+            // Filter approvals based on active view
+            let filteredApprovals = view === 'my_requests'
               ? filterApprovalsByStatus(approvals, statusFilter)
               : filterNeedsMyApprovalQueue(approvals);
 
-            // Apply month filter for My Requests view
-            if (view === 'my_requests') {
+            // Apply existing month/date filters for staff-only My Requests view
+            if (view === 'my_requests' && !canUsePendingApprovedTabs) {
               if (dateRangeFilter === 'custom') {
                 filteredApprovals = filterApprovalsByDateRange(filteredApprovals, startDate, endDate);
               } else {
@@ -1698,11 +1966,42 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
               }
             }
 
+            if (canUsePendingApprovedTabs) {
+              if (approvalTab === 'pending') {
+                filteredApprovals = filteredApprovals
+                  .filter((approval) => isPendingApprovalStatus(approval.status))
+                  .sort((a, b) => {
+                    const aMs = parseDateTimeMs(a.created_at) || approvalActivityMs(a);
+                    const bMs = parseDateTimeMs(b.created_at) || approvalActivityMs(b);
+                    return bMs - aMs;
+                  });
+              } else {
+                const approvedItems = filteredApprovals
+                  .filter((approval) => isApprovedApprovalStatus(approval.status))
+                  .sort((a, b) => {
+                    const aMs = parseDateTimeMs(getApprovalUpdatedAtValue(a)) || approvalActivityMs(a);
+                    const bMs = parseDateTimeMs(getApprovalUpdatedAtValue(b)) || approvalActivityMs(b);
+                    return bMs - aMs;
+                  });
+                filteredApprovals = approvedItems.filter(isDecisionWithinApprovedFilter);
+              }
+            }
+
             if (filteredApprovals.length === 0) {
               return (
                 <div className="text-sm text-slate-500">
-                  {view === 'my_requests' 
-                    ? statusFilter === 'pending' 
+                  {canUsePendingApprovedTabs
+                    ? approvalTab === 'pending'
+                      ? 'No pending approvals found.'
+                      : approvedDateFilter === 'today'
+                      ? 'No approved/rejected items found for today.'
+                      : approvedDateFilter === 'yesterday'
+                      ? 'No approved/rejected items found for yesterday.'
+                      : approvedDateFilter === 'last7'
+                      ? 'No approved/rejected items found in last 7 days.'
+                      : 'No approved/rejected items found in selected date range.'
+                    : view === 'my_requests'
+                    ? statusFilter === 'pending'
                       ? 'No pending requests found.'
                       : statusFilter === 'completed'
                       ? 'No completed requests found.'
@@ -1711,14 +2010,13 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                       : monthFilter !== 'all'
                       ? `No requests found for ${monthFilter}.`
                       : 'No requests found.'
-                    : 'No approvals found for this view.'
-                  }
+                    : 'No approvals found for this view.'}
                 </div>
               );
             }
 
             // Group approvals by month (only for My Requests)
-            if (view === 'my_requests') {
+            if (view === 'my_requests' && !canUsePendingApprovedTabs) {
               const groupedApprovals = groupApprovalsByMonth(filteredApprovals);
               const sortedMonths = Object.keys(groupedApprovals).sort((a, b) => {
                 // Sort months chronologically (most recent first)
@@ -1788,19 +2086,35 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                                 <span className="font-medium">Created:</span>
                                 <span>{approval.created_at ? formatDateTime(approval.created_at).split(',')[0] : 'N/A'}</span>
                               </div>
-                              {(approval.status === 'APPROVED' || approval.status === 'REJECTED') && approval.updated_at && (
+                              {(approval.status === 'APPROVED' || approval.status === 'REJECTED') && getApprovalUpdatedAtValue(approval) && (
                                 <div className="flex flex-col items-end gap-1">
                                   <div className="flex items-center gap-1">
                                     <span className="font-medium">{approval.status === 'APPROVED' ? 'Approved:' : 'Rejected:'}</span>
-                                    <span>{formatDateTime(approval.updated_at).split(',')[0]}</span>
+                                    <span>{formatDateTime(String(getApprovalUpdatedAtValue(approval))).split(',')[0]}</span>
                                   </div>
                                   <div className="flex items-center gap-1">
                                     <span className="font-medium">by:</span>
-                                    <span>{getApproverName(approval.approver_id, approvers)}</span>
+                                    <span>{employeeNamesById[approval.approver_id] || getApproverName(approval.approver_id, approvers)}</span>
                                   </div>
                                 </div>
                               )}
                             </div>
+                            {canUsePendingApprovedTabs && approvalTab === 'approved' && isApprovedApprovalStatus(approval.status) && (
+                              <div className="mt-2 space-y-1 text-xs text-slate-600">
+                                <div className="flex items-center gap-1">
+                                  <span className="font-medium">Requester:</span>
+                                  <span>{employeeNamesById[approval.requester_id] || getApproverName(approval.requester_id, approvers)}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <span className="font-medium">{approval.status === 'APPROVED' ? 'Approved at:' : 'Rejected at:'}</span>
+                                  <span>{getApprovalUpdatedAtValue(approval) ? formatDateTime(String(getApprovalUpdatedAtValue(approval))) : 'N/A'}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <span className="font-medium">Decision by:</span>
+                                  <span>{employeeNamesById[approval.approver_id] || getApproverName(approval.approver_id, approvers)}</span>
+                                </div>
+                              </div>
+                            )}
                           </button>
 
                           {isSelected && (
@@ -2082,19 +2396,35 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                           <span className="font-medium">Created:</span>
                           <span>{approval.created_at ? formatDateTime(approval.created_at).split(',')[0] : 'N/A'}</span>
                         </div>
-                        {(approval.status === 'APPROVED' || approval.status === 'REJECTED') && approval.updated_at && (
+                        {(approval.status === 'APPROVED' || approval.status === 'REJECTED') && getApprovalUpdatedAtValue(approval) && (
                           <div className="flex flex-col items-end gap-1">
                             <div className="flex items-center gap-1">
                               <span className="font-medium">{approval.status === 'APPROVED' ? 'Approved:' : 'Rejected:'}</span>
-                              <span>{formatDateTime(approval.updated_at).split(',')[0]}</span>
+                              <span>{formatDateTime(String(getApprovalUpdatedAtValue(approval))).split(',')[0]}</span>
                             </div>
                             <div className="flex items-center gap-1">
                               <span className="font-medium">by:</span>
-                              <span>{getApproverName(approval.approver_id, approvers)}</span>
+                              <span>{employeeNamesById[approval.approver_id] || getApproverName(approval.approver_id, approvers)}</span>
                             </div>
                           </div>
                         )}
                       </div>
+                      {canUsePendingApprovedTabs && approvalTab === 'approved' && isApprovedApprovalStatus(approval.status) && (
+                        <div className="mt-2 space-y-1 text-xs text-slate-600">
+                          <div className="flex items-center gap-1">
+                            <span className="font-medium">Requester:</span>
+                            <span>{employeeNamesById[approval.requester_id] || getApproverName(approval.requester_id, approvers)}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="font-medium">{approval.status === 'APPROVED' ? 'Approved at:' : 'Rejected at:'}</span>
+                            <span>{getApprovalUpdatedAtValue(approval) ? formatDateTime(String(getApprovalUpdatedAtValue(approval))) : 'N/A'}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="font-medium">Decision by:</span>
+                            <span>{employeeNamesById[approval.approver_id] || getApproverName(approval.approver_id, approvers)}</span>
+                          </div>
+                        </div>
+                      )}
                     </button>
 
                     {isSelected && (
