@@ -1504,12 +1504,9 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
         <p className="text-sm text-gray-500 mt-1">Here is your task overview for today.</p>
       </div>
 
-      {/* Header with Title and New Button */}
-      <div className={`flex flex-col gap-3 sm:flex-row sm:items-center ${canAssignTasks ? 'sm:justify-end' : 'sm:justify-start'}`}>
-        <div className={`flex items-center gap-3 ${canAssignTasks ? 'sm:mr-4' : ''}`}>
-          <h1 className="text-xl font-bold text-slate-900">Tasks</h1>
-        </div>
-        {canAssignTasks && (
+      {/* Header action */}
+      {canAssignTasks && (
+        <div className="flex justify-end">
           <button
             onClick={() => setIsTaskModalOpen(true)}
             className="w-full sm:w-auto min-h-[44px] bg-indigo-900 hover:bg-indigo-800 text-white rounded-full px-4 py-3 sm:py-2.5 shadow-md shadow-indigo-900/20 flex items-center justify-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95"
@@ -1517,8 +1514,8 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
             <Plus className="w-5 h-5" />
             <span className="font-semibold">New</span>
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Task Creation Modal */}
       {isTaskModalOpen && canAssignTasks && (
