@@ -514,7 +514,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
       if (!part) return null;
       if (part.startsWith('@')) {
         return (
-          <span key={`${part}_${index}`} className="font-semibold text-indigo-600">
+          <span key={`${part}_${index}`} className="font-semibold text-[var(--accent)]">
             {part}
           </span>
         );
@@ -687,7 +687,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         label: 'Edit',
         icon: <Edit className="w-5 h-5" />,
         onClick: () => setIsEditing(true),
-        className: 'bg-[var(--accent-light)] text-[var(--accent)] hover:bg-indigo-100 border border-indigo-200'
+        className: 'bg-[var(--accent-light)] text-[var(--accent)] hover:bg-[var(--accent-light)] border border-[var(--accent)]/20'
       });
     }
     if (canDelete) {
@@ -755,7 +755,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         label: 'Edit',
         icon: <Edit className="w-5 h-5" />,
         onClick: () => setIsEditing(true),
-        className: 'bg-[var(--accent-light)] text-[var(--accent)] hover:bg-indigo-100 border border-indigo-200'
+        className: 'bg-[var(--accent-light)] text-[var(--accent)] hover:bg-[var(--accent-light)] border border-[var(--accent)]/20'
       });
     }
     if (canDelete) {
@@ -780,7 +780,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         label: 'View Proof',
         icon: <Eye className="w-5 h-5" />,
         onClick: () => setShowFullImage(true),
-        className: 'bg-[var(--accent-light)] text-[var(--accent)] hover:bg-indigo-100 border border-indigo-200'
+        className: 'bg-[var(--accent-light)] text-[var(--accent)] hover:bg-[var(--accent-light)] border border-[var(--accent)]/20'
       });
     }
     if (isManager) {
@@ -813,7 +813,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
 
   // --- Status label ---
   const statusLabel = task.status === 'completed' ? 'Completed' : task.status === 'in-progress' ? 'In Progress' : 'Pending';
-  const statusColor = task.status === 'completed' ? 'text-emerald-600 bg-emerald-50 border-emerald-200' : task.status === 'in-progress' ? 'text-indigo-700 bg-indigo-50 border-indigo-200' : isOverdue ? 'text-red-600 bg-red-50 border-red-200' : 'text-slate-600 bg-slate-100 border-slate-200';
+  const statusColor = task.status === 'completed' ? 'text-emerald-600 bg-emerald-50 border-emerald-200' : task.status === 'in-progress' ? 'text-[var(--accent)] bg-[var(--accent-light)] border-[var(--accent)]/20' : isOverdue ? 'text-red-600 bg-red-50 border-red-200' : 'text-slate-600 bg-slate-100 border-slate-200';
   const heroAccentClass = task.status === 'completed' ? 'border-l-[var(--green)] bg-[var(--green-light)]/55' : isOverdue ? 'border-l-[var(--red)] bg-[var(--red-light)]/60' : 'border-l-[var(--accent)] bg-white';
 
   return (
@@ -840,7 +840,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
           <div className={`rounded-2xl border border-[var(--border)] border-l-4 px-4 py-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] ${heroAccentClass}`}>
             <div className="flex items-start justify-between gap-3">
               <span className={`font-ui-mono inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.16em] ${
-                normalizedPriority === 'High' ? 'border-red-200 bg-white text-[var(--red)]' : 'border-indigo-200 bg-white text-[var(--accent)]'
+                normalizedPriority === 'High' ? 'border-red-200 bg-white text-[var(--red)]' : 'border-[var(--accent)]/20 bg-white text-[var(--accent)]'
               }`}>
                 {normalizedPriority === 'High' && <Flag className="w-3.5 h-3.5 fill-current" />}
                 {normalizedPriority} Priority
@@ -928,7 +928,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
               <div className="flex items-center gap-3 py-3 border-b border-[var(--border)]">
                 <span className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] bg-[var(--surface-2)]"><Clock className="w-4 h-4 text-indigo-400 flex-shrink-0" /></span>
                 <span className="w-[90px] text-sm text-[var(--ink-3)]">Recurrence</span>
-                <span className="font-ui-mono text-xs font-medium uppercase px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 ml-1">
+                <span className="font-ui-mono text-xs font-medium uppercase px-2.5 py-0.5 rounded-full bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent)]/20 ml-1">
                   {normalizedRecurrence ? normalizedRecurrence.charAt(0).toUpperCase() + normalizedRecurrence.slice(1) : 'Recurring'}
                 </span>
               </div>
@@ -1109,7 +1109,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
                           {/* Message bubble */}
                           <div className={`rounded-2xl px-4 py-2.5 ${
                             isOwn
-                              ? 'bg-indigo-900 text-white rounded-br-md'
+                              ? 'bg-[var(--accent)] text-white rounded-br-md'
                               : 'bg-slate-100 text-slate-800 rounded-bl-md'
                           }`}>
                             <p className="text-sm leading-relaxed break-words">
@@ -1151,7 +1151,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
                         onClick={() => applyMentionCandidate(candidate)}
                         className={`w-full text-left px-3 py-2 text-sm transition-colors ${
                           index === activeMentionIndex
-                            ? 'bg-indigo-50 text-indigo-700'
+                            ? 'bg-[var(--accent-light)] text-[var(--accent)]'
                             : 'text-slate-700 hover:bg-slate-50'
                         }`}
                       >
@@ -1178,7 +1178,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
                 syncMentionMenuFromInput(nextValue, caret);
               }}
               placeholder="Type a message... Use @ to mention"
-              className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-200 resize-none min-h-[48px] max-h-28"
+              className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20 resize-none min-h-[48px] max-h-28"
               rows={1}
               onKeyDown={(e) => {
                 if (mentionMenuOpen && mentionCandidates.length > 0) {
@@ -1217,7 +1217,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
               type="button"
               onClick={handleAddRemark}
               disabled={!newRemark.trim()}
-              className="bg-indigo-900 text-white p-3 rounded-xl transition-all active:scale-95 disabled:opacity-40 hover:bg-indigo-800"
+              className="bg-[var(--accent)] text-white p-3 rounded-xl transition-all active:scale-95 disabled:opacity-40 hover:bg-indigo-800"
               style={{ minHeight: 48, minWidth: 48 }}
               title="Send message"
             >
@@ -1234,7 +1234,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
           <div className="relative bg-white w-full max-w-lg max-h-[90vh] rounded-t-3xl sm:rounded-2xl shadow-xl overflow-y-auto">
             <div className="sticky top-0 bg-white border-b border-slate-200 p-4 sm:p-5 flex items-center justify-between z-10">
               <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <Edit className="w-5 h-5 text-indigo-700" />
+                <Edit className="w-5 h-5 text-[var(--accent)]" />
                 Edit Task
               </h2>
               {!isSavingEdit && (
@@ -1248,12 +1248,12 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
                 value={editDescription}
                 onChange={(e) => setEditDescription(e.target.value)}
                 placeholder="Task description"
-                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-200 resize-none min-h-[80px]"
+                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20 resize-none min-h-[80px]"
               />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="relative">
                   <select value={editTaskType} onChange={(e) => { setEditTaskType(e.target.value as TaskType); if (e.target.value === 'one_time') setEditRecurrenceFrequency(''); }}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-200 appearance-none pr-10">
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20 appearance-none pr-10">
                     <option value="one_time">One-time Task</option>
                     <option value="recurring">Recurring Task</option>
                   </select>
@@ -1262,7 +1262,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
                 {editTaskType === 'recurring' && (
                   <div className="relative">
                     <select value={editRecurrenceFrequency} onChange={(e) => setEditRecurrenceFrequency(e.target.value === '' ? '' : (e.target.value as RecurrenceFrequency))}
-                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-200 appearance-none pr-10">
+                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20 appearance-none pr-10">
                       <option value="">Select Frequency</option>
                       <option value="daily">Daily</option>
                       <option value="weekly">Weekly</option>
@@ -1275,7 +1275,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="relative">
                   <select value={editAssigneeId} onChange={(e) => setEditAssigneeId(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-200 appearance-none pr-10">
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20 appearance-none pr-10">
                     <option value="none">Anyone / Unassigned</option>
                     {employees.map(emp => (
                       <option key={emp.id} value={emp.id}>{emp.name} ({emp.role === 'super_admin' || emp.role === 'owner' ? 'Owner' : emp.role === 'manager' ? 'Manager' : 'Staff'})</option>
@@ -1284,11 +1284,11 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
                   <UserPlus className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
                 </div>
                 <input type="datetime-local" value={editDeadline} onChange={(e) => setEditDeadline(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-white text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+                  className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-white text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20" />
               </div>
               <label className="flex items-center gap-2 text-sm text-slate-700">
                 <input type="checkbox" checked={editRequirePhoto} onChange={(e) => setEditRequirePhoto(e.target.checked)}
-                  className="w-4 h-4 text-indigo-900 rounded focus:ring-indigo-200 border-slate-300" />
+                  className="w-4 h-4 text-[var(--accent)] rounded focus:ring-[var(--accent)]/20 border-slate-300" />
                 Require photo proof
               </label>
               <div className="flex gap-3 pt-2">
@@ -1303,7 +1303,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
                   loadingText="Saving..."
                   variant="primary"
                   disabled={isSavingEdit}
-                  className="flex-1 bg-indigo-900 hover:bg-indigo-800 text-white py-3 rounded-xl font-bold transition-all disabled:opacity-60 active:scale-95"
+                  className="flex-1 bg-[var(--accent)] hover:bg-[#4338CA] text-white py-3 rounded-xl font-bold transition-all disabled:opacity-60 active:scale-95"
                   style={{ minHeight: 48 }}
                 >
                   Save Changes
@@ -1335,3 +1335,4 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
 };
 
 export default TaskDetailsScreen;
+

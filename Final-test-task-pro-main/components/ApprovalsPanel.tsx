@@ -70,7 +70,7 @@ const getStatusClasses = (status: ApprovalStatus): string => {
   if (status === 'APPROVED') return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
   if (status === 'REJECTED') return 'bg-rose-50 text-rose-700 border border-rose-200';
   if (status === 'NEEDS_REVIEW') return 'bg-amber-50 text-amber-700 border border-amber-200';
-  return 'bg-indigo-50 text-indigo-700 border border-indigo-200';
+  return 'bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent)]/20';
 };
 
 const formatAmount = (value: number | null): string => {
@@ -1469,7 +1469,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
             onClick={() => setView('my_requests')}
             className={`w-full sm:w-auto min-h-[44px] px-3 py-2 rounded-xl text-sm font-bold border ${
               view === 'my_requests'
-                ? 'bg-indigo-900 text-white border-indigo-900'
+                ? 'bg-[var(--accent)] text-white border-[var(--accent)]'
                 : 'bg-white text-slate-700 border-slate-200'
             }`}
           >
@@ -1481,7 +1481,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
             onClick={() => setView('needs_my_approval')}
             className={`w-full sm:w-auto min-h-[44px] px-3 py-2 rounded-xl text-sm font-bold border ${
               view === 'needs_my_approval'
-                ? 'bg-indigo-900 text-white border-indigo-900'
+                ? 'bg-[var(--accent)] text-white border-[var(--accent)]'
                 : 'bg-white text-slate-700 border-slate-200'
             }`}
           >
@@ -1544,7 +1544,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                       setShowApprovedDateFilterMenu(false);
                     }}
                     className={`w-full text-left rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                      approvedDateFilter === 'today' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'
+                      approvedDateFilter === 'today' ? 'bg-[var(--accent-light)] text-[var(--accent)]' : 'text-slate-600 hover:bg-slate-50'
                     }`}
                   >
                     Today
@@ -1556,7 +1556,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                       setShowApprovedDateFilterMenu(false);
                     }}
                     className={`w-full text-left rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                      approvedDateFilter === 'yesterday' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'
+                      approvedDateFilter === 'yesterday' ? 'bg-[var(--accent-light)] text-[var(--accent)]' : 'text-slate-600 hover:bg-slate-50'
                     }`}
                   >
                     Yesterday
@@ -1568,7 +1568,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                       setShowApprovedDateFilterMenu(false);
                     }}
                     className={`w-full text-left rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                      approvedDateFilter === 'last7' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'
+                      approvedDateFilter === 'last7' ? 'bg-[var(--accent-light)] text-[var(--accent)]' : 'text-slate-600 hover:bg-slate-50'
                     }`}
                   >
                     Last 7 days
@@ -1577,7 +1577,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                     type="button"
                     onClick={() => setApprovedDateFilter('custom')}
                     className={`w-full text-left rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                      approvedDateFilter === 'custom' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'
+                      approvedDateFilter === 'custom' ? 'bg-[var(--accent-light)] text-[var(--accent)]' : 'text-slate-600 hover:bg-slate-50'
                     }`}
                   >
                     Custom range
@@ -1626,7 +1626,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                 onClick={() => setStatusFilter(key)}
                 className={`min-h-[36px] px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
                   statusFilter === key
-                    ? 'bg-indigo-900 text-white'
+                    ? 'bg-[var(--accent)] text-white'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
@@ -1658,7 +1658,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                       setShowMonthDropdown(false);
                     }}
                     className={`w-full px-3 py-2 text-left text-sm hover:bg-slate-50 transition-colors ${
-                      monthFilter === 'all' && dateRangeFilter === 'all' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700'
+                      monthFilter === 'all' && dateRangeFilter === 'all' ? 'bg-[var(--accent-light)] text-[var(--accent)]' : 'text-slate-700'
                     }`}
                   >
                     All Time
@@ -1674,7 +1674,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                         setShowMonthDropdown(false);
                       }}
                       className={`w-full px-3 py-2 text-left text-sm hover:bg-slate-50 transition-colors ${
-                        monthFilter === month && dateRangeFilter === 'all' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700'
+                        monthFilter === month && dateRangeFilter === 'all' ? 'bg-[var(--accent-light)] text-[var(--accent)]' : 'text-slate-700'
                       }`}
                     >
                       {month}
@@ -1691,7 +1691,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                       setShowMonthDropdown(false);
                     }}
                     className={`w-full px-3 py-2 text-left text-sm hover:bg-slate-50 transition-colors flex items-center gap-2 ${
-                      dateRangeFilter === 'custom' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700'
+                      dateRangeFilter === 'custom' ? 'bg-[var(--accent-light)] text-[var(--accent)]' : 'text-slate-700'
                     }`}
                   >
                     <Calendar className="w-4 h-4" />
@@ -1751,7 +1751,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                         }
                       }}
                       disabled={!startDate && !endDate}
-                      className="flex-1 min-h-[44px] px-4 py-2 bg-indigo-900 text-white rounded-lg text-base hover:bg-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex-1 min-h-[44px] px-4 py-2 bg-[var(--accent)] text-white rounded-lg text-base hover:bg-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Apply
                     </button>
@@ -1777,7 +1777,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
             {/* Header */}
             <div className="sticky top-0 bg-white border-b border-slate-200 p-4 sm:p-5 flex items-center justify-between z-10">
               <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <Plus className="w-5 h-5 text-indigo-900" />
+                <Plus className="w-5 h-5 text-[var(--accent)]" />
                 Create Approval Request
               </h2>
               {!creatingApproval && (
@@ -1930,7 +1930,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                     isLoading={creatingApproval}
                     loadingText="Creating..."
                     variant="primary"
-                    className="flex-1 min-h-[48px] rounded-xl bg-indigo-900 hover:bg-indigo-800 text-white text-base font-bold disabled:opacity-60"
+                    className="flex-1 min-h-[48px] rounded-xl bg-[var(--accent)] hover:bg-[#4338CA] text-white text-base font-bold disabled:opacity-60"
                   >
                     Create & Tag Approver
                   </LoadingButton>
@@ -2164,7 +2164,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                                             <div
                                               className={`rounded-2xl px-4 py-2.5 ${
                                                 mine
-                                                  ? 'bg-indigo-900 text-white rounded-br-md'
+                                                  ? 'bg-[var(--accent)] text-white rounded-br-md'
                                                   : 'bg-slate-100 text-slate-800 rounded-bl-md'
                                               }`}
                                             >
@@ -2312,7 +2312,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                                       type="button"
                                       onClick={() => void handleSendMessage()}
                                       disabled={updatingStatus || !draftMessage.trim()}
-                                      className="bg-indigo-900 text-white p-3 rounded-xl transition-all active:scale-95 disabled:opacity-40 hover:bg-indigo-800"
+                                      className="bg-[var(--accent)] text-white p-3 rounded-xl transition-all active:scale-95 disabled:opacity-40 hover:bg-indigo-800"
                                       style={{ minHeight: 48, minWidth: 48 }}
                                       title="Send message"
                                     >
@@ -2476,7 +2476,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                                       <div
                                         className={`rounded-2xl px-4 py-2.5 ${
                                           mine
-                                            ? 'bg-indigo-900 text-white rounded-br-md'
+                                            ? 'bg-[var(--accent)] text-white rounded-br-md'
                                             : 'bg-slate-100 text-slate-800 rounded-bl-md'
                                         }`}
                                       >
@@ -2505,8 +2505,8 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
 
                         {/* Admin Escalation Banner */}
                         {approval.isEscalated && isAdminApprover && (
-                          <div className="mt-3 p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
-                            <p className="text-xs font-medium text-indigo-800">
+                          <div className="mt-3 p-3 bg-[var(--accent-light)] border border-indigo-200 rounded-lg">
+                            <p className="text-xs font-medium text-[var(--accent)]">
                               Escalated by {getApproverName(approval.approver_id, approvers)}
                             </p>
                           </div>
@@ -2651,7 +2651,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                                 type="button"
                                 onClick={() => void handleSendMessage()}
                                 disabled={updatingStatus || !draftMessage.trim()}
-                                className="bg-indigo-900 text-white p-3 rounded-xl transition-all active:scale-95 disabled:opacity-40 hover:bg-indigo-800"
+                                className="bg-[var(--accent)] text-white p-3 rounded-xl transition-all active:scale-95 disabled:opacity-40 hover:bg-indigo-800"
                                 style={{ minHeight: 48, minWidth: 48 }}
                                 title="Send message"
                               >
@@ -2688,4 +2688,5 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
 };
 
 export default ApprovalsPanel;
+
 
