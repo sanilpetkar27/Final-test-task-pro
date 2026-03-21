@@ -15,5 +15,14 @@ module.exports = {
       },
     },
   },
+  safelist: [
+    'bg-[#10B981]',
+    'hover:bg-[#059669]',
+    'bg-[#EF4444]',
+    'hover:bg-[#DC2626]',
+    'bg-[#4F46E5]',
+    'hover:bg-[#4338CA]',
+  ],
   plugins: [],
 };
+
