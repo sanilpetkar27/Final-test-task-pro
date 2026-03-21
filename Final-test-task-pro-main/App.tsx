@@ -860,7 +860,7 @@ const App: React.FC = () => {
       if (activeCompanyId) {
         tasksQuery = tasksQuery.eq('company_id', activeCompanyId);
       }
-      tasksQuery = tasksQuery.neq('status', 'completed');
+      tasksQuery = tasksQuery.in('status', ['pending', 'in_progress', 'in-progress', 'overdue', 'completed']);
       
       // Apply role-based filtering using all known IDs for the active user profile.
       tasksQuery = applyTaskVisibilityFilter(tasksQuery, currentUser, (employeesData || []) as Employee[]);
@@ -885,7 +885,7 @@ const App: React.FC = () => {
       const finalTasks = (tasksData && tasksData.length > 0)
         ? transformTasksToApp(tasksData as DatabaseTask[])
         : (cachedTasks.length > 0 ? cachedTasks : []);
-      const activeTasks = filterActiveTasks(finalTasks);
+      const activeTasks = finalTasks;
       const mergedEmployees = mergeCurrentUserIntoEmployees(finalEmployeesBase as Employee[], currentUser).map((employee) => {
         if (employee.role !== 'staff') {
           return employee;
@@ -917,7 +917,7 @@ const App: React.FC = () => {
       localStorage.setItem(EMPLOYEES_CACHE_KEY, JSON.stringify(mergedEmployees));
       localStorage.setItem(STAFF_MANAGER_LINKS_CACHE_KEY, JSON.stringify(finalStaffManagerLinks));
       if (tasksData && tasksData.length > 0) {
-        localStorage.setItem(TASKS_CACHE_KEY, JSON.stringify(activeTasks));
+        localStorage.setItem(TASKS_CACHE_KEY, JSON.stringify(finalTasks));
       }
 
       return {
@@ -932,10 +932,10 @@ const App: React.FC = () => {
         parseCachedArray<Employee>(EMPLOYEES_CACHE_KEY),
         activeCompanyId
       );
-      const cachedTasks = filterActiveTasks(filterTasksByCompany(
+      const cachedTasks = filterTasksByCompany(
         parseCachedArray<DealershipTask>(TASKS_CACHE_KEY),
         activeCompanyId
-      ));
+      );
       const cachedStaffManagerLinks = filterStaffManagerLinksByCompany(
         parseCachedArray<StaffManagerLink>(STAFF_MANAGER_LINKS_CACHE_KEY),
         activeCompanyId
@@ -952,7 +952,7 @@ const App: React.FC = () => {
   };
 
   const [tasks, setTasks] = useState<DealershipTask[]>(() =>
-    filterActiveTasks(parseCachedArray<DealershipTask>(TASKS_CACHE_KEY))
+    parseCachedArray<DealershipTask>(TASKS_CACHE_KEY)
   );
 
   // Ref for fetchTasks to prevent infinite loop
@@ -981,7 +981,7 @@ const App: React.FC = () => {
       if (activeCompanyId) {
         tasksQuery = tasksQuery.eq('company_id', activeCompanyId);
       }
-      tasksQuery = tasksQuery.neq('status', 'completed');
+      tasksQuery = tasksQuery.in('status', ['pending', 'in_progress', 'in-progress', 'overdue', 'completed']);
       
       // Apply role-based filtering using all known IDs for the active user profile.
       tasksQuery = applyTaskVisibilityFilter(tasksQuery, currentUser, (employeesData || []) as Employee[]);
@@ -992,7 +992,7 @@ const App: React.FC = () => {
         console.error('❌ Failed to fetch tasks:', tasksError);
       } else {
         const freshTasks = transformTasksToApp((tasksData || []) as DatabaseTask[]);
-        setTasks(filterActiveTasks(freshTasks));
+        setTasks(freshTasks);
       }
     } catch (err) {
       console.error('🚨 Unexpected error fetching tasks:', err);

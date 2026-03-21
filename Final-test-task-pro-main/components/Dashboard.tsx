@@ -1324,7 +1324,12 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
   const baseFilteredTasks = getFilteredTasks(tasks);
   const activeTasks = baseFilteredTasks.filter((task) => {
     const status = String(task.status || '').toLowerCase();
-    return status === 'pending' || status === 'in-progress';
+    return (
+      status === 'pending' ||
+      status === 'in_progress' ||
+      status === 'in-progress' ||
+      status === 'overdue'
+    );
   });
   const completedTasks = baseFilteredTasks
     .filter((task) => String(task.status || '').toLowerCase() === 'completed')
