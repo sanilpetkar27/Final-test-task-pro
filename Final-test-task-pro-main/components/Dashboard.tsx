@@ -100,6 +100,7 @@ const parseDateToMs = (value: unknown): number => {
 };
 
 const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, tasksTabReselectSignal = 0, onAddTask, onStartTask, onReopenTask, onCompleteTask, onCompleteTaskWithoutPhoto, onReassignTask, onDeleteTask, onUpdateTaskRemarks }) => {
+  type CompletedDateFilter = 'today' | 'yesterday' | 'last7' | 'custom';
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   
   // Voice recognition state
@@ -185,6 +186,11 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
   const [selectedPersonFilter, setSelectedPersonFilter] = useState('ALL');
   const [assigneeNameFilter, setAssigneeNameFilter] = useState('');
   const [taskViewFilter, setTaskViewFilter] = useState<'active' | 'completed'>('active');
+  const [completedDateFilter, setCompletedDateFilter] = useState<CompletedDateFilter>('today');
+  const [completedCustomFromDate, setCompletedCustomFromDate] = useState('');
+  const [completedCustomToDate, setCompletedCustomToDate] = useState('');
+  const [showCompletedFilterMenu, setShowCompletedFilterMenu] = useState(false);
+  const completedFilterMenuRef = useRef<HTMLDivElement | null>(null);
   
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
   const [delegatingTaskId, setDelegatingTaskId] = useState<string | null>(null);
@@ -1321,6 +1327,23 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
   const sortTasksByRecentActivity = (taskRows: DealershipTask[]): DealershipTask[] =>
     [...taskRows].sort((left, right) => getTaskActivityTimestamp(right) - getTaskActivityTimestamp(left));
 
+  const dayStartMs = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const nowMs = Date.now();
+  const todayStartMs = dayStartMs(new Date(nowMs));
+  const yesterdayStartMs = todayStartMs - DAILY_MS;
+
+  const customFromStartMs = completedCustomFromDate
+    ? dayStartMs(new Date(`${completedCustomFromDate}T00:00:00`))
+    : null;
+  const customToEndMs = completedCustomToDate
+    ? dayStartMs(new Date(`${completedCustomToDate}T00:00:00`)) + DAILY_MS - 1
+    : null;
+
+  const isCompletedAtInRange = (completedAtRaw: unknown, rangeStart: number, rangeEnd: number): boolean => {
+    const completedMs = parseDateToMs(completedAtRaw);
+    return completedMs >= rangeStart && completedMs <= rangeEnd;
+  };
+
   const baseFilteredTasks = getFilteredTasks(tasks);
   const activeTasks = baseFilteredTasks.filter((task) => {
     const status = String(task.status || '').toLowerCase();
@@ -1335,14 +1358,70 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
     .filter((task) => String(task.status || '').toLowerCase() === 'completed')
     .sort((a, b) => Number(b.completedAt || 0) - Number(a.completedAt || 0));
   const activeTaskCount = activeTasks.length;
-  const completedTaskCount = completedTasks.length;
+  const completedTaskCount = completedTasks.filter((task) =>
+    isCompletedAtInRange(task.completedAt, todayStartMs, nowMs)
+  ).length;
+
+  const completedTasksForView = completedTasks.filter((task) => {
+    if (completedDateFilter === 'today') {
+      return isCompletedAtInRange(task.completedAt, todayStartMs, nowMs);
+    }
+    if (completedDateFilter === 'yesterday') {
+      return isCompletedAtInRange(task.completedAt, yesterdayStartMs, todayStartMs - 1);
+    }
+    if (completedDateFilter === 'last7') {
+      return isCompletedAtInRange(task.completedAt, todayStartMs - 6 * DAILY_MS, nowMs);
+    }
+    if (completedDateFilter === 'custom') {
+      if (customFromStartMs == null && customToEndMs == null) return true;
+      const rangeStart = customFromStartMs ?? Number.MIN_SAFE_INTEGER;
+      const rangeEnd = customToEndMs ?? Number.MAX_SAFE_INTEGER;
+      return isCompletedAtInRange(task.completedAt, rangeStart, rangeEnd);
+    }
+    return true;
+  });
+
   const allFilteredTasks =
-    taskViewFilter === 'completed' ? completedTasks : sortTasksByRecentActivity(activeTasks);
+    taskViewFilter === 'completed' ? completedTasksForView : sortTasksByRecentActivity(activeTasks);
+  const completedFilterLabel =
+    completedDateFilter === 'today'
+      ? 'Today'
+      : completedDateFilter === 'yesterday'
+      ? 'Yesterday'
+      : completedDateFilter === 'last7'
+      ? 'Last 7 days'
+      : 'Custom range';
   const currentUserFirstName = useMemo(() => {
     const rawName = String(currentUser.name || '').trim();
     if (!rawName) return '';
     return rawName.split(/\s+/)[0] || '';
   }, [currentUser.name]);
+
+  const handleOpenActiveTab = () => {
+    setTaskViewFilter('active');
+    setShowCompletedFilterMenu(false);
+  };
+
+  const handleOpenCompletedTab = () => {
+    setTaskViewFilter('completed');
+    setCompletedDateFilter('today');
+    setCompletedCustomFromDate('');
+    setCompletedCustomToDate('');
+    setShowCompletedFilterMenu(false);
+  };
+
+  useEffect(() => {
+    if (!showCompletedFilterMenu) return;
+    const handlePointerDownOutside = (event: MouseEvent) => {
+      if (!completedFilterMenuRef.current) return;
+      const target = event.target as Node;
+      if (!completedFilterMenuRef.current.contains(target)) {
+        setShowCompletedFilterMenu(false);
+      }
+    };
+    window.addEventListener('mousedown', handlePointerDownOutside);
+    return () => window.removeEventListener('mousedown', handlePointerDownOutside);
+  }, [showCompletedFilterMenu]);
 
   // Auto-navigate back if selected task was deleted
   useEffect(() => {
@@ -1669,7 +1748,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
       <div className="mt-3 flex items-center gap-2 rounded-2xl bg-slate-100 border border-slate-200 p-1.5 shadow-sm">
         <button
           type="button"
-          onClick={() => setTaskViewFilter('active')}
+          onClick={handleOpenActiveTab}
           className={`flex-1 min-h-[44px] rounded-xl px-4 py-2 text-sm font-bold transition-all flex items-center justify-center gap-2 ${
             taskViewFilter === 'active'
               ? 'bg-white text-indigo-700 shadow-sm'
@@ -1683,7 +1762,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
         </button>
         <button
           type="button"
-          onClick={() => setTaskViewFilter('completed')}
+          onClick={handleOpenCompletedTab}
           className={`flex-1 min-h-[44px] rounded-xl px-4 py-2 text-sm font-bold transition-all flex items-center justify-center gap-2 ${
             taskViewFilter === 'completed'
               ? 'bg-white text-emerald-700 shadow-sm'
@@ -1696,6 +1775,94 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
           </span>
         </button>
       </div>
+
+      {taskViewFilter === 'completed' && (
+        <div className="flex justify-end mt-2">
+          <div className="relative" ref={completedFilterMenuRef}>
+            <button
+              type="button"
+              onClick={() => setShowCompletedFilterMenu((previous) => !previous)}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              <Filter className="w-3.5 h-3.5" />
+              <span>{completedFilterLabel}</span>
+            </button>
+
+            {showCompletedFilterMenu && (
+              <div className="absolute right-0 mt-2 w-60 rounded-xl border border-slate-200 bg-white p-2 shadow-lg z-20 space-y-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCompletedDateFilter('today');
+                    setShowCompletedFilterMenu(false);
+                  }}
+                  className={`w-full text-left rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                    completedDateFilter === 'today' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  Today
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCompletedDateFilter('yesterday');
+                    setShowCompletedFilterMenu(false);
+                  }}
+                  className={`w-full text-left rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                    completedDateFilter === 'yesterday' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  Yesterday
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCompletedDateFilter('last7');
+                    setShowCompletedFilterMenu(false);
+                  }}
+                  className={`w-full text-left rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                    completedDateFilter === 'last7' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  Last 7 days
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCompletedDateFilter('custom')}
+                  className={`w-full text-left rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                    completedDateFilter === 'custom' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  Custom range
+                </button>
+
+                {completedDateFilter === 'custom' && (
+                  <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-2 space-y-2">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">From</label>
+                      <input
+                        type="date"
+                        value={completedCustomFromDate}
+                        onChange={(event) => setCompletedCustomFromDate(event.target.value)}
+                        className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-900"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">To</label>
+                      <input
+                        type="date"
+                        value={completedCustomToDate}
+                        onChange={(event) => setCompletedCustomToDate(event.target.value)}
+                        className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-900"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Unified Task List */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pb-8 min-h-[500px]">
