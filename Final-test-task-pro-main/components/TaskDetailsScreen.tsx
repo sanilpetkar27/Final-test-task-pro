@@ -212,7 +212,6 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   const rawPriority = String((task as any).priority || '').trim().toLowerCase();
   const normalizedPriority = rawPriority === 'high' ? 'High' : rawPriority === 'low' ? 'Low' : 'Medium';
   const overdueDays = isOverdue && task.deadline ? Math.max(1, Math.ceil((Date.now() - task.deadline) / 86400000)) : 0;
-  const progressValue = task.status === 'completed' ? 100 : task.status === 'in-progress' ? 62 : 24;
   const assigneeTelHref = getTelHref(getEmployeeMobile(task.assignedTo));
   const assignerTelHref = getTelHref(getEmployeeMobile(task.assignedBy));
 
@@ -265,8 +264,6 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   const canEdit = isTaskAssigner;
 
   const canApproveExtension = currentUser.role === 'owner' || currentUser.role === 'super_admin' || isTaskAssigner;
-  const canRequestExtension = isAssignedWorker && task.status === 'in-progress' && extensionStatus !== 'REQUESTED';
-  const canReviewExtensionRequest = canApproveExtension && !isAssignedWorker && task.status === 'in-progress' && extensionStatus === 'REQUESTED' && Boolean(requestedDueDate);
 
   // --- Remarks ---
   const normalizedRemarks = useMemo(() => {
@@ -705,7 +702,6 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
     }
   }
 
-  if (task.status === 'in-progress') {
     if (isManager) {
       actions.push({
         key: 'delegate',
@@ -812,8 +808,6 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   }
 
   // --- Status label ---
-  const statusLabel = task.status === 'completed' ? 'Completed' : task.status === 'in-progress' ? 'In Progress' : 'Pending';
-  const statusColor = task.status === 'completed' ? 'text-emerald-600 bg-emerald-50 border-emerald-200' : task.status === 'in-progress' ? 'text-[var(--accent)] bg-[var(--accent-light)] border-[var(--accent)]/20' : isOverdue ? 'text-red-600 bg-red-50 border-red-200' : 'text-slate-600 bg-slate-100 border-slate-200';
   const heroAccentClass = task.status === 'completed' ? 'border-l-[var(--green)] bg-[var(--green-light)]/55' : isOverdue ? 'border-l-[var(--red)] bg-[var(--red-light)]/60' : 'border-l-[var(--accent)] bg-white';
 
   return (
@@ -854,12 +848,6 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
             <h2 className="mt-3 text-[23px] font-extrabold text-[var(--ink)] leading-snug break-words">
               {task.description}
             </h2>
-            <div className="mt-4 flex justify-between items-center mb-1">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">PROGRESS</span>
-              <span className="text-[10px] font-bold text-slate-500">{progressValue}%</span>
-            </div>
-            <div className="h-[5px] rounded-full bg-[var(--surface-2)] overflow-hidden">
-              <div className="h-full rounded-full bg-[var(--accent)] transition-all" style={{ width: `${progressValue}%` }} />
             </div>
           </div>
 
