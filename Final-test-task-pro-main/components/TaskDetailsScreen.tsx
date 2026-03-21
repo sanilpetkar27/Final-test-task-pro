@@ -1217,7 +1217,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
               type="button"
               onClick={handleAddRemark}
               disabled={!newRemark.trim()}
-              className="bg-[var(--accent)] text-white p-3 rounded-xl transition-all active:scale-95 disabled:opacity-40 hover:bg-indigo-800"
+              className="bg-[var(--accent)] text-white p-3 rounded-xl transition-all active:scale-95 disabled:opacity-40 hover:bg-[#4338CA]"
               style={{ minHeight: 48, minWidth: 48 }}
               title="Send message"
             >
@@ -1335,4 +1335,5 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
 };
 
 export default TaskDetailsScreen;
+
 

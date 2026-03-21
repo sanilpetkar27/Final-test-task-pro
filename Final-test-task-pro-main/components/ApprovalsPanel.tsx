@@ -1751,7 +1751,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                         }
                       }}
                       disabled={!startDate && !endDate}
-                      className="flex-1 min-h-[44px] px-4 py-2 bg-[var(--accent)] text-white rounded-lg text-base hover:bg-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex-1 min-h-[44px] px-4 py-2 bg-[var(--accent)] text-white rounded-lg text-base hover:bg-[#4338CA] disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Apply
                     </button>
@@ -2312,7 +2312,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                                       type="button"
                                       onClick={() => void handleSendMessage()}
                                       disabled={updatingStatus || !draftMessage.trim()}
-                                      className="bg-[var(--accent)] text-white p-3 rounded-xl transition-all active:scale-95 disabled:opacity-40 hover:bg-indigo-800"
+                                      className="bg-[var(--accent)] text-white p-3 rounded-xl transition-all active:scale-95 disabled:opacity-40 hover:bg-[#4338CA]"
                                       style={{ minHeight: 48, minWidth: 48 }}
                                       title="Send message"
                                     >
@@ -2651,7 +2651,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                                 type="button"
                                 onClick={() => void handleSendMessage()}
                                 disabled={updatingStatus || !draftMessage.trim()}
-                                className="bg-[var(--accent)] text-white p-3 rounded-xl transition-all active:scale-95 disabled:opacity-40 hover:bg-indigo-800"
+                                className="bg-[var(--accent)] text-white p-3 rounded-xl transition-all active:scale-95 disabled:opacity-40 hover:bg-[#4338CA]"
                                 style={{ minHeight: 48, minWidth: 48 }}
                                 title="Send message"
                               >
@@ -2688,5 +2688,6 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
 };
 
 export default ApprovalsPanel;
+
 
 
