@@ -128,7 +128,7 @@ const formatDateTimeForInput = (timestamp?: number | null): string => {
 };
 
 const getRoleBadge = (role?: string): { label: string; className: string } => {
-  if (role === 'owner' || role === 'super_admin') return { label: 'OWNER', className: 'bg-purple-100 text-purple-700' };
+  if (role === 'owner' || role === 'super_admin') return { label: 'OWNER', className: 'bg-[var(--accent-light)] text-[var(--accent)]' };
   if (role === 'manager') return { label: 'MANAGER', className: 'bg-slate-200 text-slate-700' };
   return { label: 'FIELD STAFF', className: 'bg-amber-100 text-amber-700' };
 };
@@ -700,7 +700,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         isLoading: isDeleting,
         loadingText: 'Deleting...',
         disabled: isDeleting,
-        className: 'bg-[var(--red-light)] text-[var(--red)] hover:bg-red-100 border border-red-200'
+        className: 'bg-[#EF4444] text-white hover:bg-[#DC2626]'
       });
     }
   }
@@ -768,7 +768,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         isLoading: isDeleting,
         loadingText: 'Deleting...',
         disabled: isDeleting,
-        className: 'bg-[var(--red-light)] text-[var(--red)] hover:bg-red-100 border border-red-200'
+        className: 'bg-[#EF4444] text-white hover:bg-[#DC2626]'
       });
     }
   }
@@ -806,7 +806,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         isLoading: isDeleting,
         loadingText: 'Deleting...',
         disabled: isDeleting,
-        className: 'bg-[var(--red-light)] text-[var(--red)] hover:bg-red-100 border border-red-200'
+        className: 'bg-[#EF4444] text-white hover:bg-[#DC2626]'
       });
     }
   }
@@ -1068,7 +1068,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
                 loadingText="Updating..."
                 variant="danger"
                 disabled={isExtensionUpdating}
-                className="bg-red-600 hover:bg-red-700 text-white rounded-xl py-3.5 text-base font-bold disabled:opacity-50 transition-colors active:scale-95"
+                className="bg-[#EF4444] hover:bg-[#DC2626] text-white rounded-xl py-3.5 text-base font-bold disabled:opacity-50 transition-colors active:scale-95"
                 style={{ minHeight: 52 }}
               >
                 Reject
@@ -1335,5 +1335,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
 };
 
 export default TaskDetailsScreen;
+
+
 
 
