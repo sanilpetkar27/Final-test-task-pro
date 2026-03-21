@@ -854,7 +854,11 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
             <h2 className="mt-3 text-[23px] font-extrabold text-[var(--ink)] leading-snug break-words">
               {task.description}
             </h2>
-            <div className="mt-4 h-[5px] rounded-full bg-[var(--surface-2)] overflow-hidden">
+            <div className="mt-4 flex justify-between items-center mb-1">
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">PROGRESS</span>
+              <span className="text-[10px] font-bold text-slate-500">{progressValue}%</span>
+            </div>
+            <div className="h-[5px] rounded-full bg-[var(--surface-2)] overflow-hidden">
               <div className="h-full rounded-full bg-[var(--accent)] transition-all" style={{ width: `${progressValue}%` }} />
             </div>
           </div>
@@ -1336,6 +1340,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
 };
 
 export default TaskDetailsScreen;
+
 
 
 
