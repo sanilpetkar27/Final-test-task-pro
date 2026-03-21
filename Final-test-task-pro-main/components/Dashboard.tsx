@@ -184,6 +184,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
   // Dashboard uses employees from props, no local state needed
   const [selectedPersonFilter, setSelectedPersonFilter] = useState('ALL');
   const [assigneeNameFilter, setAssigneeNameFilter] = useState('');
+  const [taskViewFilter, setTaskViewFilter] = useState<'active' | 'completed'>('active');
   
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
   const [delegatingTaskId, setDelegatingTaskId] = useState<string | null>(null);
@@ -1320,7 +1321,16 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
   const sortTasksByRecentActivity = (taskRows: DealershipTask[]): DealershipTask[] =>
     [...taskRows].sort((left, right) => getTaskActivityTimestamp(right) - getTaskActivityTimestamp(left));
 
-  const allFilteredTasks = sortTasksByRecentActivity(getFilteredTasks(tasks));
+  const baseFilteredTasks = getFilteredTasks(tasks);
+  const activeTasks = baseFilteredTasks.filter((task) => {
+    const status = String(task.status || '').toLowerCase();
+    return status === 'pending' || status === 'in-progress';
+  });
+  const completedTasks = baseFilteredTasks
+    .filter((task) => String(task.status || '').toLowerCase() === 'completed')
+    .sort((a, b) => Number(b.completedAt || 0) - Number(a.completedAt || 0));
+  const allFilteredTasks =
+    taskViewFilter === 'completed' ? completedTasks : sortTasksByRecentActivity(activeTasks);
   const currentUserFirstName = useMemo(() => {
     const rawName = String(currentUser.name || '').trim();
     if (!rawName) return '';
@@ -1648,6 +1658,32 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
         )}
       </div>
 
+      {/* Task Status Toggle */}
+      <div className="mt-3 flex items-center gap-2 rounded-2xl bg-white border border-slate-200 p-1.5 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setTaskViewFilter('active')}
+          className={`flex-1 rounded-xl px-4 py-2 text-sm font-bold transition-all ${
+            taskViewFilter === 'active'
+              ? 'bg-indigo-900 text-white shadow-sm'
+              : 'text-slate-500 hover:bg-slate-100'
+          }`}
+        >
+          Active
+        </button>
+        <button
+          type="button"
+          onClick={() => setTaskViewFilter('completed')}
+          className={`flex-1 rounded-xl px-4 py-2 text-sm font-bold transition-all ${
+            taskViewFilter === 'completed'
+              ? 'bg-emerald-600 text-white shadow-sm'
+              : 'text-slate-500 hover:bg-slate-100'
+          }`}
+        >
+          Completed
+        </button>
+      </div>
+
       {/* Unified Task List */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pb-8 min-h-[500px]">
         {allFilteredTasks.map(task => (
@@ -1657,6 +1693,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
             employees={employees}
             unreadCount={taskUnreadCountById[task.id] || 0}
             onClick={() => handleOpenTask(task)}
+            showCompletedMeta={taskViewFilter === 'completed'}
           />
         ))}
         {allFilteredTasks.length === 0 && (

@@ -1,12 +1,13 @@
 import React from 'react';
 import { DealershipTask, Employee, TaskExtensionStatus } from '../types';
-import { User, Calendar, ChevronRight, Clock, MessageSquare, Flag } from 'lucide-react';
+import { User, Calendar, ChevronRight, Clock, MessageSquare, Flag, CheckCircle2 } from 'lucide-react';
 
 interface TaskItemProps {
   task: DealershipTask;
   employees: Employee[];
   onClick: () => void;
   unreadCount?: number;
+  showCompletedMeta?: boolean;
 }
 
 const formatShortDate = (timestamp: number): string => {
@@ -15,7 +16,7 @@ const formatShortDate = (timestamp: number): string => {
   return `${date.getDate()} ${months[date.getMonth()]}`;
 };
 
-const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCount = 0 }) => {
+const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCount = 0, showCompletedMeta = false }) => {
   const getEmployeeName = (id?: string): string | null => {
     if (!id) return null;
     return employees.find(e => e.id === id)?.name || null;
@@ -26,9 +27,15 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCou
   const rawPriority = String((task as any).priority || '').trim().toLowerCase();
   const normalizedPriority = rawPriority === 'high' ? 'High' : rawPriority === 'low' ? 'Low' : 'Medium';
   const isHighPriority = normalizedPriority === 'High';
+  const isCompletedView = showCompletedMeta && task.status === 'completed';
   const priorityCardClass = isHighPriority
     ? 'border-2 border-red-400 bg-red-50/70'
     : 'border border-slate-200 bg-white';
+  const cardClass = isCompletedView
+    ? 'border border-emerald-200 bg-emerald-50/40'
+    : priorityCardClass;
+  const completedAtLabel =
+    task.completedAt && Number(task.completedAt) > 0 ? formatShortDate(Number(task.completedAt)) : 'Done';
 
   const rawExtensionStatus = String(
     (task as any).extensionStatus ?? (task as any).extension_status ?? 'NONE'
@@ -50,7 +57,7 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCou
     <button
       type="button"
       onClick={onClick}
-      className={`w-full text-left rounded-2xl ${priorityCardClass} shadow-sm p-4 sm:p-5 min-h-[120px] active:scale-[0.98] transition-all duration-150 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-100`}
+      className={`w-full text-left rounded-2xl ${cardClass} shadow-sm p-4 sm:p-5 min-h-[120px] active:scale-[0.98] transition-all duration-150 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-100`}
     >
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div className="flex-1 min-w-0 space-y-2">
@@ -64,7 +71,7 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCou
           )}
 
           {/* Task Title */}
-          <h3 className="text-base md:text-lg font-semibold text-slate-900 leading-snug line-clamp-2 text-ellipsis overflow-hidden break-words">
+          <h3 className={`text-base md:text-lg font-semibold leading-snug line-clamp-2 text-ellipsis overflow-hidden break-words ${isCompletedView ? 'text-slate-600' : 'text-slate-900'}`}>
             {task.description}
           </h3>
 
@@ -121,6 +128,12 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCou
               {task.status === 'completed' && (
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                   Completed
+                </span>
+              )}
+              {isCompletedView && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100/60 text-emerald-800 border border-emerald-200">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  {completedAtLabel} by {assigneeName || 'Unknown'}
                 </span>
               )}
               {task.status === 'in-progress' && extensionStatus === 'NONE' && !isOverdue && (
