@@ -28,6 +28,14 @@ const formatCompletedDateTime = (timestamp: number): string => {
   return `${day} ${month} at ${hours12}:${minutes}${ampm}`;
 };
 
+const getInitials = (name?: string | null): string => {
+  if (!name) return '?';
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+};
+
 const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCount = 0, showCompletedMeta = false }) => {
   const getEmployeeName = (id?: string): string | null => {
     if (!id) return null;
@@ -40,12 +48,11 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCou
   const normalizedPriority = rawPriority === 'high' ? 'High' : rawPriority === 'low' ? 'Low' : 'Medium';
   const isHighPriority = normalizedPriority === 'High';
   const isCompletedView = showCompletedMeta && task.status === 'completed';
-  const priorityCardClass = isHighPriority
-    ? 'border-2 border-red-400 bg-red-50/70'
-    : 'border border-slate-200 bg-white';
   const cardClass = isCompletedView
-    ? 'border border-emerald-300 bg-emerald-50/60'
-    : priorityCardClass;
+    ? 'border border-emerald-200 bg-[var(--green-light)]/90 border-l-[3px] border-l-[var(--green)] opacity-85'
+    : isOverdue
+    ? 'border border-red-200 bg-[var(--red-light)] border-l-[3px] border-l-[var(--red)]'
+    : 'border border-[var(--border)] bg-white border-l-[3px] border-l-[var(--accent)]';
   const completedAtLabel =
     task.completedAt && Number(task.completedAt) > 0
       ? formatCompletedDateTime(Number(task.completedAt))
@@ -71,22 +78,22 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCou
     <button
       type="button"
       onClick={onClick}
-      className={`w-full text-left rounded-2xl ${cardClass} shadow-sm p-4 sm:p-5 min-h-[120px] active:scale-[0.98] transition-all duration-150 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-100`}
+      className={`w-full text-left rounded-2xl ${cardClass} shadow-[0_1px_3px_rgba(0,0,0,0.06)] p-4 sm:p-5 min-h-[120px] active:scale-[0.98] transition-all duration-150 hover:shadow-[0_6px_20px_rgba(10,10,15,0.08)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-light)]`}
     >
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div className="flex-1 min-w-0 space-y-2">
           {isCompletedView ? (
             <div className="mb-1 inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-white/70 px-2.5 py-0.5 text-emerald-700">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-              <span className="text-xs font-extrabold uppercase tracking-wide">
-                Completed
-              </span>
+                <span className="font-ui-mono text-xs font-medium uppercase tracking-wide">
+                  Completed
+                </span>
             </div>
           ) : (
             isHighPriority && (
               <div className="mb-1 inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-white/70 px-2.5 py-0.5 text-red-600">
                 <Flag className="w-3.5 h-3.5 text-red-600 fill-red-600" />
-                <span className="text-[11px] font-extrabold uppercase tracking-[0.2em]">
+                <span className="font-ui-mono text-[11px] font-medium uppercase tracking-[0.2em]">
                   High Priority
                 </span>
               </div>
@@ -101,7 +108,7 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCou
           {/* Metadata Row */}
           {isCompletedView ? (
             <div className="space-y-1">
-              <span className="flex items-center gap-1.5 text-base text-emerald-600">
+              <span className="flex items-center gap-1.5 text-base text-emerald-600 font-ui-mono">
                 <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
                 <span>Completed {completedAtLabel}</span>
               </span>
@@ -113,15 +120,17 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCou
           ) : (
             <div className="flex flex-wrap items-center gap-3">
               {assigneeName && (
-                <span className="flex items-center gap-1.5 text-base text-slate-500">
-                  <User className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                <span className="flex items-center gap-2 text-base text-[var(--ink-2)]">
+                  <span className="inline-flex h-[22px] w-[22px] items-center justify-center rounded-full bg-[var(--surface-2)] text-[10px] font-semibold text-[var(--ink-2)]">
+                    {getInitials(assigneeName)}
+                  </span>
                   <span className="truncate max-w-[140px]">{assigneeName}</span>
                 </span>
               )}
               {task.deadline != null && (
                 <span
-                  className={`flex items-center gap-1.5 text-base ${
-                    isOverdue ? 'text-red-500 font-medium' : 'text-slate-500'
+                  className={`flex items-center gap-1.5 text-base font-ui-mono ${
+                    isOverdue ? 'text-[var(--red)] font-medium' : 'text-[var(--ink-3)]'
                   }`}
                 >
                   {isOverdue ? (
@@ -142,32 +151,32 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCou
           {showBadges && (
             <div className="flex flex-wrap gap-1.5 mt-2">
               {extensionStatus === 'REQUESTED' && (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                <span className="font-ui-mono inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[var(--orange-light)] text-[var(--orange)] border border-amber-200">
                   Extension Requested
                 </span>
               )}
               {extensionStatus === 'APPROVED' && (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <span className="font-ui-mono inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[var(--green-light)] text-[var(--green)] border border-emerald-200">
                   Extended
                 </span>
               )}
               {extensionStatus === 'REJECTED' && (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-50 text-red-600 border border-red-200">
+                <span className="font-ui-mono inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[var(--red-light)] text-[var(--red)] border border-red-200">
                   Extension Rejected
                 </span>
               )}
               {isOverdue && extensionStatus === 'NONE' && (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-50 text-red-600 border border-red-200">
+                <span className="font-ui-mono inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[var(--red-light)] text-[var(--red)] border border-red-200">
                   Overdue
                 </span>
               )}
               {task.status === 'completed' && !isCompletedView && (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <span className="font-ui-mono inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[var(--green-light)] text-[var(--green)] border border-emerald-200">
                   Completed
                 </span>
               )}
               {task.status === 'in-progress' && extensionStatus === 'NONE' && !isOverdue && (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                <span className="font-ui-mono inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[var(--accent-light)] text-[var(--accent)] border border-indigo-200">
                   In Progress
                 </span>
               )}
@@ -176,10 +185,10 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCou
         </div>
 
         <div className="ml-auto self-end flex items-center justify-end md:flex-col md:items-end gap-2">
-          <div className="relative h-10 w-10 rounded-full border border-slate-200 bg-slate-50 flex items-center justify-center text-slate-500">
+          <div className="relative h-10 w-10 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] flex items-center justify-center text-[var(--ink-3)]">
             <MessageSquare className="w-5 h-5" />
             {unreadCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold leading-none">
+              <span className="font-ui-mono absolute -top-1.5 -right-1.5 bg-[var(--red)] text-white rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-medium leading-none">
                 {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             )}

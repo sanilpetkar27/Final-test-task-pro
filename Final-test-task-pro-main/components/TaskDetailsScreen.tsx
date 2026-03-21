@@ -4,7 +4,7 @@ import {
   ArrowLeft, User, Calendar, Clock, Check, Camera,
   Edit, Trash2, UserPlus, Play, RotateCcw,
   Send, X, ChevronDown, CalendarClock, Layers, CheckCircle, Phone,
-  Eye, GitFork
+  Eye, GitFork, Flag
 } from 'lucide-react';
 import { supabase } from '../src/lib/supabase';
 import LoadingButton from '../src/components/ui/LoadingButton';
@@ -209,6 +209,10 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   const isOverdue = task.status !== 'completed' && task.deadline != null && Date.now() > task.deadline;
   const assigneeName = getEmployeeName(task.assignedTo);
   const assignerName = getEmployeeName(task.assignedBy);
+  const rawPriority = String((task as any).priority || '').trim().toLowerCase();
+  const normalizedPriority = rawPriority === 'high' ? 'High' : rawPriority === 'low' ? 'Low' : 'Medium';
+  const overdueDays = isOverdue && task.deadline ? Math.max(1, Math.ceil((Date.now() - task.deadline) / 86400000)) : 0;
+  const progressValue = task.status === 'completed' ? 100 : task.status === 'in-progress' ? 62 : 24;
   const assigneeTelHref = getTelHref(getEmployeeMobile(task.assignedTo));
   const assignerTelHref = getTelHref(getEmployeeMobile(task.assignedBy));
 
@@ -674,7 +678,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         label: 'Delegate',
         icon: <GitFork className="w-5 h-5" />,
         onClick: onDelegate,
-        className: 'bg-indigo-700 text-white hover:bg-indigo-600'
+        className: 'bg-[var(--accent)] text-white hover:bg-[#4338CA]'
       });
     }
     if (canEdit) {
@@ -683,7 +687,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         label: 'Edit',
         icon: <Edit className="w-5 h-5" />,
         onClick: () => setIsEditing(true),
-        className: 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'
+        className: 'bg-[var(--accent-light)] text-[var(--accent)] hover:bg-indigo-100 border border-indigo-200'
       });
     }
     if (canDelete) {
@@ -696,7 +700,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         isLoading: isDeleting,
         loadingText: 'Deleting...',
         disabled: isDeleting,
-        className: 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'
+        className: 'bg-[var(--red-light)] text-[var(--red)] hover:bg-red-100 border border-red-200'
       });
     }
   }
@@ -708,7 +712,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         label: 'Delegate',
         icon: <GitFork className="w-5 h-5" />,
         onClick: onDelegate,
-        className: 'bg-indigo-700 text-white hover:bg-indigo-600'
+        className: 'bg-[var(--accent)] text-white hover:bg-[#4338CA]'
       });
     }
     if (task.requirePhoto) {
@@ -721,7 +725,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         isLoading: isUploading,
         loadingText: 'Uploading...',
         disabled: isUploading,
-        className: 'bg-emerald-600 text-white hover:bg-emerald-700'
+        className: 'bg-[var(--green)] text-white hover:bg-emerald-700'
       });
     } else {
       actions.push({
@@ -733,7 +737,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         isLoading: isCompleting,
         loadingText: 'Completing...',
         disabled: isCompleting,
-        className: 'bg-emerald-600 text-white hover:bg-emerald-700'
+        className: 'bg-[var(--green)] text-white hover:bg-emerald-700'
       });
     }
     if (canRequestExtension) {
@@ -742,7 +746,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         label: 'Extension',
         icon: <Clock className="w-5 h-5" />,
         onClick: () => setShowExtensionInput(prev => !prev),
-        className: 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'
+        className: 'bg-[var(--orange-light)] text-[var(--orange)] hover:bg-amber-100 border border-amber-200'
       });
     }
     if (canEdit) {
@@ -751,7 +755,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         label: 'Edit',
         icon: <Edit className="w-5 h-5" />,
         onClick: () => setIsEditing(true),
-        className: 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'
+        className: 'bg-[var(--accent-light)] text-[var(--accent)] hover:bg-indigo-100 border border-indigo-200'
       });
     }
     if (canDelete) {
@@ -764,7 +768,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         isLoading: isDeleting,
         loadingText: 'Deleting...',
         disabled: isDeleting,
-        className: 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'
+        className: 'bg-[var(--red-light)] text-[var(--red)] hover:bg-red-100 border border-red-200'
       });
     }
   }
@@ -776,7 +780,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         label: 'View Proof',
         icon: <Eye className="w-5 h-5" />,
         onClick: () => setShowFullImage(true),
-        className: 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200'
+        className: 'bg-[var(--accent-light)] text-[var(--accent)] hover:bg-indigo-100 border border-indigo-200'
       });
     }
     if (isManager) {
@@ -789,7 +793,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         isLoading: isReopening,
         loadingText: 'Reopening...',
         disabled: isReopening,
-        className: 'bg-indigo-700 text-white hover:bg-indigo-600'
+        className: 'bg-[var(--accent)] text-white hover:bg-[#4338CA]'
       });
     }
     if (canDelete) {
@@ -802,7 +806,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         isLoading: isDeleting,
         loadingText: 'Deleting...',
         disabled: isDeleting,
-        className: 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'
+        className: 'bg-[var(--red-light)] text-[var(--red)] hover:bg-red-100 border border-red-200'
       });
     }
   }
@@ -810,16 +814,17 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   // --- Status label ---
   const statusLabel = task.status === 'completed' ? 'Completed' : task.status === 'in-progress' ? 'In Progress' : 'Pending';
   const statusColor = task.status === 'completed' ? 'text-emerald-600 bg-emerald-50 border-emerald-200' : task.status === 'in-progress' ? 'text-indigo-700 bg-indigo-50 border-indigo-200' : isOverdue ? 'text-red-600 bg-red-50 border-red-200' : 'text-slate-600 bg-slate-100 border-slate-200';
+  const heroAccentClass = task.status === 'completed' ? 'border-l-[var(--green)] bg-[var(--green-light)]/55' : isOverdue ? 'border-l-[var(--red)] bg-[var(--red-light)]/60' : 'border-l-[var(--accent)] bg-white';
 
   return (
     <div className="fixed inset-x-0 top-0 bottom-24 z-30 flex items-end justify-center bg-slate-900/40 md:inset-0 md:z-50 md:items-center md:p-4">
-      <div className="flex flex-col h-full w-full bg-slate-50 pt-[env(safe-area-inset-top)] md:h-auto md:max-h-[90vh] md:max-w-2xl md:rounded-2xl md:shadow-xl md:pt-0 overflow-hidden">
+      <div className="flex flex-col h-full w-full bg-[var(--surface)] pt-[env(safe-area-inset-top)] md:h-auto md:max-h-[90vh] md:max-w-2xl md:rounded-2xl md:shadow-xl md:pt-0 overflow-hidden">
         {/* ─── Header ─── */}
-        <div className="sticky top-0 z-10 bg-white border-b border-slate-200 px-4 md:px-6 py-3 flex items-center gap-3 flex-shrink-0">
+        <div className="sticky top-0 z-10 bg-white border-b border-[var(--border)] px-4 md:px-6 py-3 flex items-center gap-3 flex-shrink-0">
           <button
             type="button"
             onClick={onBack}
-            className="inline-flex min-h-[48px] min-w-[48px] shrink-0 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-slate-700 shadow-sm transition-colors hover:bg-slate-100 active:scale-95"
+            className="inline-flex min-h-[48px] min-w-[48px] shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 text-slate-700 shadow-[0_1px_3px_rgba(0,0,0,0.05)] transition-colors hover:bg-slate-100 active:scale-95"
             aria-label="Back to tasks"
           >
             <ArrowLeft className="w-6 h-6 text-slate-700" />
@@ -831,16 +836,34 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         {/* ─── Scrollable Content ─── */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden">
         {/* ── Section: Task Info ── */}
-        <div className="bg-white px-4 md:px-6 pt-5 pb-4 border-b border-slate-100">
-          <h2 className="text-xl font-bold text-slate-900 leading-snug break-words">
-            {task.description}
-          </h2>
+        <div className="bg-white px-4 md:px-6 pt-5 pb-4 border-b border-[var(--border)]">
+          <div className={`rounded-2xl border border-[var(--border)] border-l-4 px-4 py-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] ${heroAccentClass}`}>
+            <div className="flex items-start justify-between gap-3">
+              <span className={`font-ui-mono inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.16em] ${
+                normalizedPriority === 'High' ? 'border-red-200 bg-white text-[var(--red)]' : 'border-indigo-200 bg-white text-[var(--accent)]'
+              }`}>
+                {normalizedPriority === 'High' && <Flag className="w-3.5 h-3.5 fill-current" />}
+                {normalizedPriority} Priority
+              </span>
+              {isOverdue && (
+                <span className="font-ui-mono rounded-full border border-red-200 bg-[var(--red-light)] px-2.5 py-1 text-[11px] font-medium text-[var(--red)]">
+                  {overdueDays} day{overdueDays === 1 ? '' : 's'} overdue
+                </span>
+              )}
+            </div>
+            <h2 className="mt-3 text-[23px] font-extrabold text-[var(--ink)] leading-snug break-words">
+              {task.description}
+            </h2>
+            <div className="mt-4 h-[5px] rounded-full bg-[var(--surface-2)] overflow-hidden">
+              <div className="h-full rounded-full bg-[var(--accent)] transition-all" style={{ width: `${progressValue}%` }} />
+            </div>
+          </div>
 
-          <div className="mt-4 space-y-3">
+          <div className="mt-4 space-y-0">
             {/* Assigned to */}
-            <div className="flex items-center gap-3">
-              <User className="w-5 h-5 text-slate-400 flex-shrink-0" />
-              <span className="text-sm text-slate-500">Assigned to</span>
+            <div className="flex items-center gap-3 py-3 border-b border-[var(--border)]">
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] bg-[var(--surface-2)] text-[var(--ink-3)]"><User className="w-4 h-4 flex-shrink-0" /></span>
+              <span className="w-[90px] text-sm text-[var(--ink-3)]">Assigned to</span>
               <span className="text-sm font-semibold text-slate-900 ml-1 inline-flex items-center gap-2">
                 <span>{assigneeName}</span>
                 {assigneeTelHref && (
@@ -857,9 +880,9 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
 
             {/* Assigned by */}
             {task.assignedBy && (
-              <div className="flex items-center gap-3">
-                <UserPlus className="w-5 h-5 text-slate-400 flex-shrink-0" />
-                <span className="text-sm text-slate-500">Assigned by</span>
+              <div className="flex items-center gap-3 py-3 border-b border-[var(--border)]">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] bg-[var(--surface-2)] text-[var(--ink-3)]"><UserPlus className="w-4 h-4 flex-shrink-0" /></span>
+                <span className="w-[90px] text-sm text-[var(--ink-3)]">Assigned by</span>
                 <span className="text-sm font-semibold text-slate-900 ml-1 inline-flex items-center gap-2">
                   <span>{assignerName}</span>
                   {assignerTelHref && (
@@ -876,36 +899,36 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
             )}
 
             {/* Due date */}
-            <div className="flex items-center gap-3">
-              <Calendar className={`w-5 h-5 flex-shrink-0 ${isOverdue ? 'text-red-400' : 'text-slate-400'}`} />
-              <span className="text-sm text-slate-500">Due date</span>
-              <span className={`text-sm font-semibold ml-1 ${isOverdue ? 'text-red-600' : 'text-slate-900'}`}>
+            <div className="flex items-center gap-3 py-3 border-b border-[var(--border)]">
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] bg-[var(--surface-2)]"><Calendar className={`w-4 h-4 flex-shrink-0 ${isOverdue ? 'text-red-400' : 'text-slate-400'}`} /></span>
+              <span className="w-[90px] text-sm text-[var(--ink-3)]">Due date</span>
+              <span className={`font-ui-mono text-sm font-medium ml-1 ${isOverdue ? 'text-red-600' : 'text-emerald-600'}`}>
                 {task.deadline ? formatFullDate(task.deadline) : 'No deadline'}
               </span>
             </div>
 
             {/* Requested date (extension) */}
             {extensionStatus === 'REQUESTED' && requestedDueDate && (
-              <div className="flex items-center gap-3">
-                <CalendarClock className="w-5 h-5 text-amber-500 flex-shrink-0" />
-                <span className="text-sm text-slate-500">Requested date</span>
-                <span className="text-sm font-semibold text-amber-600 ml-1">{formatFullDate(requestedDueDate)}</span>
+              <div className="flex items-center gap-3 py-3 border-b border-[var(--border)]">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] bg-[var(--surface-2)]"><CalendarClock className="w-4 h-4 text-amber-500 flex-shrink-0" /></span>
+                <span className="w-[90px] text-sm text-[var(--ink-3)]">Requested</span>
+                <span className="font-ui-mono text-sm font-medium text-amber-600 ml-1">{formatFullDate(requestedDueDate)}</span>
               </div>
             )}
 
             {/* Status */}
-            <div className="flex items-center gap-3">
-              <CheckCircle className={`w-5 h-5 flex-shrink-0 ${task.status === 'completed' ? 'text-emerald-500' : 'text-slate-400'}`} />
-              <span className="text-sm text-slate-500">Status</span>
-              <span className={`text-xs font-bold uppercase px-2.5 py-0.5 rounded-full border ml-1 ${statusColor}`}>{statusLabel}</span>
+            <div className="flex items-center gap-3 py-3 border-b border-[var(--border)]">
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] bg-[var(--surface-2)]"><CheckCircle className={`w-4 h-4 flex-shrink-0 ${task.status === 'completed' ? 'text-emerald-500' : 'text-slate-400'}`} /></span>
+              <span className="w-[90px] text-sm text-[var(--ink-3)]">Status</span>
+              <span className={`font-ui-mono text-xs font-medium uppercase px-2.5 py-0.5 rounded-full border ml-1 ${statusColor}`}>{statusLabel}</span>
             </div>
 
             {/* Recurrence badge */}
             {normalizedTaskType === 'recurring' && (
-              <div className="flex items-center gap-3">
-                <Clock className="w-5 h-5 text-indigo-400 flex-shrink-0" />
-                <span className="text-sm text-slate-500">Recurrence</span>
-                <span className="text-xs font-bold uppercase px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 ml-1">
+              <div className="flex items-center gap-3 py-3 border-b border-[var(--border)]">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] bg-[var(--surface-2)]"><Clock className="w-4 h-4 text-indigo-400 flex-shrink-0" /></span>
+                <span className="w-[90px] text-sm text-[var(--ink-3)]">Recurrence</span>
+                <span className="font-ui-mono text-xs font-medium uppercase px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 ml-1">
                   {normalizedRecurrence ? normalizedRecurrence.charAt(0).toUpperCase() + normalizedRecurrence.slice(1) : 'Recurring'}
                 </span>
               </div>
@@ -913,27 +936,28 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
 
             {/* Parent task */}
             {parentTask && (
-              <div className="flex items-center gap-3">
-                <Layers className="w-5 h-5 text-amber-400 flex-shrink-0" />
-                <span className="text-sm text-slate-500">Part of</span>
+              <div className="flex items-center gap-3 py-3 border-b border-[var(--border)]">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] bg-[var(--surface-2)]"><Layers className="w-4 h-4 text-amber-400 flex-shrink-0" /></span>
+                <span className="w-[90px] text-sm text-[var(--ink-3)]">Part of</span>
                 <span className="text-sm font-semibold text-amber-700 ml-1">{parentTask.description}</span>
               </div>
             )}
 
             {/* Photo required */}
             {task.requirePhoto && (
-              <div className="flex items-center gap-3">
-                <Camera className="w-5 h-5 text-slate-400 flex-shrink-0" />
-                <span className="text-xs font-bold uppercase px-2.5 py-0.5 rounded-full bg-slate-800 text-white">Photo Required</span>
+              <div className="flex items-center gap-3 py-3 border-b border-[var(--border)]">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] bg-[var(--surface-2)]"><Camera className="w-4 h-4 text-slate-400 flex-shrink-0" /></span>
+                <span className="w-[90px] text-sm text-[var(--ink-3)]">Proof</span>
+                <span className="font-ui-mono text-xs font-medium uppercase px-2.5 py-0.5 rounded-full bg-slate-800 text-white">Photo Required</span>
               </div>
             )}
 
             {/* Completed timestamp */}
             {task.status === 'completed' && task.completedAt && (
-              <div className="flex items-center gap-3">
-                <Check className="w-5 h-5 text-emerald-500 flex-shrink-0" />
-                <span className="text-sm text-slate-500">Completed</span>
-                <span className="text-sm font-semibold text-emerald-600 ml-1">{formatFullDate(task.completedAt)}</span>
+              <div className="flex items-center gap-3 py-3">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] bg-[var(--surface-2)]"><Check className="w-4 h-4 text-emerald-500 flex-shrink-0" /></span>
+                <span className="w-[90px] text-sm text-[var(--ink-3)]">Completed</span>
+                <span className="font-ui-mono text-sm font-medium text-emerald-600 ml-1">{formatFullDate(task.completedAt)}</span>
               </div>
             )}
           </div>
@@ -941,8 +965,8 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
 
         {/* ── Section: Quick Actions Grid ── */}
         {actions.length > 0 && (
-          <div className="px-4 md:px-6 py-4 border-b border-slate-100">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Quick Actions</h3>
+          <div className="px-4 md:px-6 py-4 border-b border-[var(--border)]">
+            <h3 className="section-kicker mb-3">Quick Actions</h3>
             <div className={`grid gap-3 ${actions.length <= 2 ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3'}`}>
               {actions.map((action) =>
                 action.useLoadingButton ? (
@@ -954,7 +978,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
                     loadingText={action.loadingText}
                     disabled={action.disabled}
                     variant="primary"
-                    className={`flex flex-col items-center justify-center gap-1.5 rounded-xl py-3 px-2 font-bold text-sm transition-all active:scale-95 ${action.className}`}
+                    className={`flex flex-col items-center justify-center gap-1.5 rounded-2xl py-3 px-2 font-bold text-sm transition-all active:scale-95 ${action.className} ${action.key.includes('complete') ? 'shadow-[0_8px_20px_rgba(16,185,129,0.24)]' : action.key === 'delegate' || action.key === 'reopen' ? 'shadow-[0_8px_20px_rgba(79,70,229,0.22)]' : ''}`}
                     style={{ minHeight: 64 }}
                   >
                     {action.icon}
@@ -966,7 +990,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
                     type="button"
                     onClick={action.onClick}
                     disabled={action.disabled}
-                    className={`flex flex-col items-center justify-center gap-1.5 rounded-xl py-3 px-2 font-bold text-sm transition-all active:scale-95 disabled:opacity-50 ${action.className}`}
+                    className={`flex flex-col items-center justify-center gap-1.5 rounded-2xl py-3 px-2 font-bold text-sm transition-all active:scale-95 disabled:opacity-50 ${action.className} ${action.key.includes('complete') ? 'shadow-[0_8px_20px_rgba(16,185,129,0.24)]' : action.key === 'delegate' || action.key === 'reopen' ? 'shadow-[0_8px_20px_rgba(79,70,229,0.22)]' : ''}`}
                     style={{ minHeight: 64 }}
                   >
                     {action.icon}
@@ -1057,7 +1081,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         <div className="px-4 md:px-6 pt-4 pb-2">
           <div className="flex items-center gap-2 mb-3">
             <div className="flex-1 h-px bg-slate-200" />
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 px-2">Discussion</h3>
+            <h3 className="section-kicker px-2">Discussion</h3>
             <div className="flex-1 h-px bg-slate-200" />
           </div>
 
@@ -1066,7 +1090,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
               groupedRemarks.map((group) => (
                 <div key={group.dateKey} className="space-y-3">
                   <div className="flex justify-center py-1">
-                    <span className="rounded-full border border-slate-300 bg-slate-100 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                    <span className="font-ui-mono rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 text-[10px] font-medium uppercase tracking-wide text-[var(--ink-3)]">
                       {group.label}
                     </span>
                   </div>
@@ -1093,7 +1117,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
                             </p>
                           </div>
                           {/* Timestamp */}
-                          <p className={`text-[10px] text-slate-400 mt-1 ${isOwn ? 'text-right' : 'text-left'}`}>
+                          <p className={`font-ui-mono text-[10px] text-slate-400 mt-1 ${isOwn ? 'text-right' : 'text-left'}`}>
                             {formatRemarkTime(remark.timestamp)}
                           </p>
                         </div>

@@ -1446,16 +1446,16 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
   );
 
   return (
-    <section className="w-full bg-white border border-slate-200 rounded-2xl md:rounded-3xl p-4 md:p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
+    <section className="w-full bg-white border border-[var(--border)] rounded-2xl md:rounded-3xl p-4 md:p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">Approvals</p>
-          <h2 className="text-lg font-black text-slate-900 mt-1">Requests & Decisions</h2>
+          <p className="section-kicker">Approvals</p>
+          <h2 className="text-lg font-black text-[var(--ink)] mt-1">Requests & Decisions</h2>
         </div>
         {currentUser.role !== 'owner' && currentUser.role !== 'super_admin' && (
           <button
             onClick={() => setIsApprovalModalOpen(true)}
-            className="w-full sm:w-auto min-h-[44px] bg-indigo-900 hover:bg-indigo-800 text-white rounded-full px-4 py-3 sm:py-2.5 shadow-md shadow-indigo-900/20 flex items-center justify-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95"
+            className="w-full sm:w-auto min-h-[44px] bg-[var(--accent)] hover:bg-[#4338CA] text-white rounded-2xl px-4 py-3 sm:py-2.5 shadow-[0_4px_14px_rgba(79,70,229,0.15)] flex items-center justify-center gap-2 transition-all duration-200 active:scale-95"
           >
             <Plus className="w-5 h-5" />
             <span className="font-semibold">Approval</span>
@@ -1492,18 +1492,18 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
 
       {canUsePendingApprovedTabs && (
         <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="flex items-center gap-2 rounded-2xl bg-slate-100 border border-slate-200 p-1.5 shadow-sm w-full sm:w-auto">
+          <div className="flex items-center gap-2 pill-shell p-1.5 w-full sm:w-auto">
             <button
               type="button"
               onClick={handleOpenPendingTab}
               className={`flex-1 sm:flex-none min-h-[40px] rounded-xl px-4 py-1.5 text-sm font-bold transition-all flex items-center justify-center gap-2 ${
                 approvalTab === 'pending'
-                  ? 'bg-white text-amber-700 shadow-sm'
-                  : 'text-slate-500 hover:bg-slate-100'
+                  ? 'pill-active text-[var(--orange)]'
+                  : 'text-[var(--ink-3)] hover:bg-white/60'
               }`}
             >
               <span>Pending</span>
-              <span className="inline-flex min-w-[22px] h-[22px] px-1.5 items-center justify-center rounded-full bg-amber-500 text-white text-xs font-bold leading-none">
+              <span className="font-ui-mono inline-flex min-w-[22px] h-[22px] px-1.5 items-center justify-center rounded-full bg-[var(--orange)] text-white text-[11px] font-medium leading-none">
                 {pendingApprovalCount}
               </span>
             </button>
@@ -1512,12 +1512,12 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
               onClick={handleOpenApprovedTab}
               className={`flex-1 sm:flex-none min-h-[40px] rounded-xl px-4 py-1.5 text-sm font-bold transition-all flex items-center justify-center gap-2 ${
                 approvalTab === 'approved'
-                  ? 'bg-white text-emerald-700 shadow-sm'
-                  : 'text-slate-500 hover:bg-slate-100'
+                  ? 'pill-active text-[var(--green)]'
+                  : 'text-[var(--ink-3)] hover:bg-white/60'
               }`}
             >
               <span>Approved</span>
-              <span className="inline-flex min-w-[22px] h-[22px] px-1.5 items-center justify-center rounded-full bg-emerald-500 text-white text-xs font-bold leading-none">
+              <span className="font-ui-mono inline-flex min-w-[22px] h-[22px] px-1.5 items-center justify-center rounded-full bg-[var(--green)] text-white text-[11px] font-medium leading-none">
                 {approvedTodayCount}
               </span>
             </button>
@@ -1528,7 +1528,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
               <button
                 type="button"
                 onClick={() => setShowApprovedDateFilterMenu((prev) => !prev)}
-                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+                className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-semibold text-[var(--ink-2)] hover:bg-slate-50 transition-colors shadow-[0_1px_3px_rgba(0,0,0,0.04)]"
                 title="Filter approved decisions by date"
               >
                 <Filter className="w-3.5 h-3.5" />
@@ -2055,10 +2055,12 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                       return (
                         <div
                           key={approval.id}
-                          className={`w-full rounded-2xl border p-3 transition-all ${
-                            isSelected
-                              ? 'border-indigo-300 bg-indigo-50'
-                              : 'border-slate-200 bg-white'
+                          className={`w-full rounded-2xl border p-4 transition-all shadow-[0_1px_3px_rgba(0,0,0,0.06)] ${
+                            canUsePendingApprovedTabs && approvalTab === 'approved' && isApprovedApprovalStatus(approval.status)
+                              ? 'border-emerald-200 bg-[var(--green-light)]/55 border-l-[3px] border-l-[var(--green)]'
+                              : isSelected
+                              ? 'border-amber-300 bg-[var(--orange-light)]/70 border-l-[3px] border-l-[var(--orange)]'
+                              : 'border-[var(--border)] bg-white border-l-[3px] border-l-[var(--orange)]'
                           }`}
                         >
                           <button
@@ -2067,16 +2069,16 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                             className="w-full text-left"
                           >
                             <div className="flex items-center justify-between gap-3">
-                              <p className="text-sm font-bold text-slate-900 truncate">{approval.title || 'Untitled'}</p>
+                              <p className="text-sm font-bold text-[var(--ink)] truncate">{approval.title || 'Untitled'}</p>
                               <div className="flex items-center gap-2">
                                 {renderUnreadIndicator(unreadCount)}
-                                <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full ${getStatusClasses(approval.status)}`}>
-                                  {approval.status}
-                                </span>
+                                  <span className={`font-ui-mono text-[10px] font-medium uppercase px-2 py-1 rounded-full ${getStatusClasses(approval.status)}`}>
+                                    {approval.status}
+                                  </span>
+                                </div>
                               </div>
-                            </div>
-                            <p className="text-sm font-bold text-indigo-700 mt-1">{formatAmount(approval.amount)}</p>
-                            <p className="text-xs text-slate-500 mt-1 line-clamp-2">
+                            <p className="text-sm font-bold text-[var(--accent)] mt-1">{formatAmount(approval.amount)}</p>
+                            <p className="text-xs text-[var(--ink-3)] mt-1 line-clamp-2">
                               {parsedApproval.description || 'No description'}
                             </p>
                             
@@ -2365,10 +2367,12 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                 return (
                   <div
                     key={approval.id}
-                    className={`w-full rounded-2xl border p-3 transition-all ${
-                      isSelected
-                        ? 'border-indigo-300 bg-indigo-50'
-                        : 'border-slate-200 bg-white'
+                    className={`w-full rounded-2xl border p-4 transition-all shadow-[0_1px_3px_rgba(0,0,0,0.06)] ${
+                      canUsePendingApprovedTabs && approvalTab === 'approved' && isApprovedApprovalStatus(approval.status)
+                        ? 'border-emerald-200 bg-[var(--green-light)]/55 border-l-[3px] border-l-[var(--green)]'
+                        : isSelected
+                        ? 'border-amber-300 bg-[var(--orange-light)]/70 border-l-[3px] border-l-[var(--orange)]'
+                        : 'border-[var(--border)] bg-white border-l-[3px] border-l-[var(--orange)]'
                     }`}
                   >
                     <button
@@ -2377,21 +2381,21 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                       className="w-full text-left"
                     >
                       <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm font-bold text-slate-900 truncate">{approval.title || 'Untitled'}</p>
+                        <p className="text-sm font-bold text-[var(--ink)] truncate">{approval.title || 'Untitled'}</p>
                         <div className="flex items-center gap-2">
                           {renderUnreadIndicator(unreadCount)}
-                          <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full ${getStatusClasses(approval.status)}`}>
+                          <span className={`font-ui-mono text-[10px] font-medium uppercase px-2 py-1 rounded-full ${getStatusClasses(approval.status)}`}>
                             {approval.status}
                           </span>
                         </div>
                       </div>
-                      <p className="text-sm font-bold text-indigo-700 mt-1">{formatAmount(approval.amount)}</p>
-                      <p className="text-xs text-slate-500 mt-1 line-clamp-2">
+                      <p className="text-sm font-bold text-[var(--accent)] mt-1">{formatAmount(approval.amount)}</p>
+                      <p className="text-xs text-[var(--ink-3)] mt-1 line-clamp-2">
                         {parsedApproval.description || 'No description'}
                       </p>
                       
                       {/* Date Information */}
-                      <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
+                      <div className="mt-2 flex items-center justify-between text-xs text-[var(--ink-3)]">
                         <div className="flex items-center gap-1">
                           <span className="font-medium">Created:</span>
                           <span>{approval.created_at ? formatDateTime(approval.created_at).split(',')[0] : 'N/A'}</span>

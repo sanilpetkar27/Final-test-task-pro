@@ -1361,6 +1361,20 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
   const completedTaskCount = completedTasks.filter((task) =>
     isCompletedAtInRange(task.completedAt, todayStartMs, nowMs)
   ).length;
+  const pendingTaskCount = activeTasks.filter((task) => task.status === 'pending').length;
+  const overdueTaskCount = activeTasks.filter((task) => {
+    const statusValue = String(task.status || '').toLowerCase();
+    return statusValue === 'overdue' || (statusValue !== 'completed' && task.deadline != null && Date.now() > task.deadline);
+  }).length;
+  const currentHour = new Date().getHours();
+  const greetingPrefix =
+    currentHour >= 5 && currentHour < 12
+      ? 'Good morning,'
+      : currentHour >= 12 && currentHour < 17
+      ? 'Good afternoon,'
+      : currentHour >= 17 && currentHour < 21
+      ? 'Good evening,'
+      : 'Good night,';
 
   const completedTasksForView = completedTasks.filter((task) => {
     if (completedDateFilter === 'today') {
@@ -1498,10 +1512,24 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
   return (
     <div className="w-full space-y-4 relative">
       <div className="space-y-1">
-        <h2 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">
-          {currentUserFirstName ? `Hello, ${currentUserFirstName}` : 'Hello,'}
+        <h2 className="text-[28px] md:text-[30px] font-extrabold text-[var(--ink)] tracking-tight leading-none">
+          {currentUserFirstName ? `${greetingPrefix} ${currentUserFirstName}` : greetingPrefix}
         </h2>
-        <p className="text-sm text-gray-500 mt-1">Here is your task overview for today.</p>
+        <p className="text-sm text-[var(--ink-3)] mt-1">Here is your task overview for today.</p>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {[
+          { label: 'Active', value: activeTaskCount, tone: 'text-[var(--accent)] bg-[var(--accent-light)]' },
+          { label: 'Overdue', value: overdueTaskCount, tone: 'text-[var(--red)] bg-[var(--red-light)]' },
+          { label: 'Done today', value: completedTaskCount, tone: 'text-[var(--green)] bg-[var(--green-light)]' },
+          { label: 'Pending', value: pendingTaskCount, tone: 'text-[var(--orange)] bg-[var(--orange-light)]' },
+        ].map((item) => (
+          <div key={item.label} className={`surface-card px-4 py-3 ${item.tone}`}>
+            <div className="font-ui-mono text-[22px] font-medium leading-none">{item.value}</div>
+            <div className="mt-2 text-[11px] font-semibold uppercase tracking-[0.12em] opacity-80">{item.label}</div>
+          </div>
+        ))}
       </div>
 
       {/* Header action */}
@@ -1509,10 +1537,10 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
         <div className="flex justify-end">
           <button
             onClick={() => setIsTaskModalOpen(true)}
-            className="w-full sm:w-auto min-h-[44px] bg-indigo-900 hover:bg-indigo-800 text-white rounded-full px-4 py-3 sm:py-2.5 shadow-md shadow-indigo-900/20 flex items-center justify-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95"
+            className="w-full sm:w-auto min-h-[44px] bg-[var(--accent)] hover:bg-[#4338CA] text-white rounded-2xl px-4 py-3 sm:py-3 accent-shadow flex items-center justify-center gap-2 transition-all duration-200 active:scale-95"
           >
             <Plus className="w-5 h-5" />
-            <span className="font-semibold">New</span>
+            <span className="font-bold">New</span>
           </button>
         </div>
       )}
@@ -1726,7 +1754,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
           value={assigneeNameFilter}
           onChange={(e) => setAssigneeNameFilter(e.target.value)}
           placeholder="Filter by assignee name..."
-          className="w-full min-h-[48px] bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900 transition-all placeholder:text-slate-400"
+          className="w-full min-h-[48px] bg-white border border-[var(--border)] rounded-xl pl-10 pr-4 py-3 text-base text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20 transition-all placeholder:text-[var(--ink-3)] shadow-[0_1px_3px_rgba(0,0,0,0.04)]"
         />
         {assigneeNameFilter && (
           <button
@@ -1739,32 +1767,32 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
       </div>
 
       {/* Task Status Toggle */}
-      <div className="mt-3 flex items-center gap-2 rounded-2xl bg-slate-100 border border-slate-200 p-1.5 shadow-sm">
+      <div className="mt-3 flex items-center gap-2 pill-shell p-1.5">
         <button
           type="button"
           onClick={handleOpenActiveTab}
-          className={`flex-1 min-h-[44px] rounded-xl px-4 py-2 text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+          className={`flex-1 min-h-[44px] rounded-[999px] px-4 py-2 text-sm font-bold transition-all flex items-center justify-center gap-2 ${
             taskViewFilter === 'active'
-              ? 'bg-white text-indigo-700 shadow-sm'
-              : 'text-slate-500 hover:bg-slate-100'
+              ? 'pill-active text-[var(--accent)]'
+              : 'text-[var(--ink-3)] hover:bg-white/60'
           }`}
         >
           <span>Active</span>
-          <span className="inline-flex min-w-[22px] h-[22px] px-1.5 items-center justify-center rounded-full bg-indigo-700 text-white text-xs font-bold leading-none">
+          <span className="font-ui-mono inline-flex min-w-[22px] h-[22px] px-1.5 items-center justify-center rounded-full bg-[var(--accent)] text-white text-[11px] font-medium leading-none">
             {activeTaskCount}
           </span>
         </button>
         <button
           type="button"
           onClick={handleOpenCompletedTab}
-          className={`flex-1 min-h-[44px] rounded-xl px-4 py-2 text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+          className={`flex-1 min-h-[44px] rounded-[999px] px-4 py-2 text-sm font-bold transition-all flex items-center justify-center gap-2 ${
             taskViewFilter === 'completed'
-              ? 'bg-white text-emerald-700 shadow-sm'
-              : 'text-slate-500 hover:bg-slate-100'
+              ? 'pill-active text-[var(--green)]'
+              : 'text-[var(--ink-3)] hover:bg-white/60'
           }`}
         >
           <span>Completed</span>
-          <span className="inline-flex min-w-[22px] h-[22px] px-1.5 items-center justify-center rounded-full bg-emerald-500 text-white text-xs font-bold leading-none">
+          <span className="font-ui-mono inline-flex min-w-[22px] h-[22px] px-1.5 items-center justify-center rounded-full bg-[var(--green)] text-white text-[11px] font-medium leading-none">
             {completedTaskCount}
           </span>
         </button>
@@ -1776,7 +1804,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
             <button
               type="button"
               onClick={() => setShowCompletedFilterMenu((previous) => !previous)}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+              className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-semibold text-[var(--ink-2)] hover:bg-slate-50 transition-colors shadow-[0_1px_3px_rgba(0,0,0,0.04)]"
             >
               <Filter className="w-3.5 h-3.5" />
               <span>{completedFilterLabel}</span>
@@ -1871,7 +1899,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
           />
         ))}
         {allFilteredTasks.length === 0 && (
-          <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-200 md:col-span-2 xl:col-span-3">
+          <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-[var(--border)] md:col-span-2 xl:col-span-3">
             <ClipboardIcon className="w-12 h-12 mx-auto mb-3 text-slate-200" />
             <p className="text-slate-400 font-bold">No tasks found.</p>
           </div>
