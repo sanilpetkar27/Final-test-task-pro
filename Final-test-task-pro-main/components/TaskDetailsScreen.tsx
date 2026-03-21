@@ -725,7 +725,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         isLoading: isUploading,
         loadingText: 'Uploading...',
         disabled: isUploading,
-        className: 'bg-[var(--green)] text-white hover:bg-emerald-700'
+        className: 'bg-[#10B981] text-white hover:bg-[#059669]'
       });
     } else {
       actions.push({
@@ -737,7 +737,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         isLoading: isCompleting,
         loadingText: 'Completing...',
         disabled: isCompleting,
-        className: 'bg-[var(--green)] text-white hover:bg-emerald-700'
+        className: 'bg-[#10B981] text-white hover:bg-[#059669]'
       });
     }
     if (canRequestExtension) {
@@ -1335,6 +1335,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
 };
 
 export default TaskDetailsScreen;
+
 
 
 
