@@ -1334,6 +1334,8 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
   const completedTasks = baseFilteredTasks
     .filter((task) => String(task.status || '').toLowerCase() === 'completed')
     .sort((a, b) => Number(b.completedAt || 0) - Number(a.completedAt || 0));
+  const activeTaskCount = activeTasks.length;
+  const completedTaskCount = completedTasks.length;
   const allFilteredTasks =
     taskViewFilter === 'completed' ? completedTasks : sortTasksByRecentActivity(activeTasks);
   const currentUserFirstName = useMemo(() => {
@@ -1664,28 +1666,34 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
       </div>
 
       {/* Task Status Toggle */}
-      <div className="mt-3 flex items-center gap-2 rounded-2xl bg-white border border-slate-200 p-1.5 shadow-sm">
+      <div className="mt-3 flex items-center gap-2 rounded-2xl bg-slate-100 border border-slate-200 p-1.5 shadow-sm">
         <button
           type="button"
           onClick={() => setTaskViewFilter('active')}
-          className={`flex-1 rounded-xl px-4 py-2 text-sm font-bold transition-all ${
+          className={`flex-1 min-h-[44px] rounded-xl px-4 py-2 text-sm font-bold transition-all flex items-center justify-center gap-2 ${
             taskViewFilter === 'active'
-              ? 'bg-indigo-900 text-white shadow-sm'
+              ? 'bg-white text-indigo-700 shadow-sm'
               : 'text-slate-500 hover:bg-slate-100'
           }`}
         >
-          Active
+          <span>Active</span>
+          <span className="inline-flex min-w-[22px] h-[22px] px-1.5 items-center justify-center rounded-full bg-indigo-700 text-white text-xs font-bold leading-none">
+            {activeTaskCount}
+          </span>
         </button>
         <button
           type="button"
           onClick={() => setTaskViewFilter('completed')}
-          className={`flex-1 rounded-xl px-4 py-2 text-sm font-bold transition-all ${
+          className={`flex-1 min-h-[44px] rounded-xl px-4 py-2 text-sm font-bold transition-all flex items-center justify-center gap-2 ${
             taskViewFilter === 'completed'
-              ? 'bg-emerald-600 text-white shadow-sm'
+              ? 'bg-white text-emerald-700 shadow-sm'
               : 'text-slate-500 hover:bg-slate-100'
           }`}
         >
-          Completed
+          <span>Completed</span>
+          <span className="inline-flex min-w-[22px] h-[22px] px-1.5 items-center justify-center rounded-full bg-emerald-500 text-white text-xs font-bold leading-none">
+            {completedTaskCount}
+          </span>
         </button>
       </div>
 

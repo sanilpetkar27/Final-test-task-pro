@@ -16,6 +16,18 @@ const formatShortDate = (timestamp: number): string => {
   return `${date.getDate()} ${months[date.getMonth()]}`;
 };
 
+const formatCompletedDateTime = (timestamp: number): string => {
+  const date = new Date(timestamp);
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const day = date.getDate();
+  const month = months[date.getMonth()];
+  const hours24 = date.getHours();
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const ampm = hours24 >= 12 ? 'pm' : 'am';
+  const hours12 = hours24 % 12 || 12;
+  return `${day} ${month} at ${hours12}:${minutes}${ampm}`;
+};
+
 const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCount = 0, showCompletedMeta = false }) => {
   const getEmployeeName = (id?: string): string | null => {
     if (!id) return null;
@@ -32,10 +44,12 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCou
     ? 'border-2 border-red-400 bg-red-50/70'
     : 'border border-slate-200 bg-white';
   const cardClass = isCompletedView
-    ? 'border border-emerald-200 bg-emerald-50/40'
+    ? 'border border-emerald-300 bg-emerald-50/60'
     : priorityCardClass;
   const completedAtLabel =
-    task.completedAt && Number(task.completedAt) > 0 ? formatShortDate(Number(task.completedAt)) : 'Done';
+    task.completedAt && Number(task.completedAt) > 0
+      ? formatCompletedDateTime(Number(task.completedAt))
+      : 'recently';
 
   const rawExtensionStatus = String(
     (task as any).extensionStatus ?? (task as any).extension_status ?? 'NONE'
@@ -61,46 +75,68 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCou
     >
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div className="flex-1 min-w-0 space-y-2">
-          {isHighPriority && (
-            <div className="mb-1 inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-white/70 px-2.5 py-0.5 text-red-600">
-              <Flag className="w-3.5 h-3.5 text-red-600 fill-red-600" />
-              <span className="text-[11px] font-extrabold uppercase tracking-[0.2em]">
-                High Priority
+          {isCompletedView ? (
+            <div className="mb-1 inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-white/70 px-2.5 py-0.5 text-emerald-700">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+              <span className="text-xs font-extrabold uppercase tracking-wide">
+                Completed
               </span>
             </div>
+          ) : (
+            isHighPriority && (
+              <div className="mb-1 inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-white/70 px-2.5 py-0.5 text-red-600">
+                <Flag className="w-3.5 h-3.5 text-red-600 fill-red-600" />
+                <span className="text-[11px] font-extrabold uppercase tracking-[0.2em]">
+                  High Priority
+                </span>
+              </div>
+            )
           )}
 
           {/* Task Title */}
-          <h3 className={`text-base md:text-lg font-semibold leading-snug line-clamp-2 text-ellipsis overflow-hidden break-words ${isCompletedView ? 'text-slate-600' : 'text-slate-900'}`}>
+          <h3 className={`text-base md:text-lg font-semibold leading-snug line-clamp-2 text-ellipsis overflow-hidden break-words ${isCompletedView ? 'text-slate-600 line-through decoration-slate-400 decoration-2' : 'text-slate-900'}`}>
             {task.description}
           </h3>
 
           {/* Metadata Row */}
-          <div className="flex flex-wrap items-center gap-3">
-            {assigneeName && (
-              <span className="flex items-center gap-1.5 text-base text-slate-500">
-                <User className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                <span className="truncate max-w-[140px]">{assigneeName}</span>
+          {isCompletedView ? (
+            <div className="space-y-1">
+              <span className="flex items-center gap-1.5 text-base text-emerald-600">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                <span>Completed {completedAtLabel}</span>
               </span>
-            )}
-            {task.deadline != null && (
-              <span
-                className={`flex items-center gap-1.5 text-base ${
-                  isOverdue ? 'text-red-500 font-medium' : 'text-slate-500'
-                }`}
-              >
-                {isOverdue ? (
-                  <Clock className="w-4 h-4 text-red-400 flex-shrink-0" />
-                ) : (
-                  <Calendar className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                )}
-                <span>
-                  {formatShortDate(task.deadline)}
-                  {isOverdue && ' (Overdue)'}
+              <span className="flex items-center gap-1.5 text-base text-emerald-700">
+                <User className="w-4 h-4 text-violet-500 flex-shrink-0" />
+                <span className="truncate max-w-[180px]">{assigneeName || 'Unknown'}</span>
+              </span>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-3">
+              {assigneeName && (
+                <span className="flex items-center gap-1.5 text-base text-slate-500">
+                  <User className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                  <span className="truncate max-w-[140px]">{assigneeName}</span>
                 </span>
-              </span>
-            )}
-          </div>
+              )}
+              {task.deadline != null && (
+                <span
+                  className={`flex items-center gap-1.5 text-base ${
+                    isOverdue ? 'text-red-500 font-medium' : 'text-slate-500'
+                  }`}
+                >
+                  {isOverdue ? (
+                    <Clock className="w-4 h-4 text-red-400 flex-shrink-0" />
+                  ) : (
+                    <Calendar className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                  )}
+                  <span>
+                    {formatShortDate(task.deadline)}
+                    {isOverdue && ' (Overdue)'}
+                  </span>
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Status Badges */}
           {showBadges && (
@@ -125,15 +161,9 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCou
                   Overdue
                 </span>
               )}
-              {task.status === 'completed' && (
+              {task.status === 'completed' && !isCompletedView && (
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                   Completed
-                </span>
-              )}
-              {isCompletedView && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100/60 text-emerald-800 border border-emerald-200">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  {completedAtLabel} by {assigneeName || 'Unknown'}
                 </span>
               )}
               {task.status === 'in-progress' && extensionStatus === 'NONE' && !isOverdue && (
