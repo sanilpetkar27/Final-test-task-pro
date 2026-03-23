@@ -1446,10 +1446,17 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
       });
       await updateStatus(approvalId, 'APPROVED');
       if (approval.task_id) {
-        try {
-          await updateLinkedTaskDecision(approval, 'APPROVED');
-        } catch (taskSyncError) {
-          console.error('[Approvals] Secondary linked-task update failed after approval succeeded:', taskSyncError);
+        console.log(approval);
+        const { error: taskUpdateError } = await supabase
+          .from('tasks')
+          .update({
+            status: 'completed',
+            completedAt: new Date().toISOString(),
+          })
+          .eq('id', approval.task_id);
+
+        if (taskUpdateError) {
+          console.error('[Approvals] Failed to update approved linked task:', taskUpdateError);
         }
       }
       console.log('[Approvals] Approve flow completed', {
