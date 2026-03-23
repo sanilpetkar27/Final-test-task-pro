@@ -1078,8 +1078,8 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
       : undefined;
 
   return (
-    <div className="fixed inset-x-0 top-0 bottom-24 z-30 flex items-end justify-center bg-slate-900/40 md:inset-0 md:z-50 md:items-center md:p-4">
-      <div className="flex flex-col h-full w-full bg-[var(--surface)] pt-[env(safe-area-inset-top)] md:h-auto md:max-h-[90vh] md:max-w-2xl md:rounded-2xl md:shadow-xl md:pt-0 overflow-hidden">
+    <div className="fixed inset-x-0 top-0 bottom-24 z-30 flex items-end justify-center bg-slate-900/40 md:inset-0 md:z-[80] md:items-center md:p-4">
+      <div className="flex flex-col h-full min-h-0 w-full bg-[var(--surface)] pt-[env(safe-area-inset-top)] md:h-auto md:max-h-[90vh] md:max-w-2xl md:rounded-2xl md:shadow-xl md:pt-0 overflow-hidden">
         {/* ─── Header ─── */}
         <div className="sticky top-0 z-10 bg-white border-b border-[var(--border)] px-4 md:px-6 py-3 flex items-center gap-3 flex-shrink-0">
           <button
@@ -1095,7 +1095,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         </div>
 
         {/* ─── Scrollable Content ─── */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden">
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
         {/* ── Section: Task Info ── */}
         <div className="bg-white px-4 md:px-6 pt-5 pb-4 border-b border-[var(--border)]">
           <div className={`rounded-2xl border border-[var(--border)] border-l-4 px-4 py-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] ${heroAccentClass}`}>
