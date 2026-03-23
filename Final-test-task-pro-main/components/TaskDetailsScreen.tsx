@@ -15,6 +15,7 @@ interface TaskDetailsScreenProps {
   parentTask?: DealershipTask;
   employees: Employee[];
   currentUser: Employee;
+  readOnly?: boolean;
   onBack: () => void;
   onStartTask: () => Promise<void> | void;
   onReopenTask: () => Promise<void> | void;
@@ -139,7 +140,7 @@ const getRoleBadge = (role?: string): { label: string; className: string } => {
 const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   task, subTasks, parentTask, employees, currentUser, onBack,
   onStartTask, onReopenTask, onCompleteTask, onCompleteTaskWithoutPhoto,
-  onReassign, onDelegate, onDelete, onInlineEditSave, onAddRemark
+  onReassign, onDelegate, onDelete, onInlineEditSave, onAddRemark, readOnly = false
 }) => {
   const [newRemark, setNewRemark] = useState('');
   const [isUploading, setIsUploading] = useState(false);
@@ -743,10 +744,10 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
 
   // Auto-start task when opened and status is pending
   useEffect(() => {
-    if (task.status === 'pending' && onStartTask) {
+    if (!readOnly && task.status === 'pending' && onStartTask) {
       onStartTask();
     }
-  }, [task.id]); // Only run when task ID changes (component mounts with new task)
+  }, [task.id, task.status, onStartTask, readOnly]); // Only run when task ID changes (component mounts with new task)
 
   // --- Build Quick Actions ---
   type QuickAction = {
@@ -1113,7 +1114,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         </div>
 
         {/* ── Section: Quick Actions Grid ── */}
-        {actions.length > 0 && (
+        {!readOnly && actions.length > 0 && (
           <div className="px-4 md:px-6 py-4 border-b border-[var(--border)]">
             <h3 className="section-kicker mb-3">Quick Actions</h3>
             <div className={`grid gap-3 ${actions.length <= 2 ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3'}`}>
@@ -1156,7 +1157,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         )}
 
         {/* ── Section: Extension Request Input ── */}
-        {canRequestExtension && showExtensionInput && (
+        {!readOnly && canRequestExtension && showExtensionInput && (
           <div className="px-4 md:px-6 py-4 border-b border-slate-100">
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-3">
               <p className="text-sm font-bold text-amber-700">Request Deadline Extension</p>
@@ -1193,7 +1194,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         )}
 
         {/* ── Section: Manager Approval ── */}
-        {canReviewExtensionRequest && (
+        {!readOnly && canReviewExtensionRequest && (
           <div className="px-4 md:px-6 py-4 border-b border-slate-100">
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 mb-3">
               <p className="text-base font-bold text-amber-700">Extension Requested</p>
@@ -1287,6 +1288,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
       </div>
 
       {/* ─── Chat Input Bar (sticky bottom) ─── */}
+      {!readOnly && (
       <div className="bg-white border-t border-slate-200 px-4 md:px-6 py-3 pb-safe flex-shrink-0">
         <div className="relative">
           {mentionMenuOpen && (
@@ -1379,6 +1381,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
           </div>
         </div>
       </div>
+      )}
 
       {/* ─── Edit Task Modal ─── */}
       {isEditing && (

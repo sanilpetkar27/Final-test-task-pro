@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, Download, Filter, Link2, MessageSquare, Paperclip, Plus, Send, X, XCircle, Calendar } from 'lucide-react';
+import { CheckCircle2, Download, Filter, Link2, MessageSquare, Paperclip, Plus, Send, X, XCircle, Calendar, User, Eye } from 'lucide-react';
 import { supabase } from '../src/lib/supabase';
-import { Employee } from '../types';
+import { DealershipTask, Employee } from '../types';
 import LoadingButton from '../src/components/ui/LoadingButton';
+import TaskDetailsScreen from './TaskDetailsScreen';
+import { DatabaseTask, transformTaskToApp } from '../src/utils/transformers';
 
 type ApprovalStatus = 'PENDING' | 'NEEDS_REVIEW' | 'APPROVED' | 'REJECTED';
 type ApprovalView = 'my_requests' | 'needs_my_approval';
@@ -22,6 +24,7 @@ type ApprovalItem = {
   isEscalated: boolean;
   adminEscalationStatus: 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED';
   escalated_to?: string | null;
+  linkedTask?: DealershipTask | null;
 };
 
 type ApprovalThread = {
@@ -95,6 +98,12 @@ const formatDateTime = (value: string): string => {
   const parsed = Date.parse(value);
   if (!Number.isFinite(parsed)) return value;
   return new Date(parsed).toLocaleString();
+};
+
+const formatTaskDueDate = (deadline?: number): string => {
+  if (!deadline) return 'No due date';
+  const parsed = new Date(deadline);
+  return Number.isNaN(parsed.getTime()) ? 'No due date' : parsed.toLocaleString();
 };
 
 const extractApprovalAttachments = (rawDescription: string): { description: string; attachments: ApprovalAttachment[] } => {
@@ -187,6 +196,8 @@ const approvalsAreEqual = (left: ApprovalItem[], right: ApprovalItem[]): boolean
   for (let i = 0; i < left.length; i += 1) {
     const a = left[i];
     const b = right[i];
+    const aTask = a.linkedTask;
+    const bTask = b.linkedTask;
     if (
       a.id !== b.id ||
       a.requester_id !== b.requester_id ||
@@ -198,7 +209,12 @@ const approvalsAreEqual = (left: ApprovalItem[], right: ApprovalItem[]): boolean
       a.company_id !== b.company_id ||
       a.task_id !== b.task_id ||
       a.created_at !== b.created_at ||
-      a.updated_at !== b.updated_at
+      a.updated_at !== b.updated_at ||
+      aTask?.id !== bTask?.id ||
+      aTask?.description !== bTask?.description ||
+      aTask?.assignedTo !== bTask?.assignedTo ||
+      aTask?.deadline !== bTask?.deadline ||
+      aTask?.status !== bTask?.status
     ) {
       return false;
     }
@@ -349,7 +365,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
   const isAdminApprover = currentUser.role === 'owner' || currentUser.role === 'super_admin';
   const canUsePendingApprovedTabs =
     currentUser.role === 'super_admin' || currentUser.role === 'owner' || currentUser.role === 'manager';
-  const isStaffOnly = currentUser.role === 'staff';
+      const isStaffOnly = currentUser.role === 'staff';
   const [view, setView] = useState<ApprovalView>(currentUser.role === 'owner' || currentUser.role === 'super_admin' ? 'needs_my_approval' : 'my_requests');
   const [approvalTab, setApprovalTab] = useState<'pending' | 'approved'>('pending');
   const [approvedDateFilter, setApprovedDateFilter] = useState<ApprovedDateFilter>('today');
@@ -388,6 +404,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
   const [threads, setThreads] = useState<ApprovalThreadView[]>([]);
   const [loadingApprovals, setLoadingApprovals] = useState(false);
   const [loadingThreads, setLoadingThreads] = useState(false);
+  const [companyEmployees, setCompanyEmployees] = useState<Employee[]>([]);
   const [approvalReadAtById, setApprovalReadAtById] = useState<Record<string, number>>({});
   const [approvalUnreadCountById, setApprovalUnreadCountById] = useState<Record<string, number>>({});
   const [updatingStatus, setUpdatingStatus] = useState(false);
@@ -414,6 +431,26 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
   const selectedApproval = useMemo(
     () => approvals.find((item) => item.id === selectedApprovalId) || null,
     [approvals, selectedApprovalId]
+  );
+  const [viewingTaskApprovalId, setViewingTaskApprovalId] = useState<string | null>(null);
+  const selectedApprovalTask = useMemo(
+    () => approvals.find((item) => item.id === viewingTaskApprovalId)?.linkedTask || null,
+    [approvals, viewingTaskApprovalId]
+  );
+  const selectedApprovalParentTask = useMemo(() => {
+    if (!selectedApprovalTask?.parentTaskId) {
+      return undefined;
+    }
+    return approvals.find((item) => item.linkedTask?.id === selectedApprovalTask.parentTaskId)?.linkedTask;
+  }, [approvals, selectedApprovalTask]);
+  const selectedApprovalSubTasks = useMemo(
+    () =>
+      selectedApprovalTask
+        ? approvals
+            .map((item) => item.linkedTask)
+            .filter((task): task is DealershipTask => Boolean(task) && task.parentTaskId === selectedApprovalTask.id)
+        : [],
+    [approvals, selectedApprovalTask]
   );
 
   const dayStartMs = useCallback((date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime(), []);
@@ -728,29 +765,40 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
 
   const loadApprovers = useCallback(async () => {
     setLoadingApprovers(true);
-    try {
-      const { data, error: approverError } = await supabase
-        .from('employees')
-        .select('id, name, role')
-        .eq('company_id', currentUser.company_id);
-      if (approverError) throw approverError;
+      try {
+        const { data, error: approverError } = await supabase
+          .from('employees')
+          .select('id, name, role, email, mobile, company_id, auth_user_id')
+          .eq('company_id', currentUser.company_id);
+        if (approverError) throw approverError;
 
-      const candidates = (data || [])
-        .map((row: any) => ({
-          id: String(row.id || ''),
-          name: String(row.name || 'Unknown'),
-          role: String(row.role || 'staff'),
+      const directory = (data || []).map((row: any) => ({
+        id: String(row.id || ''),
+        name: String(row.name || 'Unknown'),
+        email: String(row.email || ''),
+        role: String(row.role || 'staff') as Employee['role'],
+        mobile: String(row.mobile || ''),
+        company_id: String(row.company_id || currentUser.company_id),
+        auth_user_id: row.auth_user_id ? String(row.auth_user_id) : undefined,
+      })).filter((item) => item.id);
+
+      const candidates = directory
+        .map((row) => ({
+          id: row.id,
+          name: row.name,
+          role: row.role,
         }))
         .filter((item) => item.id && item.role !== 'staff')
         .sort((a, b) => a.name.localeCompare(b.name));
 
-      const names = (data || []).reduce<Record<string, string>>((acc, row: any) => {
+      const names = directory.reduce<Record<string, string>>((acc, row) => {
         const id = String(row.id || '');
         if (!id) return acc;
         acc[id] = String(row.name || 'Unknown');
         return acc;
       }, {});
 
+      setCompanyEmployees(directory);
       setApprovers(candidates);
       setEmployeeNamesById(names);
       if (!requestApproverId && candidates.length) {
@@ -762,6 +810,49 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
       setLoadingApprovers(false);
     }
   }, [currentUser.company_id, requestApproverId]);
+
+  const loadLinkedTasksByApprovalId = useCallback(async (items: ApprovalItem[]): Promise<Record<string, DealershipTask>> => {
+    const taskIds = Array.from(
+      new Set(
+        items
+          .map((item) => String(item.task_id || '').trim())
+          .filter(Boolean)
+      )
+    );
+
+    if (!taskIds.length) {
+      return {};
+    }
+
+    const { data, error: taskError } = await supabase
+      .from('tasks')
+      .select('*')
+      .in('id', taskIds)
+      .eq('company_id', currentUser.company_id);
+
+    if (taskError) {
+      console.error('Failed to load linked approval tasks:', taskError);
+      return {};
+    }
+
+    const tasksById = new Map<string, DealershipTask>();
+    for (const row of (data || []) as DatabaseTask[]) {
+      const task = transformTaskToApp(row);
+      tasksById.set(task.id, task);
+    }
+
+    return items.reduce<Record<string, DealershipTask>>((acc, item) => {
+      const taskId = String(item.task_id || '').trim();
+      if (!taskId) {
+        return acc;
+      }
+      const linkedTask = tasksById.get(taskId);
+      if (linkedTask) {
+        acc[item.id] = linkedTask;
+      }
+      return acc;
+    }, {});
+  }, [currentUser.company_id]);
 
   const loadApprovals = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false;
@@ -795,7 +886,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         rows = approverData || [];
       }
 
-      const mappedRows = (rows || []).map((row: any) => ({
+      const mappedRowsBase: ApprovalItem[] = (rows || []).map((row: any) => ({
         id: String(row.id),
         requester_id: String(row.requester_id || ''),
         approver_id: String(row.approver_id || ''),
@@ -810,6 +901,13 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         isEscalated: Boolean(row.isEscalated || false),
         adminEscalationStatus: String(row.adminEscalationStatus || 'NONE'),
         escalated_to: row.escalated_to ? String(row.escalated_to) : null,
+        linkedTask: null,
+      }));
+
+      const linkedTasksByApprovalId = await loadLinkedTasksByApprovalId(mappedRowsBase);
+      const mappedRows = mappedRowsBase.map((item) => ({
+        ...item,
+        linkedTask: linkedTasksByApprovalId[item.id] || null,
       }));
 
       const mapped = sortApprovalsByRecency(
@@ -842,7 +940,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         setLoadingApprovals(false);
       }
     }
-  }, [currentUser.id, currentUser.role, filterNeedsMyApprovalQueue, isAdminApprover, view]);
+  }, [currentUser.id, currentUser.role, filterNeedsMyApprovalQueue, isAdminApprover, loadLinkedTasksByApprovalId, view]);
 
   const loadThreads = useCallback(async (approvalId: string, options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false;
@@ -1274,6 +1372,57 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
       decision,
     });
   };
+
+  const getEmployeeDisplayName = useCallback((employeeId?: string | null): string => {
+    const normalizedId = String(employeeId || '').trim();
+    if (!normalizedId) {
+      return 'Anyone / Unassigned';
+    }
+    return employeeNamesById[normalizedId] || getApproverName(normalizedId, approvers);
+  }, [approvers, employeeNamesById]);
+
+  const renderLinkedTaskInfoBox = useCallback((approval: ApprovalItem) => {
+    const linkedTask = approval.linkedTask;
+    if (!linkedTask) {
+      return null;
+    }
+
+    return (
+      <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/90 p-3">
+        <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Linked Task</p>
+        <div className="mt-2 space-y-2">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Task</p>
+            <p className="text-sm font-semibold text-slate-900 break-words">{linkedTask.description || 'Untitled task'}</p>
+          </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="flex items-start gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-2">
+              <User className="mt-0.5 h-3.5 w-3.5 text-slate-400" />
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Assigned To</p>
+                <p className="text-xs font-medium text-slate-700 break-words">{getEmployeeDisplayName(linkedTask.assignedTo)}</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-2">
+              <Calendar className="mt-0.5 h-3.5 w-3.5 text-slate-400" />
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Due Date</p>
+                <p className="text-xs font-medium text-slate-700 break-words">{formatTaskDueDate(linkedTask.deadline)}</p>
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setViewingTaskApprovalId(approval.id)}
+            className="inline-flex min-h-[38px] items-center gap-2 rounded-lg border border-[var(--accent)]/20 bg-white px-3 py-2 text-xs font-bold text-[var(--accent)] transition-colors hover:bg-[var(--accent-light)]"
+          >
+            <Eye className="h-3.5 w-3.5" />
+            View Task
+          </button>
+        </div>
+      </div>
+    );
+  }, [getEmployeeDisplayName]);
 
   const handleApprove = async (approvalId: string): Promise<void> => {
     await runApprovalAction(approvalId, 'approve', async () => {
@@ -2213,6 +2362,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                           {isSelected && (
                             <div className="mt-4 border-t border-slate-200 pt-4">
                               <p className="text-xs text-slate-500">{parsedApproval.description || 'No description'}</p>
+                              {renderLinkedTaskInfoBox(approval)}
 
                               {parsedApproval.attachments.length > 0 && (
                                 <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-2.5">
@@ -2522,11 +2672,12 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                       )}
                     </button>
 
-                    {isSelected && (
-                      <div className="mt-4 border-t border-slate-200 pt-4">
-                        <p className="text-xs text-slate-500">{parsedApproval.description || 'No description'}</p>
+	                    {isSelected && (
+	                      <div className="mt-4 border-t border-slate-200 pt-4">
+	                        <p className="text-xs text-slate-500">{parsedApproval.description || 'No description'}</p>
+                          {renderLinkedTaskInfoBox(approval)}
 
-                        {parsedApproval.attachments.length > 0 && (
+	                        {parsedApproval.attachments.length > 0 && (
                           <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-2.5">
                             <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Attached Documents</p>
                             <div className="mt-2 space-y-1.5">
@@ -2773,6 +2924,25 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
           })()
         )}
       </div>
+
+      {selectedApprovalTask && (
+        <TaskDetailsScreen
+          task={selectedApprovalTask}
+          subTasks={selectedApprovalSubTasks}
+          parentTask={selectedApprovalParentTask}
+          employees={companyEmployees}
+          currentUser={currentUser}
+          readOnly
+          onBack={() => setViewingTaskApprovalId(null)}
+          onStartTask={() => {}}
+          onReopenTask={() => {}}
+          onCompleteTask={async () => {}}
+          onCompleteTaskWithoutPhoto={async () => {}}
+          onReassign={() => {}}
+          onDelegate={() => {}}
+          onDelete={async () => {}}
+        />
+      )}
 
     </section>
   );
