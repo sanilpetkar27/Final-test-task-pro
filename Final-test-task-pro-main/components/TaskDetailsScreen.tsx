@@ -880,7 +880,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
     disabled?: boolean;
   };
 	  const actions: QuickAction[] = [];
-	  const quickActionButtonClass = 'h-20 rounded-2xl px-2 py-3 text-sm font-bold';
+	  const quickActionButtonClass = 'h-20 w-full rounded-2xl border border-transparent px-2 py-3 text-sm font-bold shadow-[0_8px_20px_rgba(15,23,42,0.08)]';
 
   if (task.status === 'pending') {
     // Start Task button removed - task auto-starts when opened
@@ -1239,7 +1239,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
 	            <div className={`grid gap-3 ${actions.length <= 2 ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3'}`}>
 	              {actions.map((action) =>
 	                action.useLoadingButton ? (
-	                  <LoadingButton
+		                  <LoadingButton
 	                    key={action.key}
 	                    type="button"
                     onClick={action.onClick}
@@ -1247,23 +1247,19 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
                     loadingText={action.loadingText}
                     disabled={action.disabled}
                     variant="primary"
-	                    className={`flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 ${quickActionButtonClass} ${action.className} ${action.key.includes('complete') ? 'shadow-[0_8px_20px_rgba(16,185,129,0.24)]' : action.key === 'delegate' || action.key === 'reopen' ? 'shadow-[0_8px_20px_rgba(79,70,229,0.22)]' : ''}`}
-	                    style={{
-	                      backgroundColor: action.key.includes('complete') ? '#10B981' : action.key === 'delete' ? '#EF4444' : undefined,
-	                      color: action.key.includes('complete') || action.key === 'delete' ? 'white' : undefined,
-	                    }}
-	                  >
+		                    className={`flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 ${quickActionButtonClass} ${action.className}`}
+		                  >
 	                    {action.icon}
 	                    <span className="text-sm font-bold">{action.label}</span>
 	                  </LoadingButton>
 	                ) : (
-	                  <button
+		                  <button
                     key={action.key}
                     type="button"
                     onClick={action.onClick}
                     disabled={action.disabled}
-	                    className={`flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-50 ${quickActionButtonClass} ${action.className} ${action.key.includes('complete') ? 'shadow-[0_8px_20px_rgba(16,185,129,0.24)]' : action.key === 'delegate' || action.key === 'reopen' ? 'shadow-[0_8px_20px_rgba(79,70,229,0.22)]' : ''}`}
-	                  >
+		                    className={`flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-50 ${quickActionButtonClass} ${action.className}`}
+		                  >
 	                    {action.icon}
 	                    <span className="text-sm font-bold">{action.label}</span>
 	                  </button>
