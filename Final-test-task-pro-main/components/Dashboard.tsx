@@ -205,6 +205,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
   const lastTaskSubmitRef = useRef<{ signature: string; timestamp: number } | null>(null);
   const [statusBumpTimestamps, setStatusBumpTimestamps] = useState<Record<string, number>>({});
   const previousTaskStatusRef = useRef<Record<string, TaskStatus>>({});
+  const pendingCompletionAutoReturnRef = useRef(false);
   const [taskReadAtById, setTaskReadAtById] = useState<Record<string, number>>({});
   const taskChatReadsTableMissingRef = useRef(false);
   const taskReadStorageKey = useMemo(() => `task-chat-read:${currentUser.id}`, [currentUser.id]);
@@ -1039,6 +1040,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
       }
 
       if (newStatus === 'completed') {
+        pendingCompletionAutoReturnRef.current = true;
         if (proofUrl) {
           await withTimeout(
             Promise.resolve(onCompleteTask(taskId, { imageUrl: proofUrl, timestamp: Date.now() })),
@@ -1047,6 +1049,9 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
         } else {
           await withTimeout(Promise.resolve(onCompleteTaskWithoutPhoto(taskId)), 30000);
         }
+        window.setTimeout(() => {
+          pendingCompletionAutoReturnRef.current = false;
+        }, 5000);
         return;
       }
 
@@ -1130,6 +1135,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
         }
       }
     } catch (err) {
+      pendingCompletionAutoReturnRef.current = false;
       console.error('🚨 Unexpected error updating task:', err);
       alert(`Unexpected Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
@@ -1518,6 +1524,29 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
 
   // --- Selected task for detail view ---
   const selectedTask = selectedTaskId ? tasks.find(t => t.id === selectedTaskId) || null : null;
+
+  useEffect(() => {
+    if (!pendingCompletionAutoReturnRef.current) {
+      return;
+    }
+
+    if (!selectedTask) {
+      pendingCompletionAutoReturnRef.current = false;
+      return;
+    }
+
+    const normalizedStatus = String(selectedTask.status || '').toLowerCase();
+    if (normalizedStatus === 'completed') {
+      pendingCompletionAutoReturnRef.current = false;
+      setTaskViewFilter('completed');
+      setSelectedTaskId(null);
+      return;
+    }
+
+    if (normalizedStatus === 'pending_approval') {
+      pendingCompletionAutoReturnRef.current = false;
+    }
+  }, [selectedTask]);
 
   useEffect(() => {
     if (!selectedTask) return;

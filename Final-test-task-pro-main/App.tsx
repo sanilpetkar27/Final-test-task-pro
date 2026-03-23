@@ -1249,7 +1249,6 @@ const App: React.FC = () => {
           };
 
           setTasks(prev => upsertTaskAtTop(prev, richTask as DealershipTask));
-          triggerRealtimeTasksRefetch();
 
         } catch (err) {
           console.error('🚨 Error in realtime INSERT handler:', err);
@@ -1338,7 +1337,6 @@ const App: React.FC = () => {
           };
 
           setTasks(prev => upsertTaskInPlace(prev, richTask as DealershipTask));
-          triggerRealtimeTasksRefetch();
 
         } catch (err) {
           console.error('🚨 Error in realtime UPDATE handler:', err);
