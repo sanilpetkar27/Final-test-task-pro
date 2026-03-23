@@ -768,18 +768,17 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
       try {
         const { data, error: approverError } = await supabase
           .from('employees')
-          .select('id, name, role, email, mobile, company_id, auth_user_id')
+          .select('id, name, mobile, role, company_id')
           .eq('company_id', currentUser.company_id);
         if (approverError) throw approverError;
 
       const directory = (data || []).map((row: any) => ({
         id: String(row.id || ''),
         name: String(row.name || 'Unknown'),
-        email: String(row.email || ''),
+        email: '',
         role: String(row.role || 'staff') as Employee['role'],
         mobile: String(row.mobile || ''),
         company_id: String(row.company_id || currentUser.company_id),
-        auth_user_id: row.auth_user_id ? String(row.auth_user_id) : undefined,
       })).filter((item) => item.id);
 
       const candidates = directory
@@ -1378,8 +1377,12 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
     if (!normalizedId) {
       return 'Anyone / Unassigned';
     }
+    const directoryMatch = companyEmployees.find((employee) => employee.id === normalizedId);
+    if (directoryMatch?.name) {
+      return directoryMatch.name;
+    }
     return employeeNamesById[normalizedId] || getApproverName(normalizedId, approvers);
-  }, [approvers, employeeNamesById]);
+  }, [approvers, companyEmployees, employeeNamesById]);
 
   const renderLinkedTaskInfoBox = useCallback((approval: ApprovalItem) => {
     const linkedTask = approval.linkedTask;
@@ -1403,6 +1406,15 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                 <p className="text-xs font-medium text-slate-700 break-words">{getEmployeeDisplayName(linkedTask.assignedTo)}</p>
               </div>
             </div>
+            <div className="flex items-start gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-2">
+              <User className="mt-0.5 h-3.5 w-3.5 text-slate-400" />
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Assigned By</p>
+                <p className="text-xs font-medium text-slate-700 break-words">{getEmployeeDisplayName(linkedTask.assignedBy)}</p>
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div className="flex items-start gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-2">
               <Calendar className="mt-0.5 h-3.5 w-3.5 text-slate-400" />
               <div className="min-w-0">
