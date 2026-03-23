@@ -206,6 +206,19 @@ const approvalsAreEqual = (left: ApprovalItem[], right: ApprovalItem[]): boolean
   return true;
 };
 
+const getActionErrorMessage = (error: unknown, fallback = 'Operation failed.'): string => {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  if (error && typeof error === 'object' && 'message' in error) {
+    const message = String((error as { message?: unknown }).message || '').trim();
+    if (message) {
+      return message;
+    }
+  }
+  return fallback;
+};
+
 const threadsAreEqual = (left: ApprovalThreadView[], right: ApprovalThreadView[]): boolean => {
   if (left.length !== right.length) return false;
   for (let i = 0; i < left.length; i += 1) {
@@ -527,7 +540,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
       try {
         await withTimeout(fn(), 30000);
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Operation failed.';
+        const message = getActionErrorMessage(err);
         setError(message);
       } finally {
         setProcessingApprovalId(null);
@@ -1194,14 +1207,16 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
     setUpdatingStatus(true);
     setError(null);
     try {
+      console.log('[Approvals] Updating approval status', { approvalId, status });
       const { error: updateError } = await supabase
         .from('approvals')
         .update({ status })
         .eq('id', approvalId);
       if (updateError) {
         console.error(`Failed to update approval ${approvalId} status to ${status}:`, updateError);
-        throw updateError;
+        throw new Error(getActionErrorMessage(updateError, 'Failed to update approval status.'));
       }
+      console.log('[Approvals] Approval status updated', { approvalId, status });
 
       setApprovals((prev) =>
         sortApprovalsByRecency(
@@ -1235,6 +1250,12 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
             completedAt: null,
           };
 
+    console.log('[Approvals] Updating linked task after approval decision', {
+      approvalId: approval.id,
+      taskId: approval.task_id,
+      decision,
+      updatePayload,
+    });
     const { error: taskUpdateError } = await supabase
       .from('tasks')
       .update(updatePayload)
@@ -1245,18 +1266,35 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         `Failed to update linked task ${approval.task_id} after approval ${approval.id} was ${decision}:`,
         taskUpdateError
       );
-      throw taskUpdateError;
+      throw new Error(getActionErrorMessage(taskUpdateError, 'Failed to update linked task.'));
     }
+    console.log('[Approvals] Linked task updated after approval decision', {
+      approvalId: approval.id,
+      taskId: approval.task_id,
+      decision,
+    });
   };
 
   const handleApprove = async (approvalId: string): Promise<void> => {
     await runApprovalAction(approvalId, 'approve', async () => {
       const approval = approvals.find((item) => item.id === approvalId) || selectedApproval;
       if (!approval) return;
+      console.log('[Approvals] Starting approve flow', {
+        approvalId,
+        taskId: approval.task_id,
+      });
       await updateStatus(approvalId, 'APPROVED');
       if (approval.task_id) {
-        await updateLinkedTaskDecision(approval, 'APPROVED');
+        try {
+          await updateLinkedTaskDecision(approval, 'APPROVED');
+        } catch (taskSyncError) {
+          console.error('[Approvals] Secondary linked-task update failed after approval succeeded:', taskSyncError);
+        }
       }
+      console.log('[Approvals] Approve flow completed', {
+        approvalId,
+        taskId: approval.task_id,
+      });
       alert('Approval approved successfully.');
     });
   };
