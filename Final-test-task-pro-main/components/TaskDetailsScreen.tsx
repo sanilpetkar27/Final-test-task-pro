@@ -880,7 +880,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
     disabled?: boolean;
   };
 	  const actions: QuickAction[] = [];
-	  const quickActionButtonClass = 'h-20 w-full rounded-2xl border border-transparent px-2 py-3 text-sm font-bold shadow-[0_8px_20px_rgba(15,23,42,0.08)]';
+	  const quickActionButtonClass = '!h-20 !w-full !rounded-2xl border border-transparent !px-2 !py-3 !text-sm !font-bold shadow-[0_8px_20px_rgba(15,23,42,0.08)]';
 
   if (task.status === 'pending') {
     // Start Task button removed - task auto-starts when opened
@@ -890,7 +890,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         label: 'Delegate',
         icon: <GitFork className="w-5 h-5" />,
         onClick: onDelegate,
-        className: 'bg-[var(--accent)] text-white hover:bg-[#4338CA]'
+        className: '!bg-[var(--accent)] !text-white hover:!bg-[#4338CA]'
       });
     }
     if (canEdit) {
@@ -899,7 +899,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         label: 'Edit',
         icon: <Edit className="w-5 h-5" />,
         onClick: () => setIsEditing(true),
-        className: 'bg-[var(--accent-light)] text-[var(--accent)] hover:bg-[var(--accent-light)] border border-[var(--accent)]/20'
+        className: '!bg-[var(--accent-light)] !text-[var(--accent)] hover:!bg-[var(--accent-light)] border border-[var(--accent)]/20'
       });
     }
     if (canDelete) {
@@ -912,7 +912,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         isLoading: isDeleting,
         loadingText: 'Deleting...',
         disabled: isDeleting,
-        className: 'bg-[#EF4444] text-white hover:bg-[#DC2626]'
+        className: '!bg-[#EF4444] !text-white hover:!bg-[#DC2626]'
       });
     }
   }
@@ -924,7 +924,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         label: 'Delegate',
         icon: <GitFork className="w-5 h-5" />,
         onClick: onDelegate,
-        className: 'bg-[var(--accent)] text-white hover:bg-[#4338CA]'
+        className: '!bg-[var(--accent)] !text-white hover:!bg-[#4338CA]'
       });
     }
     if (task.requirePhoto) {
@@ -937,7 +937,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         isLoading: isUploading,
         loadingText: 'Uploading...',
         disabled: isUploading,
-        className: 'bg-[#10B981] text-white hover:bg-[#059669]'
+        className: '!bg-[#10B981] !text-white hover:!bg-[#059669]'
       });
     } else {
       actions.push({
@@ -949,7 +949,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         isLoading: isCompleting,
         loadingText: 'Completing...',
         disabled: isCompleting,
-        className: 'bg-[#10B981] text-white hover:bg-[#059669]'
+        className: '!bg-[#10B981] !text-white hover:!bg-[#059669]'
       });
     }
     if (canRequestExtension) {
@@ -958,7 +958,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         label: 'Extension',
         icon: <Clock className="w-5 h-5" />,
         onClick: () => setShowExtensionInput(prev => !prev),
-        className: 'bg-[var(--orange-light)] text-[var(--orange)] hover:bg-amber-100 border border-amber-200'
+        className: '!bg-[var(--orange-light)] !text-[var(--orange)] hover:!bg-amber-100 border border-amber-200'
       });
     }
     if (canEdit) {
@@ -967,7 +967,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         label: 'Edit',
         icon: <Edit className="w-5 h-5" />,
         onClick: () => setIsEditing(true),
-        className: 'bg-[var(--accent-light)] text-[var(--accent)] hover:bg-[var(--accent-light)] border border-[var(--accent)]/20'
+        className: '!bg-[var(--accent-light)] !text-[var(--accent)] hover:!bg-[var(--accent-light)] border border-[var(--accent)]/20'
       });
     }
     if (canDelete) {
@@ -980,7 +980,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         isLoading: isDeleting,
         loadingText: 'Deleting...',
         disabled: isDeleting,
-        className: 'bg-[#EF4444] text-white hover:bg-[#DC2626]'
+        className: '!bg-[#EF4444] !text-white hover:!bg-[#DC2626]'
       });
     }
   }
@@ -992,7 +992,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         label: 'View Proof',
         icon: <Eye className="w-5 h-5" />,
         onClick: () => setShowFullImage(true),
-        className: 'bg-[var(--accent-light)] text-[var(--accent)] hover:bg-[var(--accent-light)] border border-[var(--accent)]/20'
+        className: '!bg-[var(--accent-light)] !text-[var(--accent)] hover:!bg-[var(--accent-light)] border border-[var(--accent)]/20'
       });
     }
     if (isManager) {
@@ -1005,7 +1005,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         isLoading: isReopening,
         loadingText: 'Reopening...',
         disabled: isReopening,
-        className: 'bg-[var(--accent)] text-white hover:bg-[#4338CA]'
+        className: '!bg-[var(--accent)] !text-white hover:!bg-[#4338CA]'
       });
     }
     if (canDelete) {
@@ -1018,7 +1018,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         isLoading: isDeleting,
         loadingText: 'Deleting...',
         disabled: isDeleting,
-        className: 'bg-[#EF4444] text-white hover:bg-[#DC2626]'
+        className: '!bg-[#EF4444] !text-white hover:!bg-[#DC2626]'
       });
     }
   }
@@ -1029,7 +1029,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
       label: 'View Proof',
       icon: <Eye className="w-5 h-5" />,
       onClick: () => setShowFullImage(true),
-      className: 'bg-[var(--accent-light)] text-[var(--accent)] hover:bg-[var(--accent-light)] border border-[var(--accent)]/20'
+      className: '!bg-[var(--accent-light)] !text-[var(--accent)] hover:!bg-[var(--accent-light)] border border-[var(--accent)]/20'
     });
   }
 
