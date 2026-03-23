@@ -921,6 +921,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
     editModalVisibleHeight && typeof window !== 'undefined' && window.innerWidth < 640
       ? {
           maxHeight: `${Math.max(editModalVisibleHeight - 8, 320)}px`,
+          marginBottom: `${editModalKeyboardInset}px`,
           paddingBottom: `${editModalKeyboardInset}px`,
         }
       : undefined;
@@ -929,6 +930,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
       ? {
           paddingBottom: `${editModalKeyboardInset + 24}px`,
           scrollPaddingBottom: `${editModalKeyboardInset + 120}px`,
+          overscrollBehavior: 'contain' as const,
         }
       : undefined;
 
@@ -1430,10 +1432,10 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
               </div>
               <label className="flex items-center gap-2 text-sm text-slate-700">
                 <input type="checkbox" checked={editRequirePhoto} onChange={(e) => setEditRequirePhoto(e.target.checked)}
-                  className="w-4 h-4 text-[var(--accent)] rounded focus:ring-[var(--accent)]/20 border-slate-300" />
+                  className="w-5 h-5 text-[var(--accent)] rounded focus:ring-[var(--accent)]/20 border-slate-300" />
                 Require photo proof
               </label>
-              <div className="flex gap-3 pt-2">
+              <div className="sticky bottom-0 z-10 bg-white pt-2 pb-1 flex gap-3 border-t border-slate-100">
                 <button type="button" onClick={() => setIsEditing(false)} disabled={isSavingEdit}
                   className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-xl font-semibold transition-all disabled:opacity-50" style={{ minHeight: 48 }}>
                   Cancel
