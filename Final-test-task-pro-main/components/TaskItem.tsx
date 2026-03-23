@@ -42,7 +42,11 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCou
     return employees.find(e => e.id === id)?.name || null;
   };
 
-  const isOverdue = task.status !== 'completed' && task.deadline != null && Date.now() > task.deadline;
+  const isOverdue =
+    task.status !== 'completed' &&
+    task.status !== 'pending_approval' &&
+    task.deadline != null &&
+    Date.now() > task.deadline;
   const assigneeName = getEmployeeName(task.assignedTo);
   const rawPriority = String((task as any).priority || '').trim().toLowerCase();
   const normalizedPriority = rawPriority === 'high' ? 'High' : rawPriority === 'low' ? 'Low' : 'Medium';
@@ -72,6 +76,7 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCou
     isOverdue ||
     extensionStatus !== 'NONE' ||
     task.status === 'completed' ||
+    task.status === 'pending_approval' ||
     task.status === 'in-progress';
 
   return (
@@ -173,6 +178,11 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCou
               {task.status === 'completed' && !isCompletedView && (
                 <span className="font-ui-mono inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[var(--green-light)] text-[var(--green)] border border-emerald-200">
                   Completed
+                </span>
+              )}
+              {task.status === 'pending_approval' && (
+                <span className="font-ui-mono inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                  Pending Approval
                 </span>
               )}
               {task.status === 'in-progress' && extensionStatus === 'NONE' && !isOverdue && (

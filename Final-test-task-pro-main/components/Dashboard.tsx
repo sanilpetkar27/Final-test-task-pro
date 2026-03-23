@@ -900,6 +900,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
       requirePhoto: boolean;
       taskType: TaskType;
       recurrenceFrequency: RecurrenceFrequency | null;
+      priority: TaskPriority;
     }
   ): Promise<boolean> => {
     const normalizedTaskType: TaskType = updatePayload.taskType === 'recurring' ? 'recurring' : 'one_time';
@@ -924,6 +925,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
     const updateData = {
       description: updatePayload.description.trim(),
       assignedTo: updatePayload.assignedTo,
+      priority: updatePayload.priority === 'High' ? 'High' : 'Medium',
       task_type: normalizedTaskType,
       recurrence_frequency: normalizedRecurrenceFrequency,
       next_recurrence_notification_at: nextRecurrenceNotificationAt,
@@ -1000,6 +1002,10 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
         alert('Request timed out. Please check your connection.');
         return;
       }
+      if (err instanceof Error && err.message === 'Operation timed out') {
+        alert('Request timed out. Please check your connection.');
+        return;
+      }
       alert(`Unexpected Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setDelegatingTaskId(null);
@@ -1022,6 +1028,25 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
   // Update task status in database and local state
   const updateTaskStatus = async (taskId: string, newStatus: 'pending' | 'in-progress' | 'completed', proofUrl?: string) => {
     try {
+      if (newStatus === 'in-progress') {
+        await withTimeout(Promise.resolve(onStartTask(taskId)), 30000);
+        return;
+      }
+
+      if (newStatus === 'completed') {
+        if (proofUrl) {
+          await withTimeout(
+            Promise.resolve(onCompleteTask(taskId, { imageUrl: proofUrl, timestamp: Date.now() })),
+            30000
+          );
+        } else {
+          await withTimeout(Promise.resolve(onCompleteTaskWithoutPhoto(taskId)), 30000);
+        }
+        return;
+      }
+
+      await withTimeout(Promise.resolve(onReopenTask(taskId)), 30000);
+      return;
       console.log(`🔄 Updating task ${taskId} to status: ${newStatus}`, proofUrl ? `with proof: ${proofUrl}` : '');
       
       const updateData: any = { status: newStatus };
@@ -1351,6 +1376,8 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
       status === 'pending' ||
       status === 'in_progress' ||
       status === 'in-progress' ||
+      status === 'pending_approval' ||
+      status === 'pending-approval' ||
       status === 'overdue'
     );
   });
@@ -1364,7 +1391,12 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
   const pendingTaskCount = activeTasks.filter((task) => task.status === 'pending').length;
   const overdueTaskCount = activeTasks.filter((task) => {
     const statusValue = String(task.status || '').toLowerCase();
-    return statusValue === 'overdue' || (statusValue !== 'completed' && task.deadline != null && Date.now() > task.deadline);
+    return statusValue === 'overdue' || (
+      statusValue !== 'completed' &&
+      statusValue !== 'pending_approval' &&
+      task.deadline != null &&
+      Date.now() > task.deadline
+    );
   }).length;
   const currentHour = new Date().getHours();
   const greetingPrefix =

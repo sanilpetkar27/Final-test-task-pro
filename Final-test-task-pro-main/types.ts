@@ -1,5 +1,5 @@
 
-export type TaskStatus = 'pending' | 'in-progress' | 'completed';
+export type TaskStatus = 'pending' | 'in-progress' | 'pending_approval' | 'completed';
 export type TaskType = 'one_time' | 'recurring';
 export type RecurrenceFrequency = 'daily' | 'weekly' | 'monthly';
 export type TaskPriority = 'High' | 'Medium' | 'Low';

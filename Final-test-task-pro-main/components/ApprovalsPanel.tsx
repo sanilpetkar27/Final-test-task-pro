@@ -17,6 +17,8 @@ type ApprovalItem = {
   status: ApprovalStatus;
   created_at?: string | null;
   updated_at?: string | null;
+  company_id?: string | null;
+  task_id?: string | null;
   isEscalated: boolean;
   adminEscalationStatus: 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED';
   escalated_to?: string | null;
@@ -159,6 +161,30 @@ const formatAttachmentSize = (bytes: number): string => {
 
 const sanitizeFileName = (name: string): string => String(name || 'file').replace(/[^a-zA-Z0-9._-]/g, '_');
 
+const HIGH_PRIORITY_COMPLETION_PREFIX = 'High Priority Task Completion:';
+
+const getTaskRecurrenceIntervalMs = (frequency: unknown): number => {
+  if (frequency === 'daily') return 24 * 60 * 60 * 1000;
+  if (frequency === 'weekly') return 7 * 24 * 60 * 60 * 1000;
+  if (frequency === 'monthly') return 30 * 24 * 60 * 60 * 1000;
+  return 0;
+};
+
+const resolveTaskRecurrenceFrequency = (task: any): 'daily' | 'weekly' | 'monthly' | null => {
+  const rawTaskType = String(task?.task_type ?? task?.taskType ?? 'one_time').toLowerCase();
+  if (rawTaskType !== 'recurring') {
+    return null;
+  }
+
+  const rawFrequency = String(task?.recurrence_frequency ?? task?.recurrenceFrequency ?? '').toLowerCase();
+  return rawFrequency === 'daily' || rawFrequency === 'weekly' || rawFrequency === 'monthly'
+    ? rawFrequency
+    : null;
+};
+
+const isHighPriorityTaskCompletionApproval = (approval: ApprovalItem): boolean =>
+  Boolean(approval.task_id) && String(approval.title || '').startsWith(HIGH_PRIORITY_COMPLETION_PREFIX);
+
 const parseDateTimeMs = (value: unknown): number => {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value === 'string' && value.trim()) {
@@ -193,6 +219,8 @@ const approvalsAreEqual = (left: ApprovalItem[], right: ApprovalItem[]): boolean
       a.description !== b.description ||
       a.status !== b.status ||
       a.amount !== b.amount ||
+      a.company_id !== b.company_id ||
+      a.task_id !== b.task_id ||
       a.created_at !== b.created_at ||
       a.updated_at !== b.updated_at
     ) {
@@ -755,7 +783,8 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
     try {
       let query = supabase
         .from('approvals')
-        .select('id, requester_id, approver_id, title, description, amount, status, isEscalated, adminEscalationStatus, escalated_to, created_at, updated_at');
+        .select('id, requester_id, approver_id, title, description, amount, status, company_id, task_id, isEscalated, adminEscalationStatus, escalated_to, created_at, updated_at')
+        .eq('company_id', currentUser.company_id);
 
       let rows: any[] = [];
 
@@ -786,6 +815,8 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         description: String(row.description || ''),
         amount: row.amount === null || row.amount === undefined ? null : Number(row.amount),
         status: normalizeStatus(row.status),
+        company_id: row.company_id ? String(row.company_id) : null,
+        task_id: row.task_id ? String(row.task_id) : null,
         created_at: row.created_at ? String(row.created_at) : null,
         updated_at: row.updated_at ? String(row.updated_at) : null,
         isEscalated: Boolean(row.isEscalated || false),
@@ -1134,8 +1165,9 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
             description: descriptionWithAttachments,
             amount: amountValue,
             status: 'PENDING',
+            company_id: currentUser.company_id,
           })
-          .select('id, requester_id, approver_id, title, description, amount, status, created_at, updated_at')
+          .select('id, requester_id, approver_id, title, description, amount, status, company_id, task_id, created_at, updated_at')
           .single(),
         30000
       );
@@ -1151,6 +1183,8 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
           ? amountValue
           : Number(created.amount),
         status: normalizeStatus(created.status),
+        company_id: created.company_id ? String(created.company_id) : currentUser.company_id,
+        task_id: created.task_id ? String(created.task_id) : null,
         created_at: created.created_at ? String(created.created_at) : new Date().toISOString(),
         updated_at: created.updated_at ? String(created.updated_at) : null,
         isEscalated: false,
@@ -1201,22 +1235,128 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
           )
         )
       );
-    } catch (updateErr: any) {
-      setError(updateErr?.message || 'Failed to update approval status.');
     } finally {
       setUpdatingStatus(false);
     }
   };
 
+  const syncHighPriorityTaskDecision = async (
+    approval: ApprovalItem,
+    decision: 'APPROVED' | 'REJECTED'
+  ): Promise<() => Promise<void>> => {
+    if (!approval.task_id) {
+      return async () => {};
+    }
+
+    const { data: taskRow, error: taskLoadError } = await supabase
+      .from('tasks')
+      .select('id, status, description, assignedTo, assignedBy, proof, remarks, task_type, recurrence_frequency, next_recurrence_notification_at, completedAt, completed_at')
+      .eq('id', approval.task_id)
+      .single();
+
+    if (taskLoadError) {
+      throw taskLoadError;
+    }
+
+    const previousSnapshot = {
+      status: taskRow?.status ?? 'pending_approval',
+      proof: taskRow?.proof ?? null,
+      remarks: Array.isArray(taskRow?.remarks) ? taskRow.remarks : [],
+      completedAt: taskRow?.completedAt ?? taskRow?.completed_at ?? null,
+      nextRecurrenceNotificationAt: taskRow?.next_recurrence_notification_at ?? null,
+    };
+
+    const now = Date.now();
+    const updatePayload: Record<string, unknown> =
+      decision === 'APPROVED'
+        ? {
+            status: 'completed',
+            completedAt: now,
+          }
+        : {
+            status: 'in-progress',
+            completedAt: null,
+            proof: null,
+            remarks: [
+              ...previousSnapshot.remarks,
+              {
+                id: `remark_${approval.task_id}_${now}`,
+                taskId: approval.task_id,
+                employeeId: currentUser.id,
+                employeeName: currentUser.name || 'Manager',
+                remark: `Completion rejected by ${currentUser.name || 'Manager'}. Please review and resubmit.`,
+                timestamp: now,
+              },
+            ],
+          };
+
+    if (decision === 'APPROVED') {
+      const recurrenceFrequency = resolveTaskRecurrenceFrequency(taskRow);
+      const nextRecurrenceNotificationAt = getTaskRecurrenceIntervalMs(recurrenceFrequency)
+        ? now + getTaskRecurrenceIntervalMs(recurrenceFrequency)
+        : null;
+
+      if (nextRecurrenceNotificationAt) {
+        updatePayload.next_recurrence_notification_at = nextRecurrenceNotificationAt;
+      }
+    }
+
+    const { error: taskUpdateError } = await supabase
+      .from('tasks')
+      .update(updatePayload)
+      .eq('id', approval.task_id);
+
+    if (taskUpdateError) {
+      throw taskUpdateError;
+    }
+
+    return async () => {
+      await supabase
+        .from('tasks')
+        .update({
+          status: previousSnapshot.status,
+          proof: previousSnapshot.proof,
+          remarks: previousSnapshot.remarks,
+          completedAt: previousSnapshot.completedAt,
+          next_recurrence_notification_at: previousSnapshot.nextRecurrenceNotificationAt,
+        })
+        .eq('id', approval.task_id as string);
+    };
+  };
+
   const handleApprove = async (approvalId: string): Promise<void> => {
     await runApprovalAction(approvalId, 'approve', async () => {
-      await updateStatus(approvalId, 'APPROVED');
+      const approval = approvals.find((item) => item.id === approvalId) || selectedApproval;
+      if (!approval) return;
+
+      let revertTaskDecision = async () => {};
+      try {
+        if (isHighPriorityTaskCompletionApproval(approval)) {
+          revertTaskDecision = await syncHighPriorityTaskDecision(approval, 'APPROVED');
+        }
+        await updateStatus(approvalId, 'APPROVED');
+      } catch (error) {
+        await revertTaskDecision();
+        throw error;
+      }
     });
   };
 
   const handleReject = async (approvalId: string): Promise<void> => {
     await runApprovalAction(approvalId, 'reject', async () => {
-      await updateStatus(approvalId, 'REJECTED');
+      const approval = approvals.find((item) => item.id === approvalId) || selectedApproval;
+      if (!approval) return;
+
+      let revertTaskDecision = async () => {};
+      try {
+        if (isHighPriorityTaskCompletionApproval(approval)) {
+          revertTaskDecision = await syncHighPriorityTaskDecision(approval, 'REJECTED');
+        }
+        await updateStatus(approvalId, 'REJECTED');
+      } catch (error) {
+        await revertTaskDecision();
+        throw error;
+      }
     });
   };
 

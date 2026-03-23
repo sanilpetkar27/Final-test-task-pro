@@ -32,6 +32,7 @@ interface TaskDetailsScreenProps {
       requirePhoto: boolean;
       taskType: TaskType;
       recurrenceFrequency: RecurrenceFrequency | null;
+      priority: 'High' | 'Medium';
     }
   ) => Promise<boolean>;
   onAddRemark?: (
@@ -155,8 +156,11 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   const [editAssigneeId, setEditAssigneeId] = useState(task.assignedTo || 'none');
   const [editDeadline, setEditDeadline] = useState('');
   const [editRequirePhoto, setEditRequirePhoto] = useState(Boolean(task.requirePhoto));
+  const [editIsHighPriority, setEditIsHighPriority] = useState(false);
   const [editTaskType, setEditTaskType] = useState<TaskType>('one_time');
   const [editRecurrenceFrequency, setEditRecurrenceFrequency] = useState<RecurrenceFrequency | ''>('');
+  const [editModalKeyboardInset, setEditModalKeyboardInset] = useState(0);
+  const [editModalVisibleHeight, setEditModalVisibleHeight] = useState<number | null>(null);
   const [mentionCandidates, setMentionCandidates] = useState<MentionCandidate[]>([]);
   const [mentionMenuOpen, setMentionMenuOpen] = useState(false);
   const [mentionLoading, setMentionLoading] = useState(false);
@@ -166,6 +170,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   const [selectedMentions, setSelectedMentions] = useState<MentionCandidate[]>([]);
   const remarksScrollRef = useRef<HTMLDivElement | null>(null);
   const remarkInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const editModalScrollRef = useRef<HTMLDivElement | null>(null);
 
   const withTimeout = useMemo(
     () =>
@@ -206,13 +211,25 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
     return digits ? `tel:${digits}` : null;
   };
 
-  const isOverdue = task.status !== 'completed' && task.deadline != null && Date.now() > task.deadline;
+  const isOverdue =
+    task.status !== 'completed' &&
+    task.status !== 'pending_approval' &&
+    task.deadline != null &&
+    Date.now() > task.deadline;
   const assigneeName = getEmployeeName(task.assignedTo);
   const assignerName = getEmployeeName(task.assignedBy);
   const rawPriority = String((task as any).priority || '').trim().toLowerCase();
   const normalizedPriority = rawPriority === 'high' ? 'High' : rawPriority === 'low' ? 'Low' : 'Medium';
+  const isPendingApproval = task.status === 'pending_approval';
   const overdueDays = isOverdue && task.deadline ? Math.max(1, Math.ceil((Date.now() - task.deadline) / 86400000)) : 0;
-  const progressValue = task.status === 'completed' ? 100 : task.status === 'in-progress' ? 62 : 24;
+  const progressValue =
+    task.status === 'completed'
+      ? 100
+      : task.status === 'pending_approval'
+      ? 82
+      : task.status === 'in-progress'
+      ? 62
+      : 24;
   const assigneeTelHref = getTelHref(getEmployeeMobile(task.assignedTo));
   const assignerTelHref = getTelHref(getEmployeeMobile(task.assignedBy));
 
@@ -307,10 +324,11 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
     setEditAssigneeId(task.assignedTo || 'none');
     setEditDeadline(formatDateTimeForInput(task.deadline));
     setEditRequirePhoto(Boolean(task.requirePhoto));
+    setEditIsHighPriority(normalizedPriority === 'High');
     setEditTaskType(normalizedTaskType);
     setEditRecurrenceFrequency(normalizedTaskType === 'recurring' ? (normalizedRecurrence || '') : '');
     setIsEditing(false);
-  }, [task.id, task.description, task.assignedTo, task.deadline, task.requirePhoto, normalizedTaskType, normalizedRecurrence]);
+  }, [task.id, task.description, task.assignedTo, task.deadline, task.requirePhoto, normalizedPriority, normalizedTaskType, normalizedRecurrence]);
 
   useEffect(() => {
     if (remarksScrollRef.current) {
@@ -398,6 +416,56 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
     setActiveMentionIndex(0);
     setSelectedMentions([]);
   }, [task.id]);
+
+  useEffect(() => {
+    if (!isEditing || typeof window === 'undefined') {
+      setEditModalKeyboardInset(0);
+      setEditModalVisibleHeight(null);
+      return;
+    }
+
+    const isMobileViewport = () => window.innerWidth < 640;
+    const viewport = window.visualViewport;
+
+    const syncViewportInsets = () => {
+      if (!isMobileViewport() || !viewport) {
+        setEditModalKeyboardInset(0);
+        setEditModalVisibleHeight(null);
+        return;
+      }
+
+      const keyboardInset = Math.max(
+        0,
+        Math.round(window.innerHeight - viewport.height - viewport.offsetTop)
+      );
+
+      setEditModalKeyboardInset(keyboardInset);
+      setEditModalVisibleHeight(Math.round(viewport.height + viewport.offsetTop));
+    };
+
+    const handleFocusIn = (event: FocusEvent) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (!editModalScrollRef.current?.contains(target)) return;
+
+      window.setTimeout(() => {
+        target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }, 80);
+    };
+
+    syncViewportInsets();
+    viewport?.addEventListener('resize', syncViewportInsets);
+    viewport?.addEventListener('scroll', syncViewportInsets);
+    window.addEventListener('resize', syncViewportInsets);
+    window.addEventListener('focusin', handleFocusIn);
+
+    return () => {
+      viewport?.removeEventListener('resize', syncViewportInsets);
+      viewport?.removeEventListener('scroll', syncViewportInsets);
+      window.removeEventListener('resize', syncViewportInsets);
+      window.removeEventListener('focusin', handleFocusIn);
+    };
+  }, [isEditing]);
 
   // --- Handlers ---
   const handlePhotoUpload = async (file: File) => {
@@ -624,6 +692,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
       requirePhoto: editRequirePhoto,
       taskType: editTaskType,
       recurrenceFrequency: rec,
+      priority: editIsHighPriority ? 'High' : 'Medium',
     });
     setIsSavingEdit(false);
     if (ok) setIsEditing(false);
@@ -811,10 +880,57 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
     }
   }
 
+  if (task.status === 'pending_approval' && task.proof) {
+    actions.push({
+      key: 'view-proof',
+      label: 'View Proof',
+      icon: <Eye className="w-5 h-5" />,
+      onClick: () => setShowFullImage(true),
+      className: 'bg-[var(--accent-light)] text-[var(--accent)] hover:bg-[var(--accent-light)] border border-[var(--accent)]/20'
+    });
+  }
+
   // --- Status label ---
-  const statusLabel = task.status === 'completed' ? 'Completed' : task.status === 'in-progress' ? 'In Progress' : 'Pending';
-  const statusColor = task.status === 'completed' ? 'text-emerald-600 bg-emerald-50 border-emerald-200' : task.status === 'in-progress' ? 'text-[var(--accent)] bg-[var(--accent-light)] border-[var(--accent)]/20' : isOverdue ? 'text-red-600 bg-red-50 border-red-200' : 'text-slate-600 bg-slate-100 border-slate-200';
-  const heroAccentClass = task.status === 'completed' ? 'border-l-[var(--green)] bg-[var(--green-light)]/55' : isOverdue ? 'border-l-[var(--red)] bg-[var(--red-light)]/60' : 'border-l-[var(--accent)] bg-white';
+  const statusLabel =
+    task.status === 'completed'
+      ? 'Completed'
+      : task.status === 'pending_approval'
+      ? 'Pending Approval'
+      : task.status === 'in-progress'
+      ? 'In Progress'
+      : 'Pending';
+  const statusColor =
+    task.status === 'completed'
+      ? 'text-emerald-600 bg-emerald-50 border-emerald-200'
+      : task.status === 'pending_approval'
+      ? 'text-amber-700 bg-amber-50 border-amber-200'
+      : task.status === 'in-progress'
+      ? 'text-[var(--accent)] bg-[var(--accent-light)] border-[var(--accent)]/20'
+      : isOverdue
+      ? 'text-red-600 bg-red-50 border-red-200'
+      : 'text-slate-600 bg-slate-100 border-slate-200';
+  const heroAccentClass =
+    task.status === 'completed'
+      ? 'border-l-[var(--green)] bg-[var(--green-light)]/55'
+      : task.status === 'pending_approval'
+      ? 'border-l-[var(--orange)] bg-[var(--orange-light)]/60'
+      : isOverdue
+      ? 'border-l-[var(--red)] bg-[var(--red-light)]/60'
+      : 'border-l-[var(--accent)] bg-white';
+  const mobileEditModalStyle =
+    editModalVisibleHeight && typeof window !== 'undefined' && window.innerWidth < 640
+      ? {
+          maxHeight: `${Math.max(editModalVisibleHeight - 8, 320)}px`,
+          paddingBottom: `${editModalKeyboardInset}px`,
+        }
+      : undefined;
+  const mobileEditModalBodyStyle =
+    editModalKeyboardInset > 0
+      ? {
+          paddingBottom: `${editModalKeyboardInset + 24}px`,
+          scrollPaddingBottom: `${editModalKeyboardInset + 120}px`,
+        }
+      : undefined;
 
   return (
     <div className="fixed inset-x-0 top-0 bottom-24 z-30 flex items-end justify-center bg-slate-900/40 md:inset-0 md:z-50 md:items-center md:p-4">
@@ -920,6 +1036,12 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
               <span className={`font-ui-mono text-xs font-medium uppercase px-2.5 py-0.5 rounded-full border ml-1 ${statusColor}`}>{statusLabel}</span>
             </div>
 
+            {isPendingApproval && (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                Task completion is waiting for manager approval. It will move to completed only after the linked approval request is approved.
+              </div>
+            )}
+
             {/* Recurrence badge */}
             {normalizedTaskType === 'recurring' && (
               <div className="flex items-center gap-3 py-3 border-b border-[var(--border)]">
@@ -967,18 +1089,21 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
             <div className={`grid gap-3 ${actions.length <= 2 ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3'}`}>
               {actions.map((action) =>
                 action.useLoadingButton ? (
-                  <LoadingButton
-                    key={action.key}
-                    type="button"
+	                  <LoadingButton
+	                    key={action.key}
+	                    type="button"
                     onClick={action.onClick}
                     isLoading={Boolean(action.isLoading)}
                     loadingText={action.loadingText}
                     disabled={action.disabled}
                     variant="primary"
-                    className={`flex flex-col items-center justify-center gap-1.5 rounded-2xl py-3 px-2 font-bold text-sm transition-all active:scale-95 ${action.className} ${action.key.includes('complete') ? 'shadow-[0_8px_20px_rgba(16,185,129,0.24)]' : action.key === 'delegate' || action.key === 'reopen' ? 'shadow-[0_8px_20px_rgba(79,70,229,0.22)]' : ''}`}
-              style={{ backgroundColor: action.key.includes('complete') ? '#10B981' : action.key === 'delete' ? '#EF4444' : undefined, color: action.key.includes('complete') || action.key === 'delete' ? 'white' : undefined }}
-                    style={{ minHeight: 64 }}
-                  >
+	                    className={`flex flex-col items-center justify-center gap-1.5 rounded-2xl py-3 px-2 font-bold text-sm transition-all active:scale-95 ${action.className} ${action.key.includes('complete') ? 'shadow-[0_8px_20px_rgba(16,185,129,0.24)]' : action.key === 'delegate' || action.key === 'reopen' ? 'shadow-[0_8px_20px_rgba(79,70,229,0.22)]' : ''}`}
+	                    style={{
+	                      minHeight: 64,
+	                      backgroundColor: action.key.includes('complete') ? '#10B981' : action.key === 'delete' ? '#EF4444' : undefined,
+	                      color: action.key.includes('complete') || action.key === 'delete' ? 'white' : undefined,
+	                    }}
+	                  >
                     {action.icon}
                     <span className="text-xs font-bold uppercase tracking-wide">{action.label}</span>
                   </LoadingButton>
@@ -1229,7 +1354,10 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
       {isEditing && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => !isSavingEdit && setIsEditing(false)} />
-          <div className="relative bg-white w-full max-w-lg max-h-[90vh] rounded-t-3xl sm:rounded-2xl shadow-xl overflow-y-auto">
+          <div
+            className="relative bg-white w-full max-w-lg max-h-[90vh] rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden flex flex-col"
+            style={mobileEditModalStyle}
+          >
             <div className="sticky top-0 bg-white border-b border-slate-200 p-4 sm:p-5 flex items-center justify-between z-10">
               <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                 <Edit className="w-5 h-5 text-[var(--accent)]" />
@@ -1241,7 +1369,11 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
                 </button>
               )}
             </div>
-            <div className="p-4 sm:p-6 space-y-4">
+            <div
+              ref={editModalScrollRef}
+              className="p-4 sm:p-6 space-y-4 overflow-y-auto"
+              style={mobileEditModalBodyStyle}
+            >
               <textarea
                 value={editDescription}
                 onChange={(e) => setEditDescription(e.target.value)}
@@ -1283,6 +1415,18 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
                 </div>
                 <input type="datetime-local" value={editDeadline} onChange={(e) => setEditDeadline(e.target.value)}
                   className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-white text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20" />
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="editHighPriority"
+                  checked={editIsHighPriority}
+                  onChange={(e) => setEditIsHighPriority(e.target.checked)}
+                  className="w-5 h-5 text-red-500 rounded focus:ring-red-300 border-slate-300"
+                />
+                <label htmlFor="editHighPriority" className="text-sm text-slate-700">
+                  Mark as High Priority
+                </label>
               </div>
               <label className="flex items-center gap-2 text-sm text-slate-700">
                 <input type="checkbox" checked={editRequirePhoto} onChange={(e) => setEditRequirePhoto(e.target.checked)}

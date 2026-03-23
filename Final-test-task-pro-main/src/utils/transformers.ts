@@ -4,7 +4,7 @@ import { DealershipTask, TaskType, RecurrenceFrequency, TaskExtensionStatus, Tas
 export interface DatabaseTask {
   id: string;
   description: string;
-  status: 'pending' | 'in-progress' | 'completed';
+  status: 'pending' | 'in-progress' | 'pending_approval' | 'completed';
   priority?: TaskPriority | string | null;
   // Recurrence fields may come from either snake_case or camelCase.
   task_type?: TaskType;

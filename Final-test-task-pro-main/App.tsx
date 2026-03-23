@@ -9,7 +9,7 @@ import ErrorBoundary from './src/components/ErrorBoundary';
 import { supabase, supabaseAuth } from './src/lib/supabase';
 import { useNotificationSetup } from './src/hooks/useNotificationSetup';
 import { transformTaskToApp, transformTaskToDB, transformTasksToApp, DatabaseTask } from './src/utils/transformers';
-import { sendTaskAssignmentNotification } from './src/utils/pushNotifications';
+import { sendTaskAssignmentNotification, sendTaskCompletionNotification } from './src/utils/pushNotifications';
 import { Toaster, toast } from 'sonner';
 import {
   ClipboardList,
@@ -70,6 +70,11 @@ const resolveRecurringFrequencyForTask = (
   return null;
 };
 
+const normalizeTaskPriority = (task: DealershipTask | undefined): TaskPriority => {
+  const rawPriority = String((task as any)?.priority || '').trim().toLowerCase();
+  return rawPriority === 'high' ? 'High' : rawPriority === 'low' ? 'Low' : 'Medium';
+};
+
 const normalizeRole = (role: unknown): Employee['role'] => {
   return role === 'owner' || role === 'manager' || role === 'staff' || role === 'super_admin'
     ? role
@@ -81,6 +86,9 @@ const getRoleLabel = (role: Employee['role']): string => {
   if (role === 'manager') return 'Manager';
   return 'Staff';
 };
+
+const isManagerLevelRole = (role: unknown): boolean =>
+  role === 'manager' || role === 'owner' || role === 'super_admin';
 
 const canAccessTeamTab = (role: Employee['role'] | null | undefined): boolean => {
   return role === 'manager' || role === 'super_admin' || role === 'owner';
@@ -295,6 +303,50 @@ const getManagerIdsForStaff = (
 
   return Array.from(ids);
 };
+
+const resolveTaskCompletionApproverId = (
+  task: DealershipTask,
+  currentUser: Employee,
+  employees: Employee[],
+  staffManagerLinks: StaffManagerLink[]
+): string | null => {
+  const candidateIds: string[] = [];
+  const pushCandidate = (candidateId?: string | null) => {
+    const normalized = String(candidateId || '').trim();
+    if (!normalized || normalized === currentUser.id || candidateIds.includes(normalized)) {
+      return;
+    }
+    candidateIds.push(normalized);
+  };
+
+  const assigner = employees.find((employee) => employee.id === task.assignedBy);
+  if (assigner && isManagerLevelRole(assigner.role)) {
+    pushCandidate(assigner.id);
+  }
+
+  getManagerIdsForStaff(currentUser.id, staffManagerLinks, currentUser.manager_id || null).forEach(pushCandidate);
+
+  employees
+    .filter((employee) => isManagerLevelRole(employee.role))
+    .sort((left, right) => left.name.localeCompare(right.name))
+    .forEach((employee) => pushCandidate(employee.id));
+
+  return candidateIds[0] || null;
+};
+
+const createTaskRemarkEntry = (
+  taskId: string,
+  employee: Pick<Employee, 'id' | 'name'>,
+  remark: string,
+  timestamp: number = Date.now()
+): TaskRemark => ({
+  id: `remark_${taskId}_${timestamp}`,
+  taskId,
+  employeeId: employee.id,
+  employeeName: employee.name,
+  remark,
+  timestamp,
+});
 
 const scopeEmployeesForCurrentUser = (
   employeeRows: Employee[],
@@ -1517,6 +1569,191 @@ const App: React.FC = () => {
 
   // --- 4. CORE ACTIONS (Add, Delete, Complete) ---
 
+  const awardTaskCompletionPoints = async (task: DealershipTask | undefined): Promise<void> => {
+    const assigneeId = String(task?.assignedTo || '').trim();
+    if (!assigneeId) {
+      return;
+    }
+
+    const { error: pointsError } = await supabase.rpc('increment_points', {
+      user_id: assigneeId,
+      amount: 10,
+    });
+
+    if (pointsError) {
+      console.error('Failed to award task completion points:', pointsError);
+    }
+  };
+
+  const notifyTaskCreatorOfCompletion = async (task: DealershipTask | undefined, completedByName: string): Promise<void> => {
+    const assignedById = String(task?.assignedBy || '').trim();
+    if (!task || !assignedById) {
+      return;
+    }
+
+    await sendTaskCompletionNotification(task.description, completedByName, assignedById);
+  };
+
+  const requestHighPriorityTaskClosure = async (
+    task: DealershipTask,
+    completion: { proof?: { imageUrl: string; timestamp: number } | null }
+  ): Promise<boolean> => {
+    if (!currentUser) {
+      return false;
+    }
+
+    const approverId = resolveTaskCompletionApproverId(task, currentUser, employees, staffManagerLinks);
+    if (!approverId) {
+      toast.error('No manager is assigned to approve this high priority task.');
+      return false;
+    }
+
+    const companyId = String(task.company_id || currentUser.company_id || DEFAULT_COMPANY_ID).trim() || DEFAULT_COMPANY_ID;
+    const approvalTitle = `High Priority Task Completion: ${task.description}`;
+    const approvalDescription = `Staff ${currentUser.name} has completed high priority task and is requesting closure approval`;
+
+    const { data: existingApproval, error: existingApprovalError } = await supabase
+      .from('approvals')
+      .select('id')
+      .eq('task_id', task.id)
+      .in('status', ['PENDING', 'NEEDS_REVIEW'])
+      .maybeSingle();
+
+    if (existingApprovalError) {
+      console.error('Failed to check for an existing completion approval:', existingApprovalError);
+    }
+
+    if (existingApproval?.id) {
+      if (task.status !== 'pending_approval') {
+        const { error: existingTaskUpdateError } = await supabase
+          .from('tasks')
+          .update({
+            status: 'pending_approval' as TaskStatus,
+            completedAt: null,
+            proof: completion.proof ?? task.proof ?? null,
+          })
+          .eq('id', task.id);
+
+        if (existingTaskUpdateError) {
+          toast.error(`Failed to submit approval request: ${existingTaskUpdateError.message}`);
+          return false;
+        }
+
+        setTasks((prev) =>
+          prev.map((existingTask) =>
+            existingTask.id === task.id
+              ? {
+                  ...existingTask,
+                  status: 'pending_approval' as TaskStatus,
+                  completedAt: undefined,
+                  proof: completion.proof ?? existingTask.proof,
+                }
+              : existingTask
+          )
+        );
+      }
+
+      toast.success('Task submitted for manager approval. You will be notified once approved.');
+      return true;
+    }
+
+    const { data: createdApproval, error: approvalError } = await supabase
+      .from('approvals')
+      .insert({
+        requester_id: currentUser.id,
+        approver_id: approverId,
+        title: approvalTitle,
+        description: approvalDescription,
+        amount: null,
+        status: 'PENDING',
+        company_id: companyId,
+        task_id: task.id,
+      })
+      .select('id')
+      .single();
+
+    if (approvalError) {
+      console.error('Failed to create high priority completion approval:', approvalError);
+      toast.error(`Failed to submit approval request: ${approvalError.message}`);
+      return false;
+    }
+
+    const taskUpdatePayload: Record<string, unknown> = {
+      status: 'pending_approval' as TaskStatus,
+      completedAt: null,
+      proof: completion.proof ?? task.proof ?? null,
+    };
+
+    const { error: taskUpdateError } = await supabase
+      .from('tasks')
+      .update(taskUpdatePayload)
+      .eq('id', task.id);
+
+    if (taskUpdateError) {
+      console.error('Failed to mark task as pending approval:', taskUpdateError);
+      await supabase.from('approvals').delete().eq('id', createdApproval.id);
+      toast.error(`Failed to submit approval request: ${taskUpdateError.message}`);
+      return false;
+    }
+
+    setTasks((prev) =>
+      prev.map((existingTask) =>
+        existingTask.id === task.id
+          ? {
+              ...existingTask,
+              status: 'pending_approval' as TaskStatus,
+              completedAt: undefined,
+              proof: completion.proof ?? existingTask.proof,
+            }
+          : existingTask
+      )
+    );
+
+    toast.success('Task submitted for manager approval. You will be notified once approved.');
+    return true;
+  };
+
+  const finalizeTaskCompletion = async (
+    task: DealershipTask,
+    completion: { proof?: { imageUrl: string; timestamp: number } | null }
+  ): Promise<boolean> => {
+    const completionTimestamp = completion.proof?.timestamp || Date.now();
+    const recurringFrequency = resolveRecurringFrequencyForTask(task);
+    const nextRecurrenceNotificationAt = recurringFrequency
+      ? computeNextRecurrenceNotificationAt(completionTimestamp, recurringFrequency)
+      : null;
+
+    const completionPayload: Record<string, unknown> = {
+      status: 'completed' as TaskStatus,
+      completedAt: completionTimestamp,
+      proof: completion.proof ?? task.proof ?? null,
+    };
+
+    if (nextRecurrenceNotificationAt) {
+      completionPayload.next_recurrence_notification_at = nextRecurrenceNotificationAt;
+    }
+
+    const { error: taskError } = await supabase
+      .from('tasks')
+      .update(completionPayload)
+      .eq('id', task.id);
+
+    if (taskError) {
+      console.error('Error completing task:', taskError);
+      toast.error(`Failed to complete task: ${taskError.message}`);
+      return false;
+    }
+
+    setTasks((prev) => prev.filter((existingTask) => existingTask.id !== task.id));
+
+    await awardTaskCompletionPoints(task);
+    if (currentUser) {
+      void notifyTaskCreatorOfCompletion(task, currentUser.name);
+    }
+
+    return true;
+  };
+
   const addTask = async (
     description: string,
     assignedTo?: string,
@@ -1713,36 +1950,17 @@ const App: React.FC = () => {
   const completeTask = async (taskId: string, proofData: { imageUrl: string, timestamp: number }) => {
     try {
       const task = tasks.find(t => t.id === taskId);
-      const recurringFrequency = resolveRecurringFrequencyForTask(task);
-      const nextRecurrenceNotificationAt = recurringFrequency
-        ? computeNextRecurrenceNotificationAt(proofData.timestamp, recurringFrequency)
-        : null;
-
-      const completionPayload: Record<string, any> = {
-        status: 'completed' as TaskStatus,
-        completedAt: proofData.timestamp,
-        proof: proofData
-      };
-
-      if (nextRecurrenceNotificationAt) {
-        completionPayload.next_recurrence_notification_at = nextRecurrenceNotificationAt;
-      }
-
-      // Update task in Supabase
-      const { error: taskError } = await supabase
-        .from('tasks')
-        .update(completionPayload)
-        .eq('id', taskId);
-
-      if (taskError) {
-        console.error('Error completing task:', taskError);
-        toast.error(`Failed to complete task: ${taskError.message}`);
+      if (!task) {
+        toast.error('Task not found.');
         return;
       }
 
-      // Update local state (hide completed tasks immediately)
-      setTasks(prev => prev.filter(t => t.id !== taskId));
+      if (currentUser?.role === 'staff' && normalizeTaskPriority(task) === 'High') {
+        await requestHighPriorityTaskClosure(task, { proof: proofData });
+        return;
+      }
 
+      await finalizeTaskCompletion(task, { proof: proofData });
     } catch (error) {
       console.error('Error completing task:', error);
       toast.error(`Failed to complete task: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -1751,37 +1969,18 @@ const App: React.FC = () => {
 
   const completeTaskWithoutPhoto = async (taskId: string) => {
     try {
-      const completionTimestamp = Date.now();
       const task = tasks.find(t => t.id === taskId);
-      const recurringFrequency = resolveRecurringFrequencyForTask(task);
-      const nextRecurrenceNotificationAt = recurringFrequency
-        ? computeNextRecurrenceNotificationAt(completionTimestamp, recurringFrequency)
-        : null;
-
-      const completionPayload: Record<string, any> = {
-        status: 'completed' as TaskStatus,
-        completedAt: completionTimestamp
-      };
-
-      if (nextRecurrenceNotificationAt) {
-        completionPayload.next_recurrence_notification_at = nextRecurrenceNotificationAt;
-      }
-
-      // Update task in Supabase
-      const { error: taskError } = await supabase
-        .from('tasks')
-        .update(completionPayload)
-        .eq('id', taskId);
-
-      if (taskError) {
-        console.error('Error completing task:', taskError);
-        toast.error(`Failed to complete task: ${taskError.message}`);
+      if (!task) {
+        toast.error('Task not found.');
         return;
       }
 
-      // Update local state (hide completed tasks immediately)
-      setTasks(prev => prev.filter(t => t.id !== taskId));
+      if (currentUser?.role === 'staff' && normalizeTaskPriority(task) === 'High') {
+        await requestHighPriorityTaskClosure(task, { proof: null });
+        return;
+      }
 
+      await finalizeTaskCompletion(task, { proof: null });
     } catch (error) {
       console.error('Error completing task:', error);
       toast.error(`Failed to complete task: ${error instanceof Error ? error.message : 'Unknown error'}`);
