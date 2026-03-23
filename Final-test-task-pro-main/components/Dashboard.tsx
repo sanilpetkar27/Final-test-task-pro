@@ -1267,7 +1267,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
             ...mentionedUserIds,
             ...mentionedDisplayNames.flatMap((displayName) =>
               employees
-                .filter((employee) => String(employee.name || '').trim().toLowerCase() === displayName.toLowerCase())
+                .filter((employee) => String(employee.name || '').trim().toLowerCase() === String(displayName || '').trim().toLowerCase())
                 .map((employee) => employee.id)
             ),
           ])
