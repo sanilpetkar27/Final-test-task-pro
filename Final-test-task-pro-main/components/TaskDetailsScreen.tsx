@@ -917,12 +917,17 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
       : isOverdue
       ? 'border-l-[var(--red)] bg-[var(--red-light)]/60'
       : 'border-l-[var(--accent)] bg-white';
+  const mobileEditOverlayStyle =
+    editModalVisibleHeight && typeof window !== 'undefined' && window.innerWidth < 640
+      ? {
+          paddingTop: '16px',
+          paddingBottom: `${editModalKeyboardInset + 16}px`,
+        }
+      : undefined;
   const mobileEditModalStyle =
     editModalVisibleHeight && typeof window !== 'undefined' && window.innerWidth < 640
       ? {
-          maxHeight: `${Math.max(editModalVisibleHeight - 8, 320)}px`,
-          marginBottom: `${editModalKeyboardInset}px`,
-          paddingBottom: `${editModalKeyboardInset}px`,
+          maxHeight: `${Math.max(editModalVisibleHeight - 32, 320)}px`,
         }
       : undefined;
   const mobileEditModalBodyStyle =
@@ -1354,10 +1359,13 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
 
       {/* ─── Edit Task Modal ─── */}
       {isEditing && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={mobileEditOverlayStyle}
+        >
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => !isSavingEdit && setIsEditing(false)} />
           <div
-            className="relative bg-white w-full max-w-lg max-h-[90vh] rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden flex flex-col"
+            className="relative bg-white w-full max-w-lg sm:max-w-xl max-h-[90vh] rounded-2xl shadow-xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95"
             style={mobileEditModalStyle}
           >
             <div className="sticky top-0 bg-white border-b border-slate-200 p-4 sm:p-5 flex items-center justify-between z-10">
