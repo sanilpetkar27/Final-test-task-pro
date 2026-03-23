@@ -1189,9 +1189,6 @@ const App: React.FC = () => {
           }
 
           const payloadRow = (payload.new || {}) as DatabaseTask;
-          if (isCompletedStatus(payloadRow.status)) {
-            return;
-          }
           if (!isTaskVisibleToUser(payloadRow, currentUser, taskScopeIdsForRealtime)) {
             triggerRealtimeTasksRefetch();
             return;
@@ -1268,10 +1265,6 @@ const App: React.FC = () => {
           }
 
           const payloadRow = (payload.new || {}) as DatabaseTask;
-          if (isCompletedStatus(payloadRow.status)) {
-            setTasks((prev) => prev.filter((task) => task.id !== payloadTaskId));
-            return;
-          }
           if (!isTaskVisibleToUser(payloadRow, currentUser, taskScopeIdsForRealtime)) {
             triggerRealtimeTasksRefetch();
             return;
@@ -1742,7 +1735,22 @@ const App: React.FC = () => {
       return false;
     }
 
-    setTasks((prev) => prev.filter((existingTask) => existingTask.id !== task.id));
+    const completedTaskPatch: Partial<DealershipTask> = {
+      status: 'completed' as TaskStatus,
+      completedAt: completionTimestamp,
+      proof: completion.proof ?? task.proof ?? undefined,
+    };
+
+    if (nextRecurrenceNotificationAt) {
+      completedTaskPatch.nextRecurrenceNotificationAt = nextRecurrenceNotificationAt;
+    }
+
+    setTasks((prev) =>
+      upsertTaskInPlace(prev, {
+        ...task,
+        ...completedTaskPatch,
+      } as DealershipTask)
+    );
 
     await awardTaskCompletionPoints(task);
     if (currentUser) {
