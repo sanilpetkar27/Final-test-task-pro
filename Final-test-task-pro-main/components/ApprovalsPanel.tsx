@@ -1282,7 +1282,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                 taskId: approval.task_id,
                 employeeId: currentUser.id,
                 employeeName: currentUser.name || 'Manager',
-                remark: `Completion rejected by ${currentUser.name || 'Manager'}. Please review and resubmit.`,
+                remark: 'Completion rejected. Please review.',
                 timestamp: now,
               },
             ],

@@ -1602,14 +1602,14 @@ const App: React.FC = () => {
       return false;
     }
 
-    const approverId = resolveTaskCompletionApproverId(task, currentUser, employees, staffManagerLinks);
+    const approverId = String(task.assignedBy || '').trim();
     if (!approverId) {
-      toast.error('No manager is assigned to approve this high priority task.');
+      toast.error('No approver is assigned to this high priority task.');
       return false;
     }
 
     const approvalTitle = `High Priority Task Completion: ${task.description}`;
-    const approvalDescription = `Staff ${currentUser.name} has completed high priority task and is requesting closure approval`;
+    const approvalDescription = `${currentUser.name} completed a high priority task and is requesting closure approval`;
 
     const { data: existingApproval, error: existingApprovalError } = await supabase
       .from('approvals')
@@ -1652,7 +1652,7 @@ const App: React.FC = () => {
         );
       }
 
-      toast.success('Task submitted for manager approval. You will be notified once approved.');
+      toast.success('Sent for approval');
       return true;
     }
 
@@ -1707,7 +1707,7 @@ const App: React.FC = () => {
       )
     );
 
-    toast.success('Task submitted for manager approval. You will be notified once approved.');
+    toast.success('Sent for approval');
     return true;
   };
 
@@ -1953,7 +1953,10 @@ const App: React.FC = () => {
         return;
       }
 
-      if (currentUser?.role === 'staff' && normalizeTaskPriority(task) === 'High') {
+      if (
+        normalizeTaskPriority(task) === 'High' &&
+        (currentUser?.role === 'staff' || currentUser?.role === 'manager')
+      ) {
         await requestHighPriorityTaskClosure(task, { proof: proofData });
         return;
       }
@@ -1973,7 +1976,10 @@ const App: React.FC = () => {
         return;
       }
 
-      if (currentUser?.role === 'staff' && normalizeTaskPriority(task) === 'High') {
+      if (
+        normalizeTaskPriority(task) === 'High' &&
+        (currentUser?.role === 'staff' || currentUser?.role === 'manager')
+      ) {
         await requestHighPriorityTaskClosure(task, { proof: null });
         return;
       }

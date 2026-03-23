@@ -318,6 +318,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
     return groups;
   }, [normalizedRemarks]);
 
+  const isHighPriorityTask = normalizedPriority === 'High';
   const hasCompletionRemark = useMemo(
     () =>
       normalizedRemarks.some((remark) => {
@@ -479,7 +480,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
 
   // --- Handlers ---
   const handlePhotoUpload = async (file: File) => {
-    if (!hasCompletionRemark) {
+    if (!isHighPriorityTask && !hasCompletionRemark) {
       alert('Add a remark before completing this task.');
       return;
     }
@@ -506,7 +507,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   };
 
   const triggerPhotoUpload = () => {
-    if (!hasCompletionRemark) {
+    if (!isHighPriorityTask && !hasCompletionRemark) {
       alert('Add a remark before completing this task.');
       return;
     }
@@ -666,7 +667,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   };
 
   const handleCompleteWithoutPhoto = async () => {
-    if (!hasCompletionRemark) {
+    if (!isHighPriorityTask && !hasCompletionRemark) {
       alert('Add a remark before completing this task.');
       return;
     }
