@@ -63,6 +63,8 @@ type PendingAttachment = {
 const LOCKED_STATUSES: ApprovalStatus[] = ['APPROVED', 'REJECTED'];
 const ATTACHMENT_LINE_PREFIX = '__ATTACHMENT__|';
 const APPROVAL_ATTACHMENT_BUCKET = 'task-proofs';
+const HIGH_PRIORITY_COMPLETION_PREFIX = 'High Priority Task Completion:';
+const EXTENSION_REQUEST_PREFIX = 'Deadline Extension Request:';
 
 const normalizeStatus = (value: unknown): ApprovalStatus => {
   if (value === 'PENDING' || value === 'NEEDS_REVIEW' || value === 'APPROVED' || value === 'REJECTED') {
@@ -234,6 +236,12 @@ const getActionErrorMessage = (error: unknown, fallback = 'Operation failed.'): 
   }
   return fallback;
 };
+
+const isHighPriorityTaskCompletionApproval = (approval: ApprovalItem): boolean =>
+  Boolean(approval.task_id) && String(approval.title || '').startsWith(HIGH_PRIORITY_COMPLETION_PREFIX);
+
+const isTaskExtensionApproval = (approval: ApprovalItem): boolean =>
+  Boolean(approval.task_id) && String(approval.title || '').startsWith(EXTENSION_REQUEST_PREFIX);
 
 const threadsAreEqual = (left: ApprovalThreadView[], right: ApprovalThreadView[]): boolean => {
   if (left.length !== right.length) return false;
@@ -1336,16 +1344,39 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
     if (!approval.task_id) {
       return;
     }
-    const updatePayload: Record<string, unknown> =
-      decision === 'APPROVED'
-        ? {
-            status: 'completed',
-            completedAt: new Date().toISOString(),
-          }
-        : {
-            status: 'in-progress',
-            completedAt: null,
-          };
+    let updatePayload: Record<string, unknown>;
+
+    if (isTaskExtensionApproval(approval)) {
+      const linkedTask = approval.linkedTask;
+      const requestedDueDate =
+        linkedTask?.requestedDueDate ??
+        (typeof (linkedTask as any)?.requested_due_date === 'number' ? (linkedTask as any).requested_due_date : null);
+
+      updatePayload =
+        decision === 'APPROVED'
+          ? {
+              extension_status: 'APPROVED',
+              extensionStatus: 'APPROVED',
+              ...(requestedDueDate ? { deadline: requestedDueDate } : {}),
+            }
+          : {
+              extension_status: 'REJECTED',
+              extensionStatus: 'REJECTED',
+            };
+    } else if (isHighPriorityTaskCompletionApproval(approval)) {
+      updatePayload =
+        decision === 'APPROVED'
+          ? {
+              status: 'completed',
+              completedAt: Date.now(),
+            }
+          : {
+              status: 'in-progress',
+              completedAt: null,
+            };
+    } else {
+      return;
+    }
 
     console.log('[Approvals] Updating linked task after approval decision', {
       approvalId: approval.id,
@@ -1445,19 +1476,9 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
         taskId: approval.task_id,
       });
       await updateStatus(approvalId, 'APPROVED');
-      if (approval.task_id) {
+      if (approval.task_id && (isHighPriorityTaskCompletionApproval(approval) || isTaskExtensionApproval(approval))) {
         console.log(approval);
-        const { error: taskUpdateError } = await supabase
-          .from('tasks')
-          .update({
-            status: 'completed',
-            completedAt: Date.now(),
-          })
-          .eq('id', approval.task_id);
-
-        if (taskUpdateError) {
-          console.error('[Approvals] Failed to update approved linked task:', taskUpdateError);
-        }
+        await updateLinkedTaskDecision(approval, 'APPROVED');
       }
       console.log('[Approvals] Approve flow completed', {
         approvalId,
@@ -1472,7 +1493,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
       const approval = approvals.find((item) => item.id === approvalId) || selectedApproval;
       if (!approval) return;
       await updateStatus(approvalId, 'REJECTED');
-      if (approval.task_id) {
+      if (approval.task_id && (isHighPriorityTaskCompletionApproval(approval) || isTaskExtensionApproval(approval))) {
         await updateLinkedTaskDecision(approval, 'REJECTED');
       }
       alert('Approval rejected successfully.');

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { DealershipTask, Employee, UserRole, TaskStatus, TaskType, RecurrenceFrequency, TaskPriority, TaskRemark } from '../types';
 import { supabase } from '../src/lib/supabase';
-import { sendTaskCompletionNotification } from '../src/utils/pushNotifications';
+import { sendTaskCompletionNotification, sendTaskMentionNotification } from '../src/utils/pushNotifications';
 import TaskItem from './TaskItem';
 import TaskDetailsScreen from './TaskDetailsScreen';
 import CompletionModal from './CompletionModal';
@@ -75,6 +75,11 @@ const stripTaskNextRecurrenceField = (payload: Record<string, any>) => {
   delete legacyPayload.next_recurrence_notification_at;
   delete legacyPayload.nextRecurrenceNotificationAt;
   return legacyPayload;
+};
+
+const isMissingColumnError = (error: any): boolean => {
+  const message = String(error?.message || '').toLowerCase();
+  return (message.includes('column') && message.includes('does not exist')) || message.includes('schema cache');
 };
 
 const DAILY_MS = 24 * 60 * 60 * 1000;
@@ -1257,34 +1262,65 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
         console.log('Remark added successfully');
         onUpdateTaskRemarks?.(taskId, updatedRemarks as TaskRemark[]);
 
-        if (mentionedUserIds.length > 0) {
-          const targetUserIds = mentionedUserIds.filter((userId) => userId !== currentUser.id);
-          if (targetUserIds.length > 0) {
-            const actorName =
-              currentUser.name?.trim() ||
-              currentUser.email?.split('@')[0] ||
-              'A teammate';
-            const taskTitle = task.description?.trim() || 'Task';
-            const nowIso = new Date().toISOString();
+        const resolvedMentionIds = Array.from(
+          new Set([
+            ...mentionedUserIds,
+            ...mentionedDisplayNames.flatMap((displayName) =>
+              employees
+                .filter((employee) => String(employee.name || '').trim().toLowerCase() === displayName.toLowerCase())
+                .map((employee) => employee.id)
+            ),
+          ])
+        ).filter((userId) => userId && userId !== currentUser.id);
 
-            const mentionNotifications = targetUserIds.map((userId) => ({
+        if (resolvedMentionIds.length > 0) {
+          const actorName =
+            currentUser.name?.trim() ||
+            currentUser.email?.split('@')[0] ||
+            'A teammate';
+          const taskTitle = task.description?.trim() || 'Task';
+          const companyId = String(currentUser.company_id || task.company_id || '').trim();
+          const nowIso = new Date().toISOString();
+          const mentionMessage = `${actorName} mentioned you in task: ${taskTitle}`;
+
+          const newSchemaRows = resolvedMentionIds.map((userId) => ({
+            employee_id: userId,
+            message: mentionMessage,
+            company_id: companyId,
+            read: false,
+            created_at: nowIso,
+          }));
+
+          let { error: mentionNotificationError } = await supabase
+            .from('notifications')
+            .insert(newSchemaRows);
+
+          if (mentionNotificationError && isMissingColumnError(mentionNotificationError)) {
+            const fallbackRows = resolvedMentionIds.map((userId) => ({
               user_id: userId,
               title: 'You were mentioned in a task remark',
-              body: `${actorName} mentioned you in a remark on "${taskTitle}".`,
+              body: mentionMessage,
               entity_type: 'task',
               entity_id: taskId,
               is_read: false,
               created_at: nowIso,
             }));
 
-            const { error: mentionNotificationError } = await supabase
+            const fallbackResult = await supabase
               .from('notifications')
-              .insert(mentionNotifications);
-
-            if (mentionNotificationError) {
-              console.warn('Mention notification insert failed:', mentionNotificationError);
-            }
+              .insert(fallbackRows);
+            mentionNotificationError = fallbackResult.error;
           }
+
+          if (mentionNotificationError) {
+            console.warn('Mention notification insert failed:', mentionNotificationError);
+          }
+
+          await Promise.all(
+            resolvedMentionIds.map((userId) =>
+              sendTaskMentionNotification(taskTitle, actorName, userId, companyId)
+            )
+          );
         }
       }
     } catch (err) {

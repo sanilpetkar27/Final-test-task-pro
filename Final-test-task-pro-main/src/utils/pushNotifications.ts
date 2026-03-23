@@ -247,3 +247,33 @@ export const sendTaskCompletionNotification = async (
     console.error('Error sending task completion notifications:', error);
   }
 };
+
+export const sendTaskMentionNotification = async (
+  taskDescription: string,
+  senderName: string,
+  mentionedEmployeeId: string,
+  companyId: string
+): Promise<void> => {
+  try {
+    const tenantCompanyId = String(companyId || '').trim();
+    const targetEmployeeId = String(mentionedEmployeeId || '').trim();
+    if (!tenantCompanyId || !targetEmployeeId) {
+      return;
+    }
+
+    const record: NotificationRecord = {
+      description: `${senderName} mentioned you in task: ${taskDescription}`,
+      assigned_to: targetEmployeeId,
+      company_id: tenantCompanyId,
+      message: `${senderName} mentioned you in task: ${taskDescription}`,
+      trace_id: buildTraceId('asg'),
+    };
+
+    const pushResult = await invokeSendPush(record);
+    if (!pushResult) {
+      console.warn('Mention push notification skipped or failed for employee:', targetEmployeeId);
+    }
+  } catch (error) {
+    console.error('Error sending task mention notification:', error);
+  }
+};

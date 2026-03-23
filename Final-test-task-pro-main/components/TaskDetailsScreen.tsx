@@ -148,6 +148,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   const [showExtensionInput, setShowExtensionInput] = useState(false);
   const [extensionDate, setExtensionDate] = useState('');
   const [isExtensionUpdating, setIsExtensionUpdating] = useState(false);
+  const [extensionApproverId, setExtensionApproverId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
@@ -282,7 +283,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   const canDelete = isTaskAssigner;
   const canEdit = isTaskAssigner;
 
-  const canApproveExtension = currentUser.role === 'owner' || currentUser.role === 'super_admin' || isTaskAssigner;
+  const canApproveExtension = Boolean(extensionApproverId) && currentUser.id === extensionApproverId;
   const canRequestExtension = isAssignedWorker && task.status === 'in-progress' && extensionStatus !== 'REQUESTED';
   const canReviewExtensionRequest = canApproveExtension && !isAssignedWorker && task.status === 'in-progress' && extensionStatus === 'REQUESTED' && Boolean(requestedDueDate);
 
@@ -419,6 +420,101 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
     setShowExtensionInput(false);
     setExtensionDate(formatDateTimeForInput(requestedDueDate ?? task.deadline));
   }, [task.id, requestedDueDate, task.deadline]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const resolveExtensionApproverId = async () => {
+      const companyId = String(currentUser.company_id || '').trim();
+      const staffId = String(task.assignedTo || '').trim();
+
+      if (!companyId || !staffId) {
+        if (!isCancelled) {
+          setExtensionApproverId(null);
+        }
+        return;
+      }
+
+      let managerId = '';
+
+      const selectFallbackOwner = async (): Promise<string> => {
+        const localOwner =
+          employees.find((employee) => employee.role === 'owner') ||
+          employees.find((employee) => employee.role === 'super_admin');
+        if (localOwner?.id) {
+          return localOwner.id;
+        }
+
+        const { data: ownerRows, error: ownerError } = await supabase
+          .from('employees')
+          .select('id, role')
+          .eq('company_id', companyId);
+
+        if (ownerError) {
+          console.warn('Failed to resolve extension fallback approver:', ownerError);
+          return '';
+        }
+
+        const owner =
+          (ownerRows || []).find((row: any) => row?.role === 'owner') ||
+          (ownerRows || []).find((row: any) => row?.role === 'super_admin');
+        return String(owner?.id || '').trim();
+      };
+
+      const resolveViaLinks = async (): Promise<string> => {
+        const primaryQuery = await supabase
+          .from('staff_manager_links')
+          .select('manager_id')
+          .eq('company_id', companyId)
+          .eq('staff_id', staffId)
+          .limit(1)
+          .maybeSingle();
+
+        if (!primaryQuery.error) {
+          return String((primaryQuery.data as any)?.manager_id || '').trim();
+        }
+
+        const message = String(primaryQuery.error?.message || '').toLowerCase();
+        if (!(message.includes('employee_id') || message.includes('staff_id'))) {
+          console.warn('Failed to resolve extension manager via staff_manager_links:', primaryQuery.error);
+          return '';
+        }
+
+        const fallbackQuery = await supabase
+          .from('staff_manager_links')
+          .select('manager_id')
+          .eq('company_id', companyId)
+          .eq('employee_id', staffId)
+          .limit(1)
+          .maybeSingle();
+
+        if (fallbackQuery.error) {
+          console.warn('Failed to resolve extension manager via employee_id fallback:', fallbackQuery.error);
+          return '';
+        }
+
+        return String((fallbackQuery.data as any)?.manager_id || '').trim();
+      };
+
+      managerId = await resolveViaLinks();
+      if (!managerId) {
+        managerId = String((assignedEmployee as any)?.manager_id || '').trim();
+      }
+      if (!managerId) {
+        managerId = await selectFallbackOwner();
+      }
+
+      if (!isCancelled) {
+        setExtensionApproverId(managerId || null);
+      }
+    };
+
+    void resolveExtensionApproverId();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [assignedEmployee, currentUser.company_id, employees, task.assignedTo]);
 
   useEffect(() => {
     setMentionMenuOpen(false);
@@ -646,13 +742,35 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
     if (!extensionDate || isExtensionUpdating) return;
     const requestedTs = new Date(extensionDate).getTime();
     if (!Number.isFinite(requestedTs)) { alert('Please select a valid date.'); return; }
+    const approverId = String(extensionApproverId || '').trim();
+    if (!approverId) { alert('No manager is linked to review this extension request.'); return; }
     setIsExtensionUpdating(true);
     const error = await updateTaskExtensionFields(
       { extension_status: 'REQUESTED', requested_due_date: new Date(requestedTs).toISOString() },
       { extensionStatus: 'REQUESTED', requestedDueDate: new Date(requestedTs).toISOString() }
     );
+    if (error) {
+      setIsExtensionUpdating(false);
+      alert(`Failed: ${error.message}`);
+      return;
+    }
+
+    const { error: approvalError } = await supabase
+      .from('approvals')
+      .insert({
+        requester_id: currentUser.id,
+        approver_id: approverId,
+        title: `Deadline Extension Request: ${task.description}`,
+        description: `Requested new deadline: ${new Date(requestedTs).toLocaleString()}`,
+        amount: null,
+        status: 'PENDING',
+        task_id: task.id,
+      });
+
     setIsExtensionUpdating(false);
-    if (error) { alert(`Failed: ${error.message}`); return; }
+    if (approvalError) {
+      console.warn('Failed to create extension approval request:', approvalError);
+    }
     setShowExtensionInput(false);
   };
 
@@ -1238,7 +1356,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
             <div className="flex-1 h-px bg-slate-200" />
           </div>
 
-          <div ref={remarksScrollRef} className="space-y-4 pb-4">
+          <div ref={remarksScrollRef} className="space-y-4 pb-4 md:max-h-[300px] md:overflow-y-auto md:pr-1">
             {groupedRemarks.length > 0 ? (
               groupedRemarks.map((group) => (
                 <div key={group.dateKey} className="space-y-3">
