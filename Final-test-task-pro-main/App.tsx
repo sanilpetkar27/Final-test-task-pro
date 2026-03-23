@@ -1608,7 +1608,6 @@ const App: React.FC = () => {
       return false;
     }
 
-    const companyId = String(task.company_id || currentUser.company_id || DEFAULT_COMPANY_ID).trim() || DEFAULT_COMPANY_ID;
     const approvalTitle = `High Priority Task Completion: ${task.description}`;
     const approvalDescription = `Staff ${currentUser.name} has completed high priority task and is requesting closure approval`;
 
@@ -1666,7 +1665,6 @@ const App: React.FC = () => {
         description: approvalDescription,
         amount: null,
         status: 'PENDING',
-        company_id: companyId,
         task_id: task.id,
       })
       .select('id')

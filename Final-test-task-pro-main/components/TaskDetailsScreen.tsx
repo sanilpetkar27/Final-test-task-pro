@@ -318,6 +318,16 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
     return groups;
   }, [normalizedRemarks]);
 
+  const hasCompletionRemark = useMemo(
+    () =>
+      normalizedRemarks.some((remark) => {
+        if (!remark.remark.trim()) return false;
+        return remark.employeeId === currentUser.id ||
+          (typeof currentUser.auth_user_id === 'string' && remark.employeeId === currentUser.auth_user_id);
+      }),
+    [normalizedRemarks, currentUser.id, currentUser.auth_user_id]
+  );
+
   // --- Effects ---
   useEffect(() => {
     setEditDescription(task.description);
@@ -469,6 +479,10 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
 
   // --- Handlers ---
   const handlePhotoUpload = async (file: File) => {
+    if (!hasCompletionRemark) {
+      alert('Add a remark before completing this task.');
+      return;
+    }
     if (isUploading) return;
     setIsUploading(true);
     try {
@@ -492,6 +506,10 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   };
 
   const triggerPhotoUpload = () => {
+    if (!hasCompletionRemark) {
+      alert('Add a remark before completing this task.');
+      return;
+    }
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
@@ -648,6 +666,10 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   };
 
   const handleCompleteWithoutPhoto = async () => {
+    if (!hasCompletionRemark) {
+      alert('Add a remark before completing this task.');
+      return;
+    }
     if (isCompleting) return;
     setIsCompleting(true);
     try {

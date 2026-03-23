@@ -783,8 +783,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
     try {
       let query = supabase
         .from('approvals')
-        .select('id, requester_id, approver_id, title, description, amount, status, company_id, task_id, isEscalated, adminEscalationStatus, escalated_to, created_at, updated_at')
-        .eq('company_id', currentUser.company_id);
+        .select('id, requester_id, approver_id, title, description, amount, status, task_id, isEscalated, adminEscalationStatus, escalated_to, created_at, updated_at');
 
       let rows: any[] = [];
 
@@ -1165,9 +1164,8 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
             description: descriptionWithAttachments,
             amount: amountValue,
             status: 'PENDING',
-            company_id: currentUser.company_id,
           })
-          .select('id, requester_id, approver_id, title, description, amount, status, company_id, task_id, created_at, updated_at')
+          .select('id, requester_id, approver_id, title, description, amount, status, task_id, created_at, updated_at')
           .single(),
         30000
       );
@@ -1183,7 +1181,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
           ? amountValue
           : Number(created.amount),
         status: normalizeStatus(created.status),
-        company_id: created.company_id ? String(created.company_id) : currentUser.company_id,
+        company_id: created.company_id ? String(created.company_id) : null,
         task_id: created.task_id ? String(created.task_id) : null,
         created_at: created.created_at ? String(created.created_at) : new Date().toISOString(),
         updated_at: created.updated_at ? String(created.updated_at) : null,
