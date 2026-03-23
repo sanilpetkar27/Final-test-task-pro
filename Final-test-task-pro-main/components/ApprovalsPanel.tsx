@@ -1451,7 +1451,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
           .from('tasks')
           .update({
             status: 'completed',
-            completedAt: new Date().toISOString(),
+            completedAt: Date.now(),
           })
           .eq('id', approval.task_id);
 
