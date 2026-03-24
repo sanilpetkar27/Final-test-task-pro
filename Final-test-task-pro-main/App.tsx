@@ -191,6 +191,19 @@ const stripTaskRecurrenceFields = (payload: Record<string, any>) => {
   return legacyPayload;
 };
 
+const toCamelTaskRecurrencePayload = (payload: Record<string, any>) => {
+  const camelPayload = { ...payload };
+  camelPayload.taskType = camelPayload.task_type ?? camelPayload.taskType ?? 'one_time';
+  camelPayload.recurrenceFrequency =
+    camelPayload.recurrence_frequency ?? camelPayload.recurrenceFrequency ?? null;
+  camelPayload.nextRecurrenceNotificationAt =
+    camelPayload.next_recurrence_notification_at ?? camelPayload.nextRecurrenceNotificationAt ?? null;
+  delete camelPayload.task_type;
+  delete camelPayload.recurrence_frequency;
+  delete camelPayload.next_recurrence_notification_at;
+  return camelPayload;
+};
+
 const stripTaskNextRecurrenceField = (payload: Record<string, any>) => {
   const legacyPayload = { ...payload };
   delete legacyPayload.next_recurrence_notification_at;
@@ -1811,24 +1824,34 @@ const App: React.FC = () => {
       // Transform app task to database format before inserting
       const dbTask = transformTaskToDB(newTask);
 
-      // Insert task into Supabase (with backward-compatible retry for old schemas).
-      let { data, error } = await supabase
-        .from('tasks')
-        .insert([dbTask])
-        .select('*')
-        .maybeSingle();
-
-      if (error && isMissingNextRecurrenceNotificationColumnError(error)) {
-        console.warn('Retrying task insert without next_recurrence_notification_at...');
-        const retryPayload = stripTaskNextRecurrenceField(dbTask as unknown as Record<string, any>);
-        const retryResult = await supabase
+      const insertTaskPayload = async (payload: Record<string, any>) =>
+        supabase
           .from('tasks')
-          .insert([retryPayload])
+          .insert([payload])
           .select('*')
           .maybeSingle();
 
-        data = retryResult.data as any;
-        error = retryResult.error as any;
+      // Insert task with schema-tolerant retry order:
+      // 1) snake_case recurrence fields
+      // 2) camelCase recurrence fields
+      // 3) remove next recurrence field
+      // 4) remove recurrence fields entirely (legacy fallback)
+      let insertPayload = dbTask as unknown as Record<string, any>;
+      let { data, error } = await insertTaskPayload(insertPayload);
+
+      if (error && isMissingTaskRecurrenceColumnError(error)) {
+        insertPayload = toCamelTaskRecurrencePayload(insertPayload);
+        const camelRetryResult = await insertTaskPayload(insertPayload);
+        data = camelRetryResult.data as any;
+        error = camelRetryResult.error as any;
+      }
+
+      if (error && isMissingNextRecurrenceNotificationColumnError(error)) {
+        console.warn('Retrying task insert without next recurrence notification field...');
+        insertPayload = stripTaskNextRecurrenceField(insertPayload);
+        const nextRetryResult = await insertTaskPayload(insertPayload);
+        data = nextRetryResult.data as any;
+        error = nextRetryResult.error as any;
 
         if (!error) {
           toast.warning('Task saved, but recurring reminder scheduling needs DB migration to be fully available.');
@@ -1837,13 +1860,8 @@ const App: React.FC = () => {
 
       if (error && isMissingTaskRecurrenceColumnError(error)) {
         console.warn('Retrying task insert without recurrence fields...');
-        const legacyTaskPayload = stripTaskRecurrenceFields(dbTask as unknown as Record<string, any>);
-        const legacyResult = await supabase
-          .from('tasks')
-          .insert([legacyTaskPayload])
-          .select('*')
-          .maybeSingle();
-
+        insertPayload = stripTaskRecurrenceFields(insertPayload);
+        const legacyResult = await insertTaskPayload(insertPayload);
         data = legacyResult.data as any;
         error = legacyResult.error as any;
 
@@ -1859,8 +1877,11 @@ const App: React.FC = () => {
       }
 
       if (!data) {
-        console.error('Task insert returned no data');
-        toast.error('Failed to save task: No data returned from database.');
+        // Some RLS setups allow INSERT but block RETURNING rows. Treat as success and sync tasks.
+        const refetchTasks = fetchTasksRef.current as null | (() => Promise<void>);
+        if (refetchTasks) {
+          void refetchTasks();
+        }
         return;
       }
 
