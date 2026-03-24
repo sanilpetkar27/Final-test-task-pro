@@ -687,6 +687,26 @@ const toTimestampNumber = (value: unknown): number => {
   return Date.now();
 };
 
+const toOptionalTimestampNumber = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const numericCandidate = Number(value);
+    if (Number.isFinite(numericCandidate) && numericCandidate > 0) {
+      return numericCandidate;
+    }
+
+    const parsedDate = Date.parse(value);
+    if (Number.isFinite(parsedDate) && parsedDate > 0) {
+      return parsedDate;
+    }
+  }
+
+  return null;
+};
+
 const normalizeRealtimeRemarks = (rawRemarks: unknown, taskId: string): TaskRemark[] | null => {
   if (!Array.isArray(rawRemarks)) {
     return null;
@@ -1019,9 +1039,15 @@ const App: React.FC = () => {
   const [tasks, setTasks] = useState<DealershipTask[]>(() =>
     parseCachedArray<DealershipTask>(TASKS_CACHE_KEY)
   );
+  const tasksRef = useRef<DealershipTask[]>(tasks);
+  const recurringReopenInFlightRef = useRef(false);
 
   // Ref for fetchTasks to prevent infinite loop
   const fetchTasksRef = useRef(null);
+
+  useEffect(() => {
+    tasksRef.current = tasks;
+  }, [tasks]);
 
   // Extract fetchTasks logic as useCallback to prevent stale closures
   const fetchTasks = useCallback(async () => {
@@ -1368,6 +1394,141 @@ const App: React.FC = () => {
       supabase.removeChannel(taskListener);
     };
   }, [currentUser?.id, currentUser?.company_id, currentUser?.role, currentUser?.auth_user_id, employees]);
+
+  const reopenDueRecurringTasks = useCallback(async () => {
+    if (!currentUser?.id || recurringReopenInFlightRef.current) {
+      return;
+    }
+
+    const companyId = String(currentUser.company_id || '').trim();
+    const visibleScopeIds = new Set(buildTaskScopeIds(currentUser, employees));
+    const nowMs = Date.now();
+    const dueTasks = tasksRef.current.filter((task) => {
+      if (String(task.status || '').toLowerCase() !== 'completed') {
+        return false;
+      }
+
+      const recurrence = resolveRecurringFrequencyForTask(task);
+      if (!recurrence) {
+        return false;
+      }
+
+      const nextRaw =
+        (task as any).nextRecurrenceNotificationAt ?? (task as any).next_recurrence_notification_at;
+      const nextAt = toOptionalTimestampNumber(nextRaw);
+      if (!nextAt || nextAt > nowMs) {
+        return false;
+      }
+
+      if (companyId) {
+        const taskCompanyId = String(task.company_id || '').trim();
+        if (taskCompanyId && taskCompanyId !== companyId) {
+          return false;
+        }
+      }
+
+      if (visibleScopeIds.size > 0 && currentUser.role !== 'owner' && currentUser.role !== 'super_admin') {
+        const assignedTo = String(task.assignedTo || '').trim();
+        const assignedBy = String(task.assignedBy || '').trim();
+        const visibleToUser = Array.from(visibleScopeIds).some((id) => id === assignedTo || id === assignedBy);
+        if (!visibleToUser) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    if (!dueTasks.length) {
+      return;
+    }
+
+    recurringReopenInFlightRef.current = true;
+    const reopenedById = new Map<string, number | null>();
+
+    try {
+      for (const task of dueTasks) {
+        const recurrence = resolveRecurringFrequencyForTask(task);
+        if (!recurrence) {
+          continue;
+        }
+
+        const nextReminderAt = computeNextRecurrenceNotificationAt(nowMs, recurrence);
+        const snakePayload: Record<string, unknown> = {
+          status: 'pending' as TaskStatus,
+          completedAt: null,
+          proof: null,
+          next_recurrence_notification_at: nextReminderAt,
+        };
+
+        let updateQuery = supabase.from('tasks').update(snakePayload).eq('id', task.id);
+        if (companyId) {
+          updateQuery = updateQuery.eq('company_id', companyId);
+        }
+        let { error: reopenError } = await updateQuery;
+
+        if (reopenError && isMissingNextRecurrenceNotificationColumnError(reopenError)) {
+          const camelPayload: Record<string, unknown> = {
+            status: 'pending' as TaskStatus,
+            completedAt: null,
+            proof: null,
+            nextRecurrenceNotificationAt: nextReminderAt,
+          };
+          let camelQuery = supabase.from('tasks').update(camelPayload).eq('id', task.id);
+          if (companyId) {
+            camelQuery = camelQuery.eq('company_id', companyId);
+          }
+          const retryResult = await camelQuery;
+          reopenError = retryResult.error;
+        }
+
+        if (reopenError) {
+          console.warn('Failed to reopen due recurring task:', reopenError);
+          continue;
+        }
+
+        reopenedById.set(task.id, nextReminderAt);
+      }
+    } finally {
+      recurringReopenInFlightRef.current = false;
+    }
+
+    if (!reopenedById.size) {
+      return;
+    }
+
+    setTasks((prev) =>
+      prev.map((task) => {
+        if (!reopenedById.has(task.id)) {
+          return task;
+        }
+
+        return {
+          ...task,
+          status: 'pending' as TaskStatus,
+          completedAt: undefined,
+          proof: undefined,
+          nextRecurrenceNotificationAt: reopenedById.get(task.id) ?? task.nextRecurrenceNotificationAt ?? null,
+        };
+      })
+    );
+  }, [currentUser?.id, currentUser?.company_id, currentUser?.role, employees]);
+
+  useEffect(() => {
+    if (!currentUser?.id) {
+      return;
+    }
+
+    void reopenDueRecurringTasks();
+
+    const intervalId = window.setInterval(() => {
+      void reopenDueRecurringTasks();
+    }, 60 * 1000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [currentUser?.id, reopenDueRecurringTasks]);
 
   // --- APP RESUME LISTENERS FOR TASK SYNC ---
   useEffect(() => {
