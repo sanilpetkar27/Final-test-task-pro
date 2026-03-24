@@ -1055,17 +1055,15 @@ const TeamManager: React.FC<TeamManagerProps> = ({
                         {canDeleteMember(emp) && (
                           <button 
                             type="button"
-                            onClick={(e) => {
+                            onClick={() => {
                               console.log('🗑️ Delete button clicked for:', emp.name, emp.id);
-                              e.preventDefault();
-                              e.stopPropagation();
                               
                               if (window.confirm(`Are you sure you want to delete ${emp.name}? This action cannot be undone.`)) {
                                 console.log('✅ Delete confirmed, calling parent function');
                                 
                                 // Call parent function for database deletion
                                 console.log('📞 Calling onRemoveEmployee with ID:', emp.id);
-                                onRemoveEmployee(emp.id);
+                                void onRemoveEmployee(emp.id);
                               } else {
                                 console.log('❌ Delete cancelled');
                               }

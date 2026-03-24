@@ -2456,16 +2456,24 @@ const App: React.FC = () => {
   };
 
   const removeEmployee = async (id: string) => {
-    const employeeToDelete = employees.find((employee) => employee.id === id);
+    const normalizedEmployeeId = String(id || '').trim();
+    const employeeToDelete = employees.find(
+      (employee) => String(employee.id || '').trim() === normalizedEmployeeId
+    );
     if (!employeeToDelete) {
       toast.error('Employee not found.');
       return;
     }
 
-    if (employeeToDelete.id === currentUser?.id) {
+    const normalizedCurrentUserId = String(currentUser?.id || '').trim();
+    if (String(employeeToDelete.id || '').trim() === normalizedCurrentUserId) {
       toast.error('You cannot delete your own account.');
       return;
     }
+
+    const resolvedCompanyId = String(
+      employeeToDelete.company_id || currentUser?.company_id || DEFAULT_COMPANY_ID
+    ).trim();
 
     const isSuperAdminOrOwner =
       currentUser?.role === 'super_admin' || currentUser?.role === 'owner';
@@ -2474,44 +2482,43 @@ const App: React.FC = () => {
       employeeToDelete.role === 'staff' &&
       staffManagerLinks.some(
         (link) =>
-          String(link.company_id || '').trim() === String(currentUser.company_id || '').trim() &&
-          String(link.staff_id || '').trim() === String(employeeToDelete.id || '').trim() &&
-          String(link.manager_id || '').trim() === String(currentUser.id || '').trim()
+          String(link.staff_id || '').trim() === normalizedEmployeeId &&
+          String(link.manager_id || '').trim() === normalizedCurrentUserId &&
+          (!String(link.company_id || '').trim() || String(link.company_id || '').trim() === resolvedCompanyId)
       );
     const isManagerDeletingOwnStaff =
       currentUser?.role === 'manager' &&
       employeeToDelete.role === 'staff' &&
-      employeeToDelete.manager_id === currentUser.id;
+      String(employeeToDelete.manager_id || '').trim() === normalizedCurrentUserId;
 
     if (!isSuperAdminOrOwner && !isManagerDeletingOwnStaff && !isManagerLinkedViaJunction) {
       toast.error('You can only delete staff members from your own team.');
       return;
     }
 
-    
-    // Remove from local state IMMEDIATELY for instant UI feedback
-    setEmployees(prev => prev.filter(e => e.id !== id));
-    
     try {
       // Delete employee from Supabase
       const { error } = await supabase
         .from('employees')
         .delete()
-        .eq('id', id)
-        .eq('company_id', currentUser?.company_id || DEFAULT_COMPANY_ID);
+        .eq('id', normalizedEmployeeId)
+        .eq('company_id', resolvedCompanyId);
 
       if (error) {
         console.error('❌ Error removing employee from database:', error);
-        toast.error(`Database Error: ${error.message}. Employee removed locally.`);
+        toast.error(`Database Error: ${error.message}`);
       } else {
+        setEmployees((prev) =>
+          prev.filter((employee) => String(employee.id || '').trim() !== normalizedEmployeeId)
+        );
         setStaffManagerLinks((prev) =>
-          prev.filter((link) => String(link.staff_id || '').trim() !== String(id || '').trim())
+          prev.filter((link) => String(link.staff_id || '').trim() !== normalizedEmployeeId)
         );
         toast.success('Employee deleted successfully');
       }
     } catch (error) {
       console.error('🚨 Unexpected error removing employee:', error);
-      toast.error(`Error: ${error instanceof Error ? error.message : 'Unknown error'}. Employee removed locally.`);
+      toast.error(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
