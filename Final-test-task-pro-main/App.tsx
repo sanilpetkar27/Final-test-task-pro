@@ -11,6 +11,7 @@ import { useNotificationSetup } from './src/hooks/useNotificationSetup';
 import { transformTaskToApp, transformTaskToDB, transformTasksToApp, DatabaseTask } from './src/utils/transformers';
 import { sendTaskAssignmentNotification, sendTaskCompletionNotification } from './src/utils/pushNotifications';
 import { Toaster, toast } from 'sonner';
+import { Analytics } from '@vercel/analytics/react';
 import {
   ClipboardList,
   CheckCircle2,
@@ -2865,6 +2866,7 @@ const App: React.FC = () => {
       </nav>
         </div>
         <Toaster />
+        <Analytics />
       </div>
     </ErrorBoundary>
   );
