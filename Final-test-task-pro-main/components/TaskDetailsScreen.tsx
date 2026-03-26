@@ -1602,14 +1602,16 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
 
       {/* ─── Proof Image Modal ─── */}
       {showFullImage && task.proof && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-hidden">
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
             <div className="p-4 border-b border-slate-200 flex items-center justify-between">
               <h3 className="font-semibold text-slate-800">Task Proof</h3>
               <button onClick={() => setShowFullImage(false)} className="p-2 hover:bg-slate-100 rounded-lg"><X className="w-5 h-5 text-slate-500" /></button>
             </div>
             <div className="p-4">
-              <img src={task.proof.imageUrl} alt="Task proof" className="w-full rounded-lg" />
+              <div className="max-h-[65vh] overflow-y-auto rounded-lg">
+                <img src={task.proof.imageUrl} alt="Task proof" className="w-full h-auto object-contain rounded-lg" />
+              </div>
               <p className="text-sm text-slate-500 mt-2">Completed: {new Date(task.proof.timestamp).toLocaleString()}</p>
             </div>
           </div>
