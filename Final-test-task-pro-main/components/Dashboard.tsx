@@ -1576,7 +1576,10 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
           onCompleteTask={(proof) => updateTaskStatus(selectedTask.id, 'completed', proof.imageUrl)}
           onCompleteTaskWithoutPhoto={() => updateTaskStatus(selectedTask.id, 'completed')}
           onReassign={() => setReassigningTaskId(selectedTask.id)}
-          onDelegate={() => setDelegatingTaskId(selectedTask.id)}
+          onDelegate={() => {
+            setSelectedTaskId(null);
+            setDelegatingTaskId(selectedTask.id);
+          }}
           onDelete={async () => {
             await Promise.resolve(onDeleteTask(selectedTask.id));
             setSelectedTaskId(null);
