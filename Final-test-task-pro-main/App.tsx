@@ -2668,7 +2668,10 @@ const App: React.FC = () => {
 
       {/* Notification Banner */}
       {notification && (
-        <div className="fixed top-2 left-2 right-2 max-w-md sm:max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-auto z-[100] animate-in slide-in-from-top-4 duration-500">
+        <div
+          className="fixed left-2 right-2 max-w-md sm:max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-auto z-[100] animate-in slide-in-from-top-4 duration-500"
+          style={{ top: 'calc(env(safe-area-inset-top) + 8px)' }}
+        >
           <div className="bg-white text-slate-900 p-4 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-[var(--border)] flex items-center gap-4">
             <div className="bg-[var(--accent)] p-2 rounded-xl">
               <Bell className="w-5 h-5 animate-bounce text-white" />
@@ -2677,7 +2680,10 @@ const App: React.FC = () => {
               <p className="section-kicker">{notification.title}</p>
               <p className="text-sm font-bold truncate">{notification.message}</p>
             </div>
-            <button onClick={() => setNotification(null)} className="p-1 hover:bg-slate-100 rounded-lg text-slate-500">
+            <button
+              onClick={() => setNotification(null)}
+              className="p-1 hover:bg-slate-100 rounded-lg text-slate-500 min-w-[44px] min-h-[44px] flex items-center justify-center"
+            >
               <X className="w-4 h-4 text-slate-500" />
             </button>
           </div>
