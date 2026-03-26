@@ -83,6 +83,7 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCou
     <button
       type="button"
       onClick={onClick}
+      id={`task-card-${task.id}`}
       className={`w-full text-left rounded-2xl ${cardClass} shadow-[0_1px_3px_rgba(0,0,0,0.06)] p-4 sm:p-5 min-h-[120px] active:scale-[0.98] transition-all duration-150 hover:shadow-[0_6px_20px_rgba(10,10,15,0.08)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-light)]`}
     >
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">

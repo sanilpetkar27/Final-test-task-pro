@@ -827,7 +827,7 @@ const App: React.FC = () => {
   const [appReady, setAppReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [notification, setNotification] = useState<{ title: string, message: string } | null>(null);
+  const [notification, setNotification] = useState<{ title: string, message: string, taskId?: string } | null>(null);
   const [lastSyncTime, setLastSyncTime] = useState<number>(Date.now());
   const [showNotificationsPanel, setShowNotificationsPanel] = useState(false);
   const [userNotifications, setUserNotifications] = useState<InAppNotification[]>([]);
@@ -1616,7 +1616,8 @@ const App: React.FC = () => {
         const lastTask = newTasks[0];
         setNotification({
           title: "New Assignment",
-          message: `New task assigned: ${lastTask.description}`
+          message: `New task assigned: ${lastTask.description}`,
+          taskId: lastTask.id
         });
         // Update lastSeen timestamp to prevent duplicate notifications
         localStorage.setItem(`last_seen_${currentUser.id}`, Date.now().toString());
@@ -1714,6 +1715,18 @@ const App: React.FC = () => {
 
     toast.success('All notifications cleared');
   }, [currentUser?.id, userNotifications, loadUserNotifications]);
+
+  const handleNotificationBannerClick = useCallback((targetTaskId?: string) => {
+    setNotification(null);
+    if (!targetTaskId) return;
+
+    const targetEl = document.getElementById(`task-card-${targetTaskId}`);
+    if (!targetEl) return;
+
+    targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    targetEl.classList.add('flash-highlight');
+    window.setTimeout(() => targetEl.classList.remove('flash-highlight'), 1200);
+  }, []);
 
   const toggleNotificationsPanel = () => {
     const isOpening = !showNotificationsPanel;
@@ -2671,6 +2684,7 @@ const App: React.FC = () => {
         <div
           className="fixed left-2 right-2 max-w-md sm:max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-auto z-[100] animate-in slide-in-from-top-4 duration-500"
           style={{ top: 'calc(env(safe-area-inset-top) + 8px)' }}
+          onClick={() => handleNotificationBannerClick(notification.taskId)}
         >
           <div className="bg-white text-slate-900 p-4 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-[var(--border)] flex items-center gap-4">
             <div className="bg-[var(--accent)] p-2 rounded-xl">
@@ -2681,7 +2695,10 @@ const App: React.FC = () => {
               <p className="text-sm font-bold truncate">{notification.message}</p>
             </div>
             <button
-              onClick={() => setNotification(null)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setNotification(null);
+              }}
               className="p-1 hover:bg-slate-100 rounded-lg text-slate-500 min-w-[44px] min-h-[44px] flex items-center justify-center"
             >
               <X className="w-4 h-4 text-slate-500" />

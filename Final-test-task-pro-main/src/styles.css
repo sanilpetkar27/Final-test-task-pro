@@ -95,6 +95,10 @@
     animation: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 
+  .flash-highlight {
+    animation: flash-highlight 1.2s ease;
+  }
+
   @keyframes pulse-slow {
     0%,
     100% {
@@ -102,6 +106,22 @@
     }
     50% {
       opacity: 0.8;
+    }
+  }
+
+  @keyframes flash-highlight {
+    0% {
+      box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.25);
+      transform: translateZ(0);
+    }
+    40% {
+      box-shadow: 0 0 0 10px rgba(79, 70, 229, 0.12);
+    }
+    80% {
+      box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.06);
+    }
+    100% {
+      box-shadow: none;
     }
   }
 }
