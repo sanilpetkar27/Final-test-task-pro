@@ -137,19 +137,31 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ records, onAddR
               </div>
             </div>
 
-            <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Expected Receipt Date</label>
-              <input 
-                type="date" 
-                required
-                value={formData.expectedDate}
-                onChange={e => setFormData({...formData, expectedDate: e.target.value})}
-                onInput={e => setFormData({...formData, expectedDate: e.currentTarget.value})}
-                onBlur={e => setFormData({...formData, expectedDate: e.currentTarget.value})}
-                onFocus={e => syncInputOnPickerClose(e.currentTarget, (value) => setFormData((prev) => ({...prev, expectedDate: value})))}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 outline-none"
-              />
-            </div>
+	            <div>
+	              <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Expected Receipt Date</label>
+	              <div className="flex items-center gap-2">
+	                <input 
+	                  type="date" 
+	                  required
+	                  value={formData.expectedDate}
+	                  onChange={e => setFormData({...formData, expectedDate: e.target.value})}
+	                  onInput={e => setFormData({...formData, expectedDate: e.currentTarget.value})}
+	                  onBlur={e => setFormData({...formData, expectedDate: e.currentTarget.value})}
+	                  onFocus={e => syncInputOnPickerClose(e.currentTarget, (value) => setFormData((prev) => ({...prev, expectedDate: value})))}
+	                  className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 outline-none"
+	                />
+	                {formData.expectedDate && (
+	                  <button
+	                    type="button"
+	                    onClick={() => setFormData((prev) => ({ ...prev, expectedDate: '' }))}
+	                    className="text-slate-400 hover:text-slate-600 text-xs px-2 py-1 rounded-lg border border-slate-200 bg-white whitespace-nowrap"
+	                    aria-label="Clear date"
+	                  >
+	                    X Clear
+	                  </button>
+	                )}
+	              </div>
+	            </div>
           </div>
 
           <button 

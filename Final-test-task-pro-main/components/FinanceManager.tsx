@@ -137,19 +137,31 @@ const FinanceManager: React.FC<FinanceManagerProps> = ({ records, onAddRecord, o
               </div>
             </div>
 
-            <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Payment Due Date</label>
-              <input 
-                type="date" 
-                required
-                value={formData.dueDate}
-                onChange={e => setFormData({...formData, dueDate: e.target.value})}
-                onInput={e => setFormData({...formData, dueDate: e.currentTarget.value})}
-                onBlur={e => setFormData({...formData, dueDate: e.currentTarget.value})}
-                onFocus={e => syncInputOnPickerClose(e.currentTarget, (value) => setFormData((prev) => ({...prev, dueDate: value})))}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 outline-none"
-              />
-            </div>
+	            <div>
+	              <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Payment Due Date</label>
+	              <div className="flex items-center gap-2">
+	                <input 
+	                  type="date" 
+	                  required
+	                  value={formData.dueDate}
+	                  onChange={e => setFormData({...formData, dueDate: e.target.value})}
+	                  onInput={e => setFormData({...formData, dueDate: e.currentTarget.value})}
+	                  onBlur={e => setFormData({...formData, dueDate: e.currentTarget.value})}
+	                  onFocus={e => syncInputOnPickerClose(e.currentTarget, (value) => setFormData((prev) => ({...prev, dueDate: value})))}
+	                  className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 outline-none"
+	                />
+	                {formData.dueDate && (
+	                  <button
+	                    type="button"
+	                    onClick={() => setFormData((prev) => ({ ...prev, dueDate: '' }))}
+	                    className="text-slate-400 hover:text-slate-600 text-xs px-2 py-1 rounded-lg border border-slate-200 bg-white whitespace-nowrap"
+	                    aria-label="Clear date"
+	                  >
+	                    X Clear
+	                  </button>
+	                )}
+	              </div>
+	            </div>
           </div>
 
           <button 

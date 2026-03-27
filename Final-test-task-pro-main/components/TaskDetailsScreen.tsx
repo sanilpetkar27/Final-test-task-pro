@@ -1356,29 +1356,41 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
           <div className="px-4 md:px-6 py-4 border-b border-slate-100">
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-3">
               <p className="text-sm font-bold text-amber-700">Request Deadline Extension</p>
-              <div
-                className="relative w-full min-h-[52px] border border-amber-200 rounded-xl px-4 py-3.5 bg-white text-base text-slate-900 focus-within:ring-2 focus-within:ring-amber-300 cursor-pointer"
-                onClick={openExtensionPicker}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    openExtensionPicker();
-                  }
-                }}
-              >
-                <span className="block pr-10">
-                  {extensionDate ? formatDateTimeLabel(extensionDate) : ''}
-                </span>
-                <Calendar className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-amber-600 pointer-events-none" />
-                <input
-                  ref={extensionInputRef}
-                  type="datetime-local"
-                  value={extensionDate || ''}
-                  onChange={(e) => setExtensionDate(e.target.value || '')}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                />
+              <div className="flex items-center gap-2">
+                <div
+                  className="relative flex-1 min-h-[52px] border border-amber-200 rounded-xl px-4 py-3.5 bg-white text-base text-slate-900 focus-within:ring-2 focus-within:ring-amber-300 cursor-pointer"
+                  onClick={openExtensionPicker}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      openExtensionPicker();
+                    }
+                  }}
+                >
+                  <span className="block pr-10">
+                    {extensionDate ? formatDateTimeLabel(extensionDate) : ''}
+                  </span>
+                  <Calendar className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-amber-600 pointer-events-none" />
+                  <input
+                    ref={extensionInputRef}
+                    type="datetime-local"
+                    value={extensionDate || ''}
+                    onChange={(e) => setExtensionDate(e.target.value || '')}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                </div>
+                {extensionDate && (
+                  <button
+                    type="button"
+                    onClick={() => setExtensionDate('')}
+                    className="text-slate-400 hover:text-slate-600 text-xs px-2 py-1 rounded-lg border border-slate-200 bg-white whitespace-nowrap"
+                    aria-label="Clear date"
+                  >
+                    X Clear
+                  </button>
+                )}
               </div>
               <LoadingButton
                 type="button"
@@ -1662,8 +1674,20 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
                   </select>
                   <UserPlus className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
                 </div>
-                <input type="datetime-local" value={editDeadline} onChange={(e) => setEditDeadline(e.target.value)} onInput={(e) => setEditDeadline(e.currentTarget.value)} onBlur={(e) => setEditDeadline(e.currentTarget.value)} onFocus={(e) => syncInputOnPickerClose(e.currentTarget, setEditDeadline)}
-                  className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-white text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20" />
+                <div className="flex items-center gap-2">
+                  <input type="datetime-local" value={editDeadline} onChange={(e) => setEditDeadline(e.target.value)} onInput={(e) => setEditDeadline(e.currentTarget.value)} onBlur={(e) => setEditDeadline(e.currentTarget.value)} onFocus={(e) => syncInputOnPickerClose(e.currentTarget, setEditDeadline)}
+                    className="flex-1 border border-slate-200 rounded-xl px-4 py-3 bg-white text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20" />
+                  {editDeadline && (
+                    <button
+                      type="button"
+                      onClick={() => setEditDeadline('')}
+                      className="text-slate-400 hover:text-slate-600 text-xs px-2 py-1 rounded-lg border border-slate-200 bg-white whitespace-nowrap"
+                      aria-label="Clear date"
+                    >
+                      X Clear
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <input

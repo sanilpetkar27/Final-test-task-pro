@@ -1879,27 +1879,51 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                     <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-2 space-y-2">
                       <div className="space-y-1">
                         <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">From</label>
-                        <input
-                          type="date"
-                          value={approvedFromDate}
-                          onChange={(event) => setApprovedFromDate(event.target.value)}
-                          onInput={(event) => setApprovedFromDate(event.currentTarget.value)}
-                          onBlur={(event) => setApprovedFromDate(event.currentTarget.value)}
-                          onFocus={(event) => syncInputOnPickerClose(event.currentTarget, setApprovedFromDate)}
-                          className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-900"
-                        />
+	                        <div className="flex items-center gap-2">
+	                          <input
+	                            type="date"
+	                            value={approvedFromDate}
+	                            onChange={(event) => setApprovedFromDate(event.target.value)}
+	                            onInput={(event) => setApprovedFromDate(event.currentTarget.value)}
+	                            onBlur={(event) => setApprovedFromDate(event.currentTarget.value)}
+	                            onFocus={(event) => syncInputOnPickerClose(event.currentTarget, setApprovedFromDate)}
+	                            className="flex-1 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-900"
+	                          />
+	                          {approvedFromDate && (
+	                            <button
+	                              type="button"
+	                              onClick={() => setApprovedFromDate('')}
+	                              className="text-slate-400 hover:text-slate-600 text-xs px-2 py-1 rounded-lg border border-slate-200 bg-white whitespace-nowrap"
+	                              aria-label="Clear date"
+	                            >
+	                              X Clear
+	                            </button>
+	                          )}
+	                        </div>
                       </div>
                       <div className="space-y-1">
                         <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">To</label>
-                        <input
-                          type="date"
-                          value={approvedToDate}
-                          onChange={(event) => setApprovedToDate(event.target.value)}
-                          onInput={(event) => setApprovedToDate(event.currentTarget.value)}
-                          onBlur={(event) => setApprovedToDate(event.currentTarget.value)}
-                          onFocus={(event) => syncInputOnPickerClose(event.currentTarget, setApprovedToDate)}
-                          className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-900"
-                        />
+	                        <div className="flex items-center gap-2">
+	                          <input
+	                            type="date"
+	                            value={approvedToDate}
+	                            onChange={(event) => setApprovedToDate(event.target.value)}
+	                            onInput={(event) => setApprovedToDate(event.currentTarget.value)}
+	                            onBlur={(event) => setApprovedToDate(event.currentTarget.value)}
+	                            onFocus={(event) => syncInputOnPickerClose(event.currentTarget, setApprovedToDate)}
+	                            className="flex-1 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-900"
+	                          />
+	                          {approvedToDate && (
+	                            <button
+	                              type="button"
+	                              onClick={() => setApprovedToDate('')}
+	                              className="text-slate-400 hover:text-slate-600 text-xs px-2 py-1 rounded-lg border border-slate-200 bg-white whitespace-nowrap"
+	                              aria-label="Clear date"
+	                            >
+	                              X Clear
+	                            </button>
+	                          )}
+	                        </div>
                       </div>
                     </div>
                   )}
@@ -2008,28 +2032,52 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Start Date</label>
-                      <input
-                        type="date"
-                        value={startDate}
-                        onChange={(e) => setStartDate(e.target.value)}
-                        onInput={(e) => setStartDate(e.currentTarget.value)}
-                        onBlur={(e) => setStartDate(e.currentTarget.value)}
-                        onFocus={(e) => syncInputOnPickerClose(e.currentTarget, setStartDate)}
-                        className="w-full min-h-[48px] px-3 py-2 border border-slate-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
-                      />
+	                      <div className="flex items-center gap-2">
+	                        <input
+	                          type="date"
+	                          value={startDate}
+	                          onChange={(e) => setStartDate(e.target.value)}
+	                          onInput={(e) => setStartDate(e.currentTarget.value)}
+	                          onBlur={(e) => setStartDate(e.currentTarget.value)}
+	                          onFocus={(e) => syncInputOnPickerClose(e.currentTarget, setStartDate)}
+	                          className="flex-1 min-h-[48px] px-3 py-2 border border-slate-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
+	                        />
+	                        {startDate && (
+	                          <button
+	                            type="button"
+	                            onClick={() => setStartDate('')}
+	                            className="text-slate-400 hover:text-slate-600 text-xs px-2 py-1 rounded-lg border border-slate-200 bg-white whitespace-nowrap"
+	                            aria-label="Clear date"
+	                          >
+	                            X Clear
+	                          </button>
+	                        )}
+	                      </div>
                     </div>
                     
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">End Date</label>
-                      <input
-                        type="date"
-                        value={endDate}
-                        onChange={(e) => setEndDate(e.target.value)}
-                        onInput={(e) => setEndDate(e.currentTarget.value)}
-                        onBlur={(e) => setEndDate(e.currentTarget.value)}
-                        onFocus={(e) => syncInputOnPickerClose(e.currentTarget, setEndDate)}
-                        className="w-full min-h-[48px] px-3 py-2 border border-slate-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
-                      />
+	                      <div className="flex items-center gap-2">
+	                        <input
+	                          type="date"
+	                          value={endDate}
+	                          onChange={(e) => setEndDate(e.target.value)}
+	                          onInput={(e) => setEndDate(e.currentTarget.value)}
+	                          onBlur={(e) => setEndDate(e.currentTarget.value)}
+	                          onFocus={(e) => syncInputOnPickerClose(e.currentTarget, setEndDate)}
+	                          className="flex-1 min-h-[48px] px-3 py-2 border border-slate-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
+	                        />
+	                        {endDate && (
+	                          <button
+	                            type="button"
+	                            onClick={() => setEndDate('')}
+	                            className="text-slate-400 hover:text-slate-600 text-xs px-2 py-1 rounded-lg border border-slate-200 bg-white whitespace-nowrap"
+	                            aria-label="Clear date"
+	                          >
+	                            X Clear
+	                          </button>
+	                        )}
+	                      </div>
                     </div>
                   </div>
                   

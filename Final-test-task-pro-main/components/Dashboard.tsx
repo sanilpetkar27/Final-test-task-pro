@@ -1757,19 +1757,33 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
                   <UserPlus className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
                 </div>
                 
-                <div className="relative w-full sm:w-1/3 flex-shrink-0">
-                  <input 
-                    type="datetime-local" 
-                    value={deadline}
-                    onChange={(e) => setDeadline(e.target.value)}
-                    onInput={(e) => setDeadline(e.currentTarget.value)}
-                    onBlur={(e) => setDeadline(e.currentTarget.value)}
-                    onFocus={(e) => syncInputOnPickerClose(e.currentTarget, setDeadline)}
-                    onClick={(e) => openDateTimePicker(e.currentTarget)}
-                    className="w-full min-h-[48px] border rounded-xl px-3 py-3 bg-white border-slate-200 text-base focus:outline-none focus:ring-2 focus:ring-indigo-900 transition-all cursor-pointer"
-                  />
-                  <CalendarClock className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                </div>
+	                <div className="w-full sm:w-1/3 flex-shrink-0">
+	                  <div className="flex items-center gap-2">
+	                    <div className="relative flex-1">
+	                      <input 
+	                        type="datetime-local" 
+	                        value={deadline}
+	                        onChange={(e) => setDeadline(e.target.value)}
+	                        onInput={(e) => setDeadline(e.currentTarget.value)}
+	                        onBlur={(e) => setDeadline(e.currentTarget.value)}
+	                        onFocus={(e) => syncInputOnPickerClose(e.currentTarget, setDeadline)}
+	                        onClick={(e) => openDateTimePicker(e.currentTarget)}
+	                        className="w-full min-h-[48px] border rounded-xl px-3 py-3 bg-white border-slate-200 text-base focus:outline-none focus:ring-2 focus:ring-indigo-900 transition-all cursor-pointer"
+	                      />
+	                      <CalendarClock className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+	                    </div>
+	                    {deadline && (
+	                      <button
+	                        type="button"
+	                        onClick={() => setDeadline('')}
+	                        className="text-slate-400 hover:text-slate-600 text-xs px-2 py-1 rounded-lg border border-slate-200 bg-white whitespace-nowrap"
+	                        aria-label="Clear date"
+	                      >
+	                        X Clear
+	                      </button>
+	                    )}
+	                  </div>
+	                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -1977,27 +1991,51 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
                   <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-2 space-y-2">
                     <div className="space-y-1">
                       <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">From</label>
-                      <input
-                        type="date"
-                        value={completedCustomFromDate}
-                        onChange={(event) => setCompletedCustomFromDate(event.target.value)}
-                        onInput={(event) => setCompletedCustomFromDate(event.currentTarget.value)}
-                        onBlur={(event) => setCompletedCustomFromDate(event.currentTarget.value)}
-                        onFocus={(event) => syncInputOnPickerClose(event.currentTarget, setCompletedCustomFromDate)}
-                        className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-900"
-                      />
+	                      <div className="flex items-center gap-2">
+	                        <input
+	                          type="date"
+	                          value={completedCustomFromDate}
+	                          onChange={(event) => setCompletedCustomFromDate(event.target.value)}
+	                          onInput={(event) => setCompletedCustomFromDate(event.currentTarget.value)}
+	                          onBlur={(event) => setCompletedCustomFromDate(event.currentTarget.value)}
+	                          onFocus={(event) => syncInputOnPickerClose(event.currentTarget, setCompletedCustomFromDate)}
+	                          className="flex-1 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-900"
+	                        />
+	                        {completedCustomFromDate && (
+	                          <button
+	                            type="button"
+	                            onClick={() => setCompletedCustomFromDate('')}
+	                            className="text-slate-400 hover:text-slate-600 text-xs px-2 py-1 rounded-lg border border-slate-200 bg-white whitespace-nowrap"
+	                            aria-label="Clear date"
+	                          >
+	                            X Clear
+	                          </button>
+	                        )}
+	                      </div>
                     </div>
                     <div className="space-y-1">
                       <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">To</label>
-                      <input
-                        type="date"
-                        value={completedCustomToDate}
-                        onChange={(event) => setCompletedCustomToDate(event.target.value)}
-                        onInput={(event) => setCompletedCustomToDate(event.currentTarget.value)}
-                        onBlur={(event) => setCompletedCustomToDate(event.currentTarget.value)}
-                        onFocus={(event) => syncInputOnPickerClose(event.currentTarget, setCompletedCustomToDate)}
-                        className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-900"
-                      />
+	                      <div className="flex items-center gap-2">
+	                        <input
+	                          type="date"
+	                          value={completedCustomToDate}
+	                          onChange={(event) => setCompletedCustomToDate(event.target.value)}
+	                          onInput={(event) => setCompletedCustomToDate(event.currentTarget.value)}
+	                          onBlur={(event) => setCompletedCustomToDate(event.currentTarget.value)}
+	                          onFocus={(event) => syncInputOnPickerClose(event.currentTarget, setCompletedCustomToDate)}
+	                          className="flex-1 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-900"
+	                        />
+	                        {completedCustomToDate && (
+	                          <button
+	                            type="button"
+	                            onClick={() => setCompletedCustomToDate('')}
+	                            className="text-slate-400 hover:text-slate-600 text-xs px-2 py-1 rounded-lg border border-slate-200 bg-white whitespace-nowrap"
+	                            aria-label="Clear date"
+	                          >
+	                            X Clear
+	                          </button>
+	                        )}
+	                      </div>
                     </div>
                   </div>
                 )}

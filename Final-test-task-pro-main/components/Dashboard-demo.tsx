@@ -148,15 +148,27 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
                 ))}
               </select>
               
-              <input
-                type="datetime-local"
-                value={deadline}
-                onChange={(e) => setDeadline(e.target.value)}
-                onInput={(e) => setDeadline(e.currentTarget.value)}
-                onBlur={(e) => setDeadline(e.currentTarget.value)}
-                onFocus={(e) => syncInputOnPickerClose(e.currentTarget, setDeadline)}
-                className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+	              <div className="flex flex-1 items-center gap-2">
+	                <input
+	                  type="datetime-local"
+	                  value={deadline}
+	                  onChange={(e) => setDeadline(e.target.value)}
+	                  onInput={(e) => setDeadline(e.currentTarget.value)}
+	                  onBlur={(e) => setDeadline(e.currentTarget.value)}
+	                  onFocus={(e) => syncInputOnPickerClose(e.currentTarget, setDeadline)}
+	                  className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+	                />
+	                {deadline && (
+	                  <button
+	                    type="button"
+	                    onClick={() => setDeadline('')}
+	                    className="text-slate-400 hover:text-slate-600 text-xs px-2 py-1 rounded-lg border border-slate-200 bg-white whitespace-nowrap"
+	                    aria-label="Clear date"
+	                  >
+	                    X Clear
+	                  </button>
+	                )}
+	              </div>
             </div>
             
             <div className="flex items-center gap-2">

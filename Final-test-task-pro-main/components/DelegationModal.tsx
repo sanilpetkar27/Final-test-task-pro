@@ -130,32 +130,44 @@ const DelegationModal: React.FC<DelegationModalProps> = ({ employees, onClose, o
               
               <div className="w-full sm:w-1/3">
                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-1 block">Due By (Optional)</label>
-                 <div
-                    className="relative w-full min-h-[48px] bg-white border border-slate-200 rounded-xl px-3 py-3 text-base text-slate-900 focus-within:ring-2 focus-within:ring-slate-800 transition-all cursor-pointer"
-                    onClick={openDeadlinePicker}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        openDeadlinePicker();
-                      }
-                    }}
-                  >
-                    <span className="block pr-10">
-                      {deadline ? formatDeadlineLabel(deadline) : ''}
-                    </span>
-                    <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 pointer-events-none" />
-                    <input
-                      ref={deadlineInputRef}
-                      type="datetime-local"
-                      value={deadline}
-                      onChange={(e) => setDeadline(e.target.value)}
-                      onInput={(e) => setDeadline(e.currentTarget.value)}
-                      onBlur={(e) => setDeadline(e.currentTarget.value)}
-                      onFocus={(e) => syncInputOnPickerClose(e.currentTarget, setDeadline)}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    />
+                 <div className="flex items-center gap-2">
+                    <div
+                      className="relative flex-1 min-h-[48px] bg-white border border-slate-200 rounded-xl px-3 py-3 text-base text-slate-900 focus-within:ring-2 focus-within:ring-slate-800 transition-all cursor-pointer"
+                      onClick={openDeadlinePicker}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          openDeadlinePicker();
+                        }
+                      }}
+                    >
+                      <span className="block pr-10">
+                        {deadline ? formatDeadlineLabel(deadline) : ''}
+                      </span>
+                      <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 pointer-events-none" />
+                      <input
+                        ref={deadlineInputRef}
+                        type="datetime-local"
+                        value={deadline}
+                        onChange={(e) => setDeadline(e.target.value)}
+                        onInput={(e) => setDeadline(e.currentTarget.value)}
+                        onBlur={(e) => setDeadline(e.currentTarget.value)}
+                        onFocus={(e) => syncInputOnPickerClose(e.currentTarget, setDeadline)}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      />
+                    </div>
+                    {deadline && (
+                      <button
+                        type="button"
+                        onClick={() => setDeadline('')}
+                        className="text-slate-400 hover:text-slate-600 text-xs px-2 py-1 rounded-lg border border-slate-200 bg-white whitespace-nowrap"
+                        aria-label="Clear date"
+                      >
+                        X Clear
+                      </button>
+                    )}
                   </div>
               </div>
             </div>
