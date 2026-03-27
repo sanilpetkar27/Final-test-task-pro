@@ -461,6 +461,54 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   }, [task.id, requestedDueDate, task.deadline]);
 
   useEffect(() => {
+    if (!showExtensionInput || readOnly || !canRequestExtension) return;
+
+    const input = extensionInputRef.current;
+    if (!input) return;
+
+    let lastValue = input.value;
+    let interval: ReturnType<typeof window.setInterval> | null = null;
+
+    const checkValue = () => {
+      const currentValue = input.value;
+      if (currentValue !== lastValue) {
+        lastValue = currentValue;
+        setExtensionDate(currentValue || '');
+      }
+    };
+
+    const observer = new MutationObserver(checkValue);
+    observer.observe(input, {
+      attributes: true,
+      attributeFilter: ['value']
+    });
+
+    const onFocus = () => {
+      lastValue = input.value;
+      if (interval) window.clearInterval(interval);
+      interval = window.setInterval(checkValue, 300);
+    };
+
+    const onFocusOut = () => {
+      if (interval) {
+        window.clearInterval(interval);
+        interval = null;
+      }
+      window.setTimeout(checkValue, 100);
+    };
+
+    input.addEventListener('focus', onFocus);
+    input.addEventListener('focusout', onFocusOut);
+
+    return () => {
+      if (interval) window.clearInterval(interval);
+      observer.disconnect();
+      input.removeEventListener('focus', onFocus);
+      input.removeEventListener('focusout', onFocusOut);
+    };
+  }, [showExtensionInput, readOnly, canRequestExtension]);
+
+  useEffect(() => {
     let isCancelled = false;
 
     const resolveExtensionApproverId = async () => {
@@ -1327,11 +1375,8 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
                 <input
                   ref={extensionInputRef}
                   type="datetime-local"
-                  value={extensionDate}
-                  onChange={(e) => setExtensionDate(e.target.value)}
-                  onInput={(e) => setExtensionDate(e.currentTarget.value)}
-                  onBlur={(e) => setExtensionDate(e.currentTarget.value)}
-                  onFocus={(e) => syncInputOnPickerClose(e.currentTarget, setExtensionDate)}
+                  value={extensionDate || ''}
+                  onChange={(e) => setExtensionDate(e.target.value || '')}
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                 />
               </div>
