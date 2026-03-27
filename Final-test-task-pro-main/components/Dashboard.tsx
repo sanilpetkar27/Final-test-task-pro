@@ -1761,6 +1761,11 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
 		                <div className="w-full sm:w-1/3 flex-shrink-0 md:w-auto md:flex-1 md:min-w-0">
 		                  <div className="flex items-center gap-2 md:min-w-0">
 		                    <div className="relative flex-1 min-w-0">
+		                      {!deadline && (
+		                        <span className="absolute left-3 top-1/2 -translate-y-1/2 pr-10 text-base font-semibold text-slate-500 pointer-events-none md:hidden">
+		                          dd-mm-yyyy --:--
+		                        </span>
+		                      )}
 		                      <input 
 		                        type="datetime-local" 
 		                        value={deadline}
