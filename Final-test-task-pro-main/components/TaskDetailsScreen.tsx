@@ -129,6 +129,21 @@ const formatDateTimeForInput = (timestamp?: number | null): string => {
   return new Date(timestamp - offset).toISOString().slice(0, 16);
 };
 
+const formatDateTimeLabel = (value: string): string => {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value.replace('T', ' ');
+  }
+  return parsed.toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};
+
 const getRoleBadge = (role?: string): { label: string; className: string } => {
   if (role === 'owner' || role === 'super_admin') return { label: 'OWNER', className: 'bg-[var(--accent-light)] text-[var(--accent)]' };
   if (role === 'manager') return { label: 'MANAGER', className: 'bg-slate-200 text-slate-700' };
@@ -173,6 +188,18 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   const remarksScrollRef = useRef<HTMLDivElement | null>(null);
   const remarkInputRef = useRef<HTMLTextAreaElement | null>(null);
   const editModalScrollRef = useRef<HTMLDivElement | null>(null);
+  const extensionInputRef = useRef<HTMLInputElement | null>(null);
+
+  const openExtensionPicker = () => {
+    const input = extensionInputRef.current;
+    if (!input) return;
+    if (typeof (input as HTMLInputElement & { showPicker?: () => void }).showPicker === 'function') {
+      (input as HTMLInputElement & { showPicker: () => void }).showPicker();
+      return;
+    }
+    input.focus();
+    input.click();
+  };
 
   const withTimeout = useMemo(
     () =>
@@ -1269,12 +1296,30 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
           <div className="px-4 md:px-6 py-4 border-b border-slate-100">
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-3">
               <p className="text-sm font-bold text-amber-700">Request Deadline Extension</p>
-              <input
-                type="datetime-local"
-                value={extensionDate}
-                onChange={(e) => setExtensionDate(e.target.value)}
-                className="w-full border border-amber-200 rounded-xl px-4 py-3 bg-white text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-300"
-              />
+              <div
+                className="relative w-full border border-amber-200 rounded-xl px-4 py-3 bg-white text-base text-slate-900 focus-within:ring-2 focus-within:ring-amber-300 cursor-pointer"
+                onClick={openExtensionPicker}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openExtensionPicker();
+                  }
+                }}
+              >
+                <span className="block pr-10">
+                  {extensionDate ? formatDateTimeLabel(extensionDate) : ''}
+                </span>
+                <Calendar className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-amber-600 pointer-events-none" />
+                <input
+                  ref={extensionInputRef}
+                  type="datetime-local"
+                  value={extensionDate}
+                  onChange={(e) => setExtensionDate(e.target.value)}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                />
+              </div>
               <LoadingButton
                 type="button"
                 onClick={handleRequestExtension}
