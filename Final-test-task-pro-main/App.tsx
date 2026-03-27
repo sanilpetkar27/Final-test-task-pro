@@ -2714,7 +2714,7 @@ const App: React.FC = () => {
             <LayoutDashboard className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-lg font-black tracking-tighter italic leading-none text-slate-900">OpenTask</h1>
+            <h1 className="text-lg font-black tracking-tight leading-none text-slate-900">OpenTask</h1>
             <div className="flex items-center gap-1.5 mt-1">
               <div className={`w-1.5 h-1.5 rounded-full ${isSyncing ? 'bg-emerald-400 animate-pulse' : 'bg-emerald-400'}`} />
               <span className="font-ui-mono text-[8px] font-medium uppercase tracking-[0.22em] text-[var(--ink-3)]">
