@@ -1,7 +1,7 @@
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Employee } from '../types';
-import { GitFork, X, UserCheck, AlertCircle } from 'lucide-react';
+import { GitFork, X, UserCheck, AlertCircle, Calendar } from 'lucide-react';
 import LoadingButton from '../src/components/ui/LoadingButton';
 
 interface DelegationModalProps {
@@ -15,6 +15,33 @@ const DelegationModal: React.FC<DelegationModalProps> = ({ employees, onClose, o
   const [targetId, setTargetId] = useState('none');
   const [deadline, setDeadline] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const deadlineInputRef = useRef<HTMLInputElement | null>(null);
+
+  const formatDeadlineLabel = (value: string): string => {
+    if (!value) return '';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return value.replace('T', ' ');
+    }
+    return parsed.toLocaleString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const openDeadlinePicker = () => {
+    const input = deadlineInputRef.current;
+    if (!input) return;
+    if (typeof (input as HTMLInputElement & { showPicker?: () => void }).showPicker === 'function') {
+      (input as HTMLInputElement & { showPicker: () => void }).showPicker();
+      return;
+    }
+    input.focus();
+    input.click();
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,12 +118,30 @@ const DelegationModal: React.FC<DelegationModalProps> = ({ employees, onClose, o
               
               <div className="w-full sm:w-1/3">
                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-1 block">Due By (Optional)</label>
-                 <input 
-                    type="datetime-local" 
-                    value={deadline}
-                    onChange={(e) => setDeadline(e.target.value)}
-                    className="w-full min-h-[48px] bg-white border border-slate-200 rounded-xl px-3 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-800 transition-all"
-                  />
+                 <div
+                    className="relative w-full min-h-[48px] bg-white border border-slate-200 rounded-xl px-3 py-3 text-base text-slate-900 focus-within:ring-2 focus-within:ring-slate-800 transition-all cursor-pointer"
+                    onClick={openDeadlinePicker}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        openDeadlinePicker();
+                      }
+                    }}
+                  >
+                    <span className="block pr-10">
+                      {deadline ? formatDeadlineLabel(deadline) : ''}
+                    </span>
+                    <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 pointer-events-none" />
+                    <input
+                      ref={deadlineInputRef}
+                      type="datetime-local"
+                      value={deadline}
+                      onChange={(e) => setDeadline(e.target.value)}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    />
+                  </div>
               </div>
             </div>
           </div>

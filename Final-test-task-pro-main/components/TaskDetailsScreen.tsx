@@ -1297,7 +1297,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-3">
               <p className="text-sm font-bold text-amber-700">Request Deadline Extension</p>
               <div
-                className="relative w-full border border-amber-200 rounded-xl px-4 py-3 bg-white text-base text-slate-900 focus-within:ring-2 focus-within:ring-amber-300 cursor-pointer"
+                className="relative w-full min-h-[52px] border border-amber-200 rounded-xl px-4 py-3.5 bg-white text-base text-slate-900 focus-within:ring-2 focus-within:ring-amber-300 cursor-pointer"
                 onClick={openExtensionPicker}
                 role="button"
                 tabIndex={0}
