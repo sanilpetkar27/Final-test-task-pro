@@ -625,8 +625,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
 
       <div className="z-10 w-full py-4 sm:py-0 pb-8">
         <div className="flex justify-center mb-8 sm:mb-12">
-          <div className="bg-[var(--accent)] p-5 rounded-[2.5rem] shadow-[0_2px_8px_rgba(0,0,0,0.04)] animate-pulse-slow">
-            <ClipboardList className="w-10 h-10 text-white" />
+          <div className="bg-white p-2 rounded-[2.5rem] border border-slate-200 shadow-[0_2px_8px_rgba(0,0,0,0.04)] animate-pulse-slow">
+            <img src="/icon-192.png" alt="OpenTask logo" className="w-16 h-16 rounded-[2rem]" />
           </div>
         </div>
 
