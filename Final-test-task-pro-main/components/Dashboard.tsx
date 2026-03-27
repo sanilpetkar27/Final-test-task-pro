@@ -1746,7 +1746,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
 	                  <select 
 	                    value={assigneeId}
 	                    onChange={(e) => setAssigneeId(e.target.value)}
-	                    className="w-full min-h-[48px] bg-white border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900 appearance-none transition-all pr-10 md:min-h-[44px] md:px-3 md:py-2 md:text-sm"
+	                    className="w-full min-h-[48px] bg-white border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900 appearance-none transition-all pr-12 md:min-h-[44px] md:px-3 md:py-2 md:pr-11 md:text-sm"
 	                  >
 	                    <option value="none" className="text-slate-900">Anyone / Unassigned</option>
 	                    {employees.map(emp => (
@@ -1755,7 +1755,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
                         </option>
                       ))}
 	                  </select>
-	                  <UserPlus className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+	                  <UserPlus className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
 	                </div>
 	                
 		                <div className="w-full sm:w-1/3 flex-shrink-0 md:w-auto md:flex-1 md:min-w-0">
