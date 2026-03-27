@@ -1748,7 +1748,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
 	                    onChange={(e) => setAssigneeId(e.target.value)}
 	                    className="w-full min-h-[48px] bg-white border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900 appearance-none transition-all pr-12 md:min-h-[44px] md:px-3 md:py-2 md:pr-11 md:text-sm"
 	                  >
-	                    <option value="none" className="text-slate-900">Anyone / Unassigned</option>
+	                    <option value="none" className="text-slate-900">Assign to</option>
 	                    {employees.map(emp => (
                         <option key={emp.id} value={emp.id} className="text-slate-900">
                           {emp.name} ({emp.role === 'super_admin' || emp.role === 'owner' ? 'Owner' : emp.role === 'manager' ? 'Manager' : 'Staff'})
