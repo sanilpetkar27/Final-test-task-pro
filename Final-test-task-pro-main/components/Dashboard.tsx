@@ -1740,57 +1740,69 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
                 </div>
               )}
 
-              <div className="flex flex-col sm:flex-row gap-2">
-                <div className="flex-1 relative">
-                  <select 
-                    value={assigneeId}
-                    onChange={(e) => setAssigneeId(e.target.value)}
-                    className="w-full min-h-[48px] bg-white border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900 appearance-none transition-all pr-10"
-                  >
-                    <option value="none" className="text-slate-900">Anyone / Unassigned</option>
-                    {employees.map(emp => (
+	              <div className="flex flex-col gap-2 md:gap-3">
+	                <div className="flex flex-col sm:flex-row gap-2 md:flex-nowrap md:items-center md:gap-3">
+	                <div className="flex-1 min-w-0 relative">
+	                  <select 
+	                    value={assigneeId}
+	                    onChange={(e) => setAssigneeId(e.target.value)}
+	                    className="w-full min-h-[48px] bg-white border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900 appearance-none transition-all pr-10 md:min-h-[44px] md:px-3 md:py-2 md:text-sm"
+	                  >
+	                    <option value="none" className="text-slate-900">Anyone / Unassigned</option>
+	                    {employees.map(emp => (
                         <option key={emp.id} value={emp.id} className="text-slate-900">
                           {emp.name} ({emp.role === 'super_admin' || emp.role === 'owner' ? 'Owner' : emp.role === 'manager' ? 'Manager' : 'Staff'})
                         </option>
                       ))}
-                  </select>
-                  <UserPlus className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
-                </div>
-                
-	                <div className="w-full sm:w-1/3 flex-shrink-0">
-	                  <div className="flex items-center gap-2">
-	                    <div className="relative flex-1">
-	                      <input 
-	                        type="datetime-local" 
-	                        value={deadline}
+	                  </select>
+	                  <UserPlus className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+	                </div>
+	                
+		                <div className="w-full sm:w-1/3 flex-shrink-0 md:w-auto md:flex-1 md:min-w-0">
+		                  <div className="flex items-center gap-2 md:min-w-0">
+		                    <div className="relative flex-1 min-w-0">
+		                      <input 
+		                        type="datetime-local" 
+		                        value={deadline}
 	                        onChange={(e) => setDeadline(e.target.value)}
 	                        onInput={(e) => setDeadline(e.currentTarget.value)}
 	                        onBlur={(e) => setDeadline(e.currentTarget.value)}
 	                        onFocus={(e) => syncInputOnPickerClose(e.currentTarget, setDeadline)}
 	                        onClick={(e) => openDateTimePicker(e.currentTarget)}
-	                        className="w-full min-h-[48px] border rounded-xl px-3 py-3 bg-white border-slate-200 text-base focus:outline-none focus:ring-2 focus:ring-indigo-900 transition-all cursor-pointer"
-	                      />
-	                      <CalendarClock className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-	                    </div>
+		                        className="w-full min-h-[48px] border rounded-xl px-3 py-3 bg-white border-slate-200 text-base focus:outline-none focus:ring-2 focus:ring-indigo-900 transition-all cursor-pointer md:min-h-[44px] md:px-3 md:py-2 md:text-sm"
+		                      />
+		                      <CalendarClock className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+		                    </div>
 	                    {deadline && (
 	                      <button
 	                        type="button"
 	                        onClick={() => setDeadline('')}
-	                        className="text-slate-400 hover:text-slate-600 text-xs px-2 py-1 rounded-lg border border-slate-200 bg-white whitespace-nowrap"
-	                        aria-label="Clear date"
-	                      >
-	                        X Clear
-	                      </button>
-	                    )}
-	                  </div>
+		                        className="text-slate-400 hover:text-slate-600 text-xs px-2 py-1 rounded-lg border border-slate-200 bg-white whitespace-nowrap md:px-1.5 md:text-[11px]"
+		                        aria-label="Clear date"
+		                      >
+		                        X Clear
+		                      </button>
+		                    )}
+		                  </div>
+		                </div>
+	                <div className="relative hidden md:block md:flex-1 md:min-w-0">
+	                  <select
+	                    value={taskType}
+	                    onChange={(e) => setTaskType(e.target.value as TaskType)}
+	                    className="w-full min-h-[44px] bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900 appearance-none transition-all pr-10"
+	                  >
+	                    <option value="one_time" className="text-slate-900">One-time Task</option>
+	                    <option value="recurring" className="text-slate-900">Recurring Task</option>
+	                  </select>
+	                  <Clock className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
 	                </div>
-              </div>
+	              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                <div className="relative">
-                  <select
-                    value={taskType}
-                    onChange={(e) => setTaskType(e.target.value as TaskType)}
+	              <div className="grid grid-cols-1 gap-2">
+	                <div className="relative md:hidden">
+	                  <select
+	                    value={taskType}
+	                    onChange={(e) => setTaskType(e.target.value as TaskType)}
                     className="w-full min-h-[48px] bg-white border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900 appearance-none transition-all pr-10"
                   >
                     <option value="one_time" className="text-slate-900">One-time Task</option>
@@ -1863,12 +1875,13 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
                   loadingText="Creating..."
                   variant="primary"
                   className="flex-1 min-h-[48px] bg-indigo-900 hover:bg-indigo-800 text-white py-3 rounded-xl font-bold active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 shadow-sm shadow-[0_2px_8px_rgba(0,0,0,0.04)] disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  <Plus className="w-5 h-5" />
-                  Create Task
-                </LoadingButton>
-              </div>
-            </form>
+	                >
+	                  <Plus className="w-5 h-5" />
+	                  Create Task
+	                </LoadingButton>
+	              </div>
+	            </div>
+	            </form>
           </div>
         </div>
       )}
