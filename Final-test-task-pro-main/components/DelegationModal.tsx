@@ -17,6 +17,18 @@ const DelegationModal: React.FC<DelegationModalProps> = ({ employees, onClose, o
   const [isSubmitting, setIsSubmitting] = useState(false);
   const deadlineInputRef = useRef<HTMLInputElement | null>(null);
 
+  const syncInputOnPickerClose = (input: HTMLInputElement | null, setter: (value: string) => void) => {
+    if (!input) return;
+    const tick = () => {
+      if (document.activeElement === input) {
+        requestAnimationFrame(tick);
+      } else {
+        setter(input.value);
+      }
+    };
+    requestAnimationFrame(tick);
+  };
+
   const formatDeadlineLabel = (value: string): string => {
     if (!value) return '';
     const parsed = new Date(value);
@@ -141,6 +153,7 @@ const DelegationModal: React.FC<DelegationModalProps> = ({ employees, onClose, o
                       onChange={(e) => setDeadline(e.target.value)}
                       onInput={(e) => setDeadline(e.currentTarget.value)}
                       onBlur={(e) => setDeadline(e.currentTarget.value)}
+                      onFocus={(e) => syncInputOnPickerClose(e.currentTarget, setDeadline)}
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                     />
                   </div>

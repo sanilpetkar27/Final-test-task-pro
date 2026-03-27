@@ -197,6 +197,18 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
   const [showCompletedFilterMenu, setShowCompletedFilterMenu] = useState(false);
   const completedFilterMenuRef = useRef<HTMLDivElement | null>(null);
   
+  const syncInputOnPickerClose = (input: HTMLInputElement | null, setter: (value: string) => void) => {
+    if (!input) return;
+    const tick = () => {
+      if (document.activeElement === input) {
+        requestAnimationFrame(tick);
+      } else {
+        setter(input.value);
+      }
+    };
+    requestAnimationFrame(tick);
+  };
+  
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
   const [delegatingTaskId, setDelegatingTaskId] = useState<string | null>(null);
   const [reassigningTaskId, setReassigningTaskId] = useState<string | null>(null);
@@ -1752,6 +1764,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
                     onChange={(e) => setDeadline(e.target.value)}
                     onInput={(e) => setDeadline(e.currentTarget.value)}
                     onBlur={(e) => setDeadline(e.currentTarget.value)}
+                    onFocus={(e) => syncInputOnPickerClose(e.currentTarget, setDeadline)}
                     onClick={(e) => openDateTimePicker(e.currentTarget)}
                     className="w-full min-h-[48px] border rounded-xl px-3 py-3 bg-white border-slate-200 text-base focus:outline-none focus:ring-2 focus:ring-indigo-900 transition-all cursor-pointer"
                   />
@@ -1970,6 +1983,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
                         onChange={(event) => setCompletedCustomFromDate(event.target.value)}
                         onInput={(event) => setCompletedCustomFromDate(event.currentTarget.value)}
                         onBlur={(event) => setCompletedCustomFromDate(event.currentTarget.value)}
+                        onFocus={(event) => syncInputOnPickerClose(event.currentTarget, setCompletedCustomFromDate)}
                         className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-900"
                       />
                     </div>
@@ -1981,6 +1995,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
                         onChange={(event) => setCompletedCustomToDate(event.target.value)}
                         onInput={(event) => setCompletedCustomToDate(event.currentTarget.value)}
                         onBlur={(event) => setCompletedCustomToDate(event.currentTarget.value)}
+                        onFocus={(event) => syncInputOnPickerClose(event.currentTarget, setCompletedCustomToDate)}
                         className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-900"
                       />
                     </div>

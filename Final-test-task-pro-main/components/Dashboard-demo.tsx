@@ -26,6 +26,18 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
   const [deadline, setDeadline] = useState('');
   const [requirePhoto, setRequirePhoto] = useState(false);
   const [selectedPersonFilter, setSelectedPersonFilter] = useState('ALL');
+
+  const syncInputOnPickerClose = (input: HTMLInputElement | null, setter: (value: string) => void) => {
+    if (!input) return;
+    const tick = () => {
+      if (document.activeElement === input) {
+        requestAnimationFrame(tick);
+      } else {
+        setter(input.value);
+      }
+    };
+    requestAnimationFrame(tick);
+  };
   
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
   const [delegatingTaskId, setDelegatingTaskId] = useState<string | null>(null);
@@ -142,6 +154,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
                 onChange={(e) => setDeadline(e.target.value)}
                 onInput={(e) => setDeadline(e.currentTarget.value)}
                 onBlur={(e) => setDeadline(e.currentTarget.value)}
+                onFocus={(e) => syncInputOnPickerClose(e.currentTarget, setDeadline)}
                 className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>

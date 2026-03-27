@@ -396,6 +396,18 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [showDatePicker, setShowDatePicker] = useState(false);
+  
+  const syncInputOnPickerClose = (input: HTMLInputElement | null, setter: (value: string) => void) => {
+    if (!input) return;
+    const tick = () => {
+      if (document.activeElement === input) {
+        requestAnimationFrame(tick);
+      } else {
+        setter(input.value);
+      }
+    };
+    requestAnimationFrame(tick);
+  };
   const [approvals, setApprovals] = useState<ApprovalItem[]>([]);
   const [selectedApprovalId, setSelectedApprovalId] = useState<string | null>(null);
   const [approvers, setApprovers] = useState<ApproverOption[]>([]);
@@ -1873,6 +1885,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                           onChange={(event) => setApprovedFromDate(event.target.value)}
                           onInput={(event) => setApprovedFromDate(event.currentTarget.value)}
                           onBlur={(event) => setApprovedFromDate(event.currentTarget.value)}
+                          onFocus={(event) => syncInputOnPickerClose(event.currentTarget, setApprovedFromDate)}
                           className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-900"
                         />
                       </div>
@@ -1884,6 +1897,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                           onChange={(event) => setApprovedToDate(event.target.value)}
                           onInput={(event) => setApprovedToDate(event.currentTarget.value)}
                           onBlur={(event) => setApprovedToDate(event.currentTarget.value)}
+                          onFocus={(event) => syncInputOnPickerClose(event.currentTarget, setApprovedToDate)}
                           className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-900"
                         />
                       </div>
@@ -2000,6 +2014,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                         onChange={(e) => setStartDate(e.target.value)}
                         onInput={(e) => setStartDate(e.currentTarget.value)}
                         onBlur={(e) => setStartDate(e.currentTarget.value)}
+                        onFocus={(e) => syncInputOnPickerClose(e.currentTarget, setStartDate)}
                         className="w-full min-h-[48px] px-3 py-2 border border-slate-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
                       />
                     </div>
@@ -2012,6 +2027,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                         onChange={(e) => setEndDate(e.target.value)}
                         onInput={(e) => setEndDate(e.currentTarget.value)}
                         onBlur={(e) => setEndDate(e.currentTarget.value)}
+                        onFocus={(e) => syncInputOnPickerClose(e.currentTarget, setEndDate)}
                         className="w-full min-h-[48px] px-3 py-2 border border-slate-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
                       />
                     </div>

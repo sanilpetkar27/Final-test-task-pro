@@ -19,6 +19,18 @@ const FinanceManager: React.FC<FinanceManagerProps> = ({ records, onAddRecord, o
     description: ''
   });
 
+  const syncInputOnPickerClose = (input: HTMLInputElement | null, setter: (value: string) => void) => {
+    if (!input) return;
+    const tick = () => {
+      if (document.activeElement === input) {
+        requestAnimationFrame(tick);
+      } else {
+        setter(input.value);
+      }
+    };
+    requestAnimationFrame(tick);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.lenderName || !formData.amount || !formData.dueDate) return;
@@ -134,6 +146,7 @@ const FinanceManager: React.FC<FinanceManagerProps> = ({ records, onAddRecord, o
                 onChange={e => setFormData({...formData, dueDate: e.target.value})}
                 onInput={e => setFormData({...formData, dueDate: e.currentTarget.value})}
                 onBlur={e => setFormData({...formData, dueDate: e.currentTarget.value})}
+                onFocus={e => syncInputOnPickerClose(e.currentTarget, (value) => setFormData((prev) => ({...prev, dueDate: value})))}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 outline-none"
               />
             </div>
