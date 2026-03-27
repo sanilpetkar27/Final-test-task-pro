@@ -1871,6 +1871,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                           type="date"
                           value={approvedFromDate}
                           onChange={(event) => setApprovedFromDate(event.target.value)}
+                          onInput={(event) => setApprovedFromDate(event.currentTarget.value)}
                           className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-900"
                         />
                       </div>
@@ -1880,6 +1881,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                           type="date"
                           value={approvedToDate}
                           onChange={(event) => setApprovedToDate(event.target.value)}
+                          onInput={(event) => setApprovedToDate(event.currentTarget.value)}
                           className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-900"
                         />
                       </div>
@@ -1994,6 +1996,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                         type="date"
                         value={startDate}
                         onChange={(e) => setStartDate(e.target.value)}
+                        onInput={(e) => setStartDate(e.currentTarget.value)}
                         className="w-full min-h-[48px] px-3 py-2 border border-slate-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
                       />
                     </div>
@@ -2004,6 +2007,7 @@ const ApprovalsPanel: React.FC<ApprovalsPanelProps> = ({ currentUser }) => {
                         type="date"
                         value={endDate}
                         onChange={(e) => setEndDate(e.target.value)}
+                        onInput={(e) => setEndDate(e.currentTarget.value)}
                         className="w-full min-h-[48px] px-3 py-2 border border-slate-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-indigo-900/20"
                       />
                     </div>

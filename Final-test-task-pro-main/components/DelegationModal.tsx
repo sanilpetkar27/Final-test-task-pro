@@ -139,6 +139,7 @@ const DelegationModal: React.FC<DelegationModalProps> = ({ employees, onClose, o
                       type="datetime-local"
                       value={deadline}
                       onChange={(e) => setDeadline(e.target.value)}
+                      onInput={(e) => setDeadline(e.currentTarget.value)}
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                     />
                   </div>
