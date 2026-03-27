@@ -2710,8 +2710,8 @@ const App: React.FC = () => {
       {/* Header */}
       <header className="bg-white/95 backdrop-blur text-slate-900 px-4 py-4 sm:px-6 pt-safe-top sticky top-0 z-30 flex items-center justify-between shadow-sm border-b border-[var(--border)]" style={{ paddingTop: 'max(3rem, 1.25rem)' }}>
         <div className="flex items-center gap-2">
-          <div className="bg-[var(--accent)] p-2 rounded-[1rem] shadow-[0_4px_14px_rgba(79,70,229,0.15)]">
-            <LayoutDashboard className="w-5 h-5 text-white" />
+          <div className="bg-white p-1 rounded-[1rem] border border-[var(--border)] shadow-[0_4px_14px_rgba(15,23,42,0.08)]">
+            <img src="/icon-192.png" alt="OpenTask logo" className="w-8 h-8 rounded-[0.75rem]" />
           </div>
           <div>
             <h1 className="text-lg font-black tracking-tight leading-none text-slate-900">OpenTask</h1>
