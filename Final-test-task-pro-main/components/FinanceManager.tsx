@@ -133,6 +133,7 @@ const FinanceManager: React.FC<FinanceManagerProps> = ({ records, onAddRecord, o
                 value={formData.dueDate}
                 onChange={e => setFormData({...formData, dueDate: e.target.value})}
                 onInput={e => setFormData({...formData, dueDate: e.currentTarget.value})}
+                onBlur={e => setFormData({...formData, dueDate: e.currentTarget.value})}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 outline-none"
               />
             </div>

@@ -141,6 +141,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, on
                 value={deadline}
                 onChange={(e) => setDeadline(e.target.value)}
                 onInput={(e) => setDeadline(e.currentTarget.value)}
+                onBlur={(e) => setDeadline(e.currentTarget.value)}
                 className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>

@@ -1318,6 +1318,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
                   value={extensionDate}
                   onChange={(e) => setExtensionDate(e.target.value)}
                   onInput={(e) => setExtensionDate(e.currentTarget.value)}
+                  onBlur={(e) => setExtensionDate(e.currentTarget.value)}
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                 />
               </div>
@@ -1603,7 +1604,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
                   </select>
                   <UserPlus className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
                 </div>
-                <input type="datetime-local" value={editDeadline} onChange={(e) => setEditDeadline(e.target.value)} onInput={(e) => setEditDeadline(e.currentTarget.value)}
+                <input type="datetime-local" value={editDeadline} onChange={(e) => setEditDeadline(e.target.value)} onInput={(e) => setEditDeadline(e.currentTarget.value)} onBlur={(e) => setEditDeadline(e.currentTarget.value)}
                   className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-white text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20" />
               </div>
               <div className="flex items-center gap-2">

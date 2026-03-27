@@ -133,6 +133,7 @@ const ReceivablesManager: React.FC<ReceivablesManagerProps> = ({ records, onAddR
                 value={formData.expectedDate}
                 onChange={e => setFormData({...formData, expectedDate: e.target.value})}
                 onInput={e => setFormData({...formData, expectedDate: e.currentTarget.value})}
+                onBlur={e => setFormData({...formData, expectedDate: e.currentTarget.value})}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 outline-none"
               />
             </div>
