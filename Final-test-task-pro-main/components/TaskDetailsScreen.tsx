@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../src/lib/supabase';
 import LoadingButton from '../src/components/ui/LoadingButton';
+import { toast } from 'sonner';
 
 interface TaskDetailsScreenProps {
   task: DealershipTask;
@@ -169,6 +170,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   const [isCompleting, setIsCompleting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isReopening, setIsReopening] = useState(false);
+  const [isStoppingRecurrence, setIsStoppingRecurrence] = useState(false);
   const [editDescription, setEditDescription] = useState(task.description);
   const [editAssigneeId, setEditAssigneeId] = useState(task.assignedTo || 'none');
   const [editDeadline, setEditDeadline] = useState('');
@@ -942,6 +944,52 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
     }
   };
 
+  const handleStopRecurrence = async () => {
+    if (isStoppingRecurrence) return;
+    const confirmStop = window.confirm(
+      'Are you sure you want to stop this recurring task? It will no longer repeat after the current cycle.'
+    );
+    if (!confirmStop) return;
+
+    setIsStoppingRecurrence(true);
+    try {
+      if (onInlineEditSave) {
+        const ok = await onInlineEditSave(task.id, {
+          description: String(task.description || ''),
+          assignedTo: task.assignedTo || null,
+          deadline: task.deadline ?? undefined,
+          requirePhoto: Boolean(task.requirePhoto),
+          taskType: 'one_time',
+          recurrenceFrequency: null,
+          priority: normalizedPriority,
+        });
+        if (!ok) {
+          toast.error('Failed to stop recurrence');
+          return;
+        }
+      } else {
+        const { error } = await supabase
+          .from('tasks')
+          .update({
+            task_type: 'one_time',
+            recurrence_frequency: null,
+            next_recurrence_notification_at: null,
+          })
+          .eq('id', task.id);
+        if (error) {
+          toast.error(`Failed to stop recurrence: ${error.message}`);
+          return;
+        }
+        if (typeof window !== 'undefined') {
+          window.location.reload();
+        }
+      }
+      toast.success('Recurrence stopped');
+    } finally {
+      setIsStoppingRecurrence(false);
+    }
+  };
+
   // Auto-start task when opened and status is pending
   useEffect(() => {
     if (!readOnly && task.status === 'pending' && onStartTask) {
@@ -963,6 +1011,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   };
 	  const actions: QuickAction[] = [];
 	  const quickActionButtonClass = '!h-20 !w-full !rounded-2xl border border-transparent !px-2 !py-3 !text-sm !font-bold shadow-[0_8px_20px_rgba(15,23,42,0.08)]';
+  const canStopRecurrence = isManager && normalizedTaskType === 'recurring';
 
   if (task.status === 'pending') {
     // Start Task button removed - task auto-starts when opened
@@ -1105,13 +1154,27 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
     }
   }
 
-  if (task.status === 'pending_approval' && task.proof) {
+	  if (task.status === 'pending_approval' && task.proof) {
     actions.push({
       key: 'view-proof',
       label: 'View Proof',
       icon: <Eye className="w-5 h-5" />,
       onClick: () => setShowFullImage(true),
       className: '!bg-[var(--accent-light)] !text-[var(--accent)] hover:!bg-[var(--accent-light)] border border-[var(--accent)]/20'
+    });
+	  }
+
+  if (canStopRecurrence) {
+    actions.push({
+      key: 'stop-recurrence',
+      label: 'Stop Recurrence',
+      icon: <Clock className="w-5 h-5" />,
+      onClick: handleStopRecurrence,
+      useLoadingButton: true,
+      isLoading: isStoppingRecurrence,
+      loadingText: 'Stopping...',
+      disabled: isStoppingRecurrence,
+      className: '!bg-amber-500 !text-white hover:!bg-amber-600'
     });
   }
 
