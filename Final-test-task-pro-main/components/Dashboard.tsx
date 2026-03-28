@@ -1442,16 +1442,16 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
   const completedTaskCount = completedTasks.filter((task) =>
     isCompletedAtInRange(task.completedAt, todayStartMs, nowMs)
   ).length;
-  const pendingTaskCount = activeTasks.filter((task) => task.status === 'pending').length;
-  const overdueTaskCount = activeTasks.filter((task) => {
-    const statusValue = String(task.status || '').toLowerCase();
-    return statusValue === 'overdue' || (
-      statusValue !== 'completed' &&
-      statusValue !== 'pending_approval' &&
-      task.deadline != null &&
-      Date.now() > task.deadline
-    );
+  const normalizeStatus = (task: DealershipTask): string =>
+    String(task.status || '').toLowerCase().replace(/_/g, '-');
+  const statsActiveCount = baseFilteredTasks.filter((task) => normalizeStatus(task) === 'in-progress').length;
+  const statsPendingCount = baseFilteredTasks.filter((task) => normalizeStatus(task) === 'pending').length;
+  const statsOverdueCount = baseFilteredTasks.filter((task) => {
+    const normalized = normalizeStatus(task);
+    const isOpen = normalized === 'pending' || normalized === 'in-progress';
+    return isOpen && task.deadline != null && Number(task.deadline) < nowMs;
   }).length;
+  const statsDoneTodayCount = completedTaskCount;
   const currentHour = new Date().getHours();
   const greetingPrefix =
     currentHour >= 5 && currentHour < 12
@@ -1632,10 +1632,10 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label: 'Active', value: activeTaskCount, tone: 'text-[var(--accent)] bg-[var(--accent-light)]' },
-          { label: 'Overdue', value: overdueTaskCount, tone: 'text-[var(--red)] bg-[var(--red-light)]' },
-          { label: 'Done today', value: completedTaskCount, tone: 'text-[var(--green)] bg-[var(--green-light)]' },
-          { label: 'Pending', value: pendingTaskCount, tone: 'text-[var(--orange)] bg-[var(--orange-light)]' },
+          { label: 'Active', value: statsActiveCount, tone: 'text-[var(--accent)] bg-[var(--accent-light)]' },
+          { label: 'Overdue', value: statsOverdueCount, tone: 'text-[var(--red)] bg-[var(--red-light)]' },
+          { label: 'Done today', value: statsDoneTodayCount, tone: 'text-[var(--green)] bg-[var(--green-light)]' },
+          { label: 'Pending', value: statsPendingCount, tone: 'text-[var(--orange)] bg-[var(--orange-light)]' },
         ].map((item) => (
           <div key={item.label} className={`surface-card px-4 py-3 ${item.tone}`}>
             <div className="font-ui-mono text-[22px] font-medium leading-none">{item.value}</div>
