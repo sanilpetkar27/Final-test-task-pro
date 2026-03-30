@@ -28,6 +28,18 @@ const formatCompletedDateTime = (timestamp: number): string => {
   return `${day} ${month} at ${hours12}:${minutes}${ampm}`;
 };
 
+const formatCreatedDateTime = (timestamp: number): string => {
+  const date = new Date(timestamp);
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const day = date.getDate();
+  const month = months[date.getMonth()];
+  const hours24 = date.getHours();
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const ampm = hours24 >= 12 ? 'PM' : 'AM';
+  const hours12 = hours24 % 12 || 12;
+  return `${day} ${month}, ${hours12}:${minutes} ${ampm}`;
+};
+
 const getInitials = (name?: string | null): string => {
   if (!name) return '?';
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -61,6 +73,8 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCou
     task.completedAt && Number(task.completedAt) > 0
       ? formatCompletedDateTime(Number(task.completedAt))
       : 'recently';
+  const createdAtLabel =
+    Number(task.createdAt) > 0 ? formatCreatedDateTime(Number(task.createdAt)) : null;
 
   const rawExtensionStatus = String(
     (task as any).extensionStatus ?? (task as any).extension_status ?? 'NONE'
@@ -124,30 +138,38 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, employees, onClick, unreadCou
               </span>
             </div>
           ) : (
-            <div className="flex flex-wrap items-center gap-3">
-              {assigneeName && (
-                <span className="flex items-center gap-2 text-base text-[var(--ink-2)]">
-                  <span className="inline-flex h-[22px] w-[22px] items-center justify-center rounded-full bg-[var(--surface-2)] text-[10px] font-semibold text-[var(--ink-2)]">
-                    {getInitials(assigneeName)}
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-3">
+                {assigneeName && (
+                  <span className="flex items-center gap-2 text-base text-[var(--ink-2)]">
+                    <span className="inline-flex h-[22px] w-[22px] items-center justify-center rounded-full bg-[var(--surface-2)] text-[10px] font-semibold text-[var(--ink-2)]">
+                      {getInitials(assigneeName)}
+                    </span>
+                    <span className="truncate max-w-[140px]">{assigneeName}</span>
                   </span>
-                  <span className="truncate max-w-[140px]">{assigneeName}</span>
-                </span>
-              )}
-              {task.deadline != null && (
-                <span
-                  className={`flex items-center gap-1.5 text-base font-ui-mono ${
-                    isOverdue ? 'text-[var(--red)] font-medium' : 'text-[var(--ink-3)]'
-                  }`}
-                >
-                  {isOverdue ? (
-                    <Clock className="w-4 h-4 text-red-400 flex-shrink-0" />
-                  ) : (
-                    <Calendar className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                  )}
-                  <span>
-                    {formatShortDate(task.deadline)}
-                    {isOverdue && ' (Overdue)'}
+                )}
+                {task.deadline != null && (
+                  <span
+                    className={`flex items-center gap-1.5 text-base font-ui-mono ${
+                      isOverdue ? 'text-[var(--red)] font-medium' : 'text-[var(--ink-3)]'
+                    }`}
+                  >
+                    {isOverdue ? (
+                      <Clock className="w-4 h-4 text-red-400 flex-shrink-0" />
+                    ) : (
+                      <Calendar className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                    )}
+                    <span>
+                      {formatShortDate(task.deadline)}
+                      {isOverdue && ' (Overdue)'}
+                    </span>
                   </span>
+                )}
+              </div>
+              {createdAtLabel && (
+                <span className="flex items-center gap-1.5 text-xs text-slate-400">
+                  <Clock className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                  <span>Created: {createdAtLabel}</span>
                 </span>
               )}
             </div>

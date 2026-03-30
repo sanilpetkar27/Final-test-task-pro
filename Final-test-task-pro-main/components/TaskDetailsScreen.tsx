@@ -131,6 +131,19 @@ const formatDateTimeForInput = (timestamp?: number | null): string => {
   return new Date(timestamp - offset).toISOString().slice(0, 16);
 };
 
+const formatDateTimeWithMeridiem = (timestamp: number | undefined | null): string => {
+  if (!timestamp) return '-';
+  const date = new Date(timestamp);
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const day = date.getDate();
+  const month = months[date.getMonth()];
+  const hours24 = date.getHours();
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const ampm = hours24 >= 12 ? 'PM' : 'AM';
+  const hours12 = hours24 % 12 || 12;
+  return `${day} ${month}, ${hours12}:${minutes} ${ampm}`;
+};
+
 const formatDateTimeLabel = (value: string): string => {
   if (!value) return '';
   const parsed = new Date(value);
@@ -1348,6 +1361,15 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
               <span className="w-[90px] text-sm text-[var(--ink-3)]">Due date</span>
               <span className={`font-ui-mono text-sm font-medium ml-1 ${isOverdue ? 'text-red-600' : 'text-emerald-600'}`}>
                 {task.deadline ? formatFullDate(task.deadline) : 'No deadline'}
+              </span>
+            </div>
+
+            {/* Created */}
+            <div className="flex items-center gap-3 py-3 border-b border-[var(--border)]">
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] bg-[var(--surface-2)]"><Clock className="w-4 h-4 text-slate-400 flex-shrink-0" /></span>
+              <span className="w-[90px] text-sm text-[var(--ink-3)]">Created</span>
+              <span className="font-ui-mono text-sm font-medium text-slate-700 ml-1">
+                {formatDateTimeWithMeridiem(Number(task.createdAt || 0))}
               </span>
             </div>
 
