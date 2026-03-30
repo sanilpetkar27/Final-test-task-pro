@@ -34,6 +34,7 @@ interface TaskDetailsScreenProps {
       requirePhoto: boolean;
       taskType: TaskType;
       recurrenceFrequency: RecurrenceFrequency | null;
+      recurrenceTime?: string | null;
       priority: 'High' | 'Medium';
     }
   ) => Promise<boolean>;
@@ -145,6 +146,31 @@ const formatDateTimeLabel = (value: string): string => {
   });
 };
 
+const getRoundedHourTime = (): string => {
+  const now = new Date();
+  if (now.getMinutes() >= 30) {
+    now.setHours(now.getHours() + 1);
+  }
+  now.setMinutes(0, 0, 0);
+  return `${String(now.getHours()).padStart(2, '0')}:00`;
+};
+
+const normalizeRecurrenceTime = (value: string | null | undefined): string | null => {
+  const text = String(value || '').trim();
+  if (!/^\d{2}:\d{2}$/.test(text)) return null;
+  const [hh, mm] = text.split(':').map(Number);
+  if (!Number.isInteger(hh) || !Number.isInteger(mm)) return null;
+  if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return null;
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+};
+
+const formatRecurrenceTimeLabel = (value: string | null): string => {
+  if (!value) return 'Not set';
+  const date = new Date(`1970-01-01T${value}:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+};
+
 const getRoleBadge = (role?: string): { label: string; className: string } => {
   if (role === 'owner' || role === 'super_admin') return { label: 'OWNER', className: 'bg-[var(--accent-light)] text-[var(--accent)]' };
   if (role === 'manager') return { label: 'MANAGER', className: 'bg-slate-200 text-slate-700' };
@@ -178,6 +204,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   const [editIsHighPriority, setEditIsHighPriority] = useState(false);
   const [editTaskType, setEditTaskType] = useState<TaskType>('one_time');
   const [editRecurrenceFrequency, setEditRecurrenceFrequency] = useState<RecurrenceFrequency | ''>('');
+  const [editRecurrenceTime, setEditRecurrenceTime] = useState<string>(getRoundedHourTime());
   const [editModalKeyboardInset, setEditModalKeyboardInset] = useState(0);
   const [editModalVisibleHeight, setEditModalVisibleHeight] = useState<number | null>(null);
   const [mentionCandidates, setMentionCandidates] = useState<MentionCandidate[]>([]);
@@ -291,6 +318,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
 
   const rawTaskType = String((task as any).taskType ?? (task as any).task_type ?? '').toLowerCase();
   const rawRecurrence = String((task as any).recurrenceFrequency ?? (task as any).recurrence_frequency ?? '').toLowerCase();
+  const recurrenceTime = normalizeRecurrenceTime((task as any).recurrenceTime ?? (task as any).recurrence_time);
   const normalizedTaskType: TaskType = rawTaskType === 'recurring' ? 'recurring' : 'one_time';
   const normalizedRecurrence = (rawRecurrence === 'daily' || rawRecurrence === 'weekly' || rawRecurrence === 'monthly') ? rawRecurrence : null;
 
@@ -381,8 +409,9 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
     setEditIsHighPriority(normalizedPriority === 'High');
     setEditTaskType(normalizedTaskType);
     setEditRecurrenceFrequency(normalizedTaskType === 'recurring' ? (normalizedRecurrence || '') : '');
+    setEditRecurrenceTime(normalizedTaskType === 'recurring' ? (recurrenceTime || getRoundedHourTime()) : getRoundedHourTime());
     setIsEditing(false);
-  }, [task.id, task.description, task.assignedTo, task.deadline, task.requirePhoto, normalizedPriority, normalizedTaskType, normalizedRecurrence]);
+  }, [task.id, task.description, task.assignedTo, task.deadline, task.requirePhoto, normalizedPriority, normalizedTaskType, normalizedRecurrence, recurrenceTime]);
 
   useEffect(() => {
     if (remarksScrollRef.current) {
@@ -908,6 +937,10 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   const handleEditSave = async () => {
     if (!onInlineEditSave || isSavingEdit) return;
     const rec: RecurrenceFrequency | null = editTaskType === 'recurring' ? (editRecurrenceFrequency || null) : null;
+    const recurrenceTimeValue =
+      editTaskType === 'recurring' && rec
+        ? (normalizeRecurrenceTime(editRecurrenceTime) || getRoundedHourTime())
+        : null;
     if (!editDescription.trim()) { alert('Description required.'); return; }
     if (editTaskType === 'recurring' && !rec) { alert('Select recurrence frequency.'); return; }
     setIsSavingEdit(true);
@@ -918,6 +951,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
       requirePhoto: editRequirePhoto,
       taskType: editTaskType,
       recurrenceFrequency: rec,
+      recurrenceTime: recurrenceTimeValue,
       priority: editIsHighPriority ? 'High' : 'Medium',
     });
     setIsSavingEdit(false);
@@ -961,6 +995,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
           requirePhoto: Boolean(task.requirePhoto),
           taskType: 'one_time',
           recurrenceFrequency: null,
+          recurrenceTime: null,
           priority: normalizedPriority,
         });
         if (!ok) {
@@ -973,6 +1008,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
           .update({
             task_type: 'one_time',
             recurrence_frequency: null,
+            recurrence_time: null,
             next_recurrence_notification_at: null,
           })
           .eq('id', task.id);
@@ -1347,6 +1383,15 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
                 </span>
               </div>
             )}
+            {normalizedTaskType === 'recurring' && (
+              <div className="flex items-center gap-3 py-3 border-b border-[var(--border)]">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] bg-[var(--surface-2)]"><Clock className="w-4 h-4 text-indigo-400 flex-shrink-0" /></span>
+                <span className="w-[90px] text-sm text-[var(--ink-3)]">Resurfaces at</span>
+                <span className="font-ui-mono text-sm font-medium text-slate-900 ml-1">
+                  {formatRecurrenceTimeLabel(recurrenceTime)}
+                </span>
+              </div>
+            )}
 
             {/* Parent task */}
             {parentTask && (
@@ -1706,7 +1751,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
               />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="relative">
-                  <select value={editTaskType} onChange={(e) => { setEditTaskType(e.target.value as TaskType); if (e.target.value === 'one_time') setEditRecurrenceFrequency(''); }}
+                  <select value={editTaskType} onChange={(e) => { setEditTaskType(e.target.value as TaskType); if (e.target.value === 'one_time') { setEditRecurrenceFrequency(''); setEditRecurrenceTime(getRoundedHourTime()); } }}
                     className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20 appearance-none pr-10">
                     <option value="one_time">One-time Task</option>
                     <option value="recurring">Recurring Task</option>
@@ -1723,6 +1768,19 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
                       <option value="monthly">Monthly</option>
                     </select>
                     <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
+                )}
+                {editTaskType === 'recurring' && editRecurrenceFrequency && (
+                  <div>
+                    <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 mb-1 block">
+                      Resurface time
+                    </label>
+                    <input
+                      type="time"
+                      value={editRecurrenceTime}
+                      onChange={(e) => setEditRecurrenceTime(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20"
+                    />
                   </div>
                 )}
               </div>

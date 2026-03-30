@@ -167,7 +167,7 @@ const isMissingRelationError = (error: any): boolean => {
 const isMissingTaskRecurrenceColumnError = (error: any): boolean => {
   const message = String(error?.message || '').toLowerCase();
   const missingRecurrenceColumn =
-    message.includes('recurrence_frequency') || message.includes('task_type');
+    message.includes('recurrence_frequency') || message.includes('task_type') || message.includes('recurrence_time');
   const missingInSchema =
     message.includes('schema cache') || (message.includes('column') && message.includes('does not exist'));
   return missingRecurrenceColumn && missingInSchema;
@@ -185,8 +185,10 @@ const stripTaskRecurrenceFields = (payload: Record<string, any>) => {
   const legacyPayload = { ...payload };
   delete legacyPayload.task_type;
   delete legacyPayload.recurrence_frequency;
+  delete legacyPayload.recurrence_time;
   delete legacyPayload.taskType;
   delete legacyPayload.recurrenceFrequency;
+  delete legacyPayload.recurrenceTime;
   delete legacyPayload.next_recurrence_notification_at;
   delete legacyPayload.nextRecurrenceNotificationAt;
   return legacyPayload;
@@ -197,10 +199,13 @@ const toCamelTaskRecurrencePayload = (payload: Record<string, any>) => {
   camelPayload.taskType = camelPayload.task_type ?? camelPayload.taskType ?? 'one_time';
   camelPayload.recurrenceFrequency =
     camelPayload.recurrence_frequency ?? camelPayload.recurrenceFrequency ?? null;
+  camelPayload.recurrenceTime =
+    camelPayload.recurrence_time ?? camelPayload.recurrenceTime ?? null;
   camelPayload.nextRecurrenceNotificationAt =
     camelPayload.next_recurrence_notification_at ?? camelPayload.nextRecurrenceNotificationAt ?? null;
   delete camelPayload.task_type;
   delete camelPayload.recurrence_frequency;
+  delete camelPayload.recurrence_time;
   delete camelPayload.next_recurrence_notification_at;
   return camelPayload;
 };
@@ -1954,6 +1959,7 @@ const App: React.FC = () => {
     requirePhoto?: boolean,
     taskType: TaskType = 'one_time',
     recurrenceFrequency?: RecurrenceFrequency | null,
+    recurrenceTime?: string | null,
     priority: TaskPriority = 'Medium'
   ) => {
     if (!currentUser) return;
@@ -1966,6 +1972,10 @@ const App: React.FC = () => {
       normalizedTaskType === 'recurring' &&
       (recurrenceFrequency === 'daily' || recurrenceFrequency === 'weekly' || recurrenceFrequency === 'monthly')
         ? recurrenceFrequency
+        : null;
+    const normalizedRecurrenceTime =
+      normalizedTaskType === 'recurring' && /^\d{2}:\d{2}$/.test(String(recurrenceTime || ''))
+        ? String(recurrenceTime)
         : null;
 
     // Enforce recurrence requirements in app layer before DB constraints are evaluated.
@@ -1982,6 +1992,7 @@ const App: React.FC = () => {
       priority: normalizedPriority,
       taskType: normalizedTaskType,
       recurrenceFrequency: normalizedRecurrenceFrequency,
+      recurrenceTime: normalizedRecurrenceTime,
       nextRecurrenceNotificationAt:
         normalizedTaskType === 'recurring'
           ? computeNextRecurrenceNotificationAt(now, normalizedRecurrenceFrequency)

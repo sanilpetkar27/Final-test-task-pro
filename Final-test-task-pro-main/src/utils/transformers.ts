@@ -9,9 +9,11 @@ export interface DatabaseTask {
   // Recurrence fields may come from either snake_case or camelCase.
   task_type?: TaskType;
   recurrence_frequency?: RecurrenceFrequency | null;
+  recurrence_time?: string | null;
   // Backward-compatible aliases if some rows were written in camelCase.
   taskType?: TaskType;
   recurrenceFrequency?: RecurrenceFrequency | null;
+  recurrenceTime?: string | null;
   // Timestamp fields may be camelCase or snake_case depending on schema history.
   createdAt?: number;
   created_at?: number;
@@ -59,6 +61,11 @@ export const transformTaskToApp = (dbTask: DatabaseTask): DealershipTask => {
     (rawRecurrenceFrequency === 'daily' || rawRecurrenceFrequency === 'weekly' || rawRecurrenceFrequency === 'monthly')
       ? rawRecurrenceFrequency
       : null;
+  const rawRecurrenceTime = String(dbTask.recurrence_time ?? dbTask.recurrenceTime ?? '').trim();
+  const normalizedRecurrenceTime =
+    normalizedTaskType === 'recurring' && /^\d{2}:\d{2}$/.test(rawRecurrenceTime)
+      ? rawRecurrenceTime
+      : null;
   const rawExtensionStatus = String(dbTask.extension_status ?? dbTask.extensionStatus ?? 'NONE').toUpperCase();
   const normalizedExtensionStatus: TaskExtensionStatus =
     rawExtensionStatus === 'REQUESTED' ||
@@ -74,6 +81,7 @@ export const transformTaskToApp = (dbTask: DatabaseTask): DealershipTask => {
     priority: normalizedPriority,
     taskType: normalizedTaskType,
     recurrenceFrequency: normalizedRecurrenceFrequency,
+    recurrenceTime: normalizedRecurrenceTime,
     nextRecurrenceNotificationAt:
       dbTask.next_recurrence_notification_at ?? dbTask.nextRecurrenceNotificationAt ?? null,
     extensionStatus: normalizedExtensionStatus,
@@ -113,6 +121,10 @@ export const transformTaskToDB = (appTask: DealershipTask): DatabaseTask => {
       appTask.recurrenceFrequency === 'monthly')
       ? appTask.recurrenceFrequency
       : null;
+  const recurrenceTime =
+    taskType === 'recurring' && /^\d{2}:\d{2}$/.test(String(appTask.recurrenceTime || ''))
+      ? String(appTask.recurrenceTime)
+      : null;
 
   return {
     id: appTask.id,
@@ -121,6 +133,7 @@ export const transformTaskToDB = (appTask: DealershipTask): DatabaseTask => {
     priority: normalizedPriority,
     task_type: taskType,
     recurrence_frequency: recurrenceFrequency,
+    recurrence_time: recurrenceTime,
     next_recurrence_notification_at:
       taskType === 'recurring' ? (appTask.nextRecurrenceNotificationAt ?? null) : null,
     extension_status: appTask.extensionStatus || 'NONE',

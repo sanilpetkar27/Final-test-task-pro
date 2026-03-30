@@ -50,6 +50,7 @@ export interface DealershipTask {
   priority?: TaskPriority;
   taskType?: TaskType; // One-time vs recurring task type
   recurrenceFrequency?: RecurrenceFrequency | null; // Required when taskType is recurring
+  recurrenceTime?: string | null; // HH:MM (24hr) time when recurring task resurfaces
   nextRecurrenceNotificationAt?: number | null; // Next reminder timestamp for recurring task notifications
   extensionStatus?: TaskExtensionStatus;
   requestedDueDate?: number | null;

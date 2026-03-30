@@ -23,6 +23,7 @@ interface DashboardProps {
     requirePhoto?: boolean,
     taskType?: TaskType,
     recurrenceFrequency?: RecurrenceFrequency | null,
+    recurrenceTime?: string | null,
     priority?: TaskPriority
   ) => Promise<void> | void;
   onStartTask: (id: string) => Promise<void> | void;
@@ -45,7 +46,7 @@ type RemarkSubmissionPayload =
 const isMissingTaskRecurrenceColumnError = (error: any): boolean => {
   const message = String(error?.message || '').toLowerCase();
   const missingRecurrenceColumn =
-    message.includes('recurrence_frequency') || message.includes('task_type');
+    message.includes('recurrence_frequency') || message.includes('task_type') || message.includes('recurrence_time');
   const missingInSchema =
     message.includes('schema cache') || (message.includes('column') && message.includes('does not exist'));
   return missingRecurrenceColumn && missingInSchema;
@@ -63,8 +64,10 @@ const stripTaskRecurrenceFields = (payload: Record<string, any>) => {
   const legacyPayload = { ...payload };
   delete legacyPayload.task_type;
   delete legacyPayload.recurrence_frequency;
+  delete legacyPayload.recurrence_time;
   delete legacyPayload.taskType;
   delete legacyPayload.recurrenceFrequency;
+  delete legacyPayload.recurrenceTime;
   delete legacyPayload.next_recurrence_notification_at;
   delete legacyPayload.nextRecurrenceNotificationAt;
   return legacyPayload;
@@ -85,6 +88,24 @@ const isMissingColumnError = (error: any): boolean => {
 const DAILY_MS = 24 * 60 * 60 * 1000;
 const WEEKLY_MS = 7 * DAILY_MS;
 const MONTHLY_MS = 30 * DAILY_MS;
+
+const getRoundedHourTime = (): string => {
+  const now = new Date();
+  if (now.getMinutes() >= 30) {
+    now.setHours(now.getHours() + 1);
+  }
+  now.setMinutes(0, 0, 0);
+  return `${String(now.getHours()).padStart(2, '0')}:00`;
+};
+
+const normalizeRecurrenceTime = (value: string | null | undefined): string | null => {
+  const text = String(value || '').trim();
+  if (!/^\d{2}:\d{2}$/.test(text)) return null;
+  const [hh, mm] = text.split(':').map(Number);
+  if (!Number.isInteger(hh) || !Number.isInteger(mm)) return null;
+  if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return null;
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+};
 
 const getRecurrenceIntervalMs = (frequency: RecurrenceFrequency | null | undefined): number => {
   if (frequency === 'daily') return DAILY_MS;
@@ -129,6 +150,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
   const [requirePhoto, setRequirePhoto] = useState(false);
   const [taskType, setTaskType] = useState<TaskType>('one_time');
   const [recurrenceFrequency, setRecurrenceFrequency] = useState<RecurrenceFrequency | ''>('');
+  const [recurrenceTime, setRecurrenceTime] = useState<string>(getRoundedHourTime());
   const [priority, setPriority] = useState<TaskPriority>('Medium');
   
   // Clear legacy cached task description so old dictated text is not restored.
@@ -178,6 +200,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
     setRequirePhoto(false);
     setTaskType('one_time');
     setRecurrenceFrequency('');
+    setRecurrenceTime(getRoundedHourTime());
     setPriority('Medium');
     sessionStorage.removeItem('task_form_desc');
     sessionStorage.removeItem('task_form_assignee');
@@ -838,6 +861,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
       requirePhoto ? '1' : '0',
       normalizedTaskType,
       normalizedRecurrenceFrequency || '',
+      recurrenceTime || '',
       priority
     ].join('|');
     const now = Date.now();
@@ -854,6 +878,11 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
 
     setIsCreatingTask(true);
     try {
+      const normalizedRecurrenceTime: string | null =
+        normalizedTaskType === 'recurring' && normalizedRecurrenceFrequency
+          ? (normalizeRecurrenceTime(recurrenceTime) || getRoundedHourTime())
+          : null;
+
       await withTimeout(
         Promise.resolve(
           onAddTask(
@@ -864,6 +893,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
             requirePhoto,
             normalizedTaskType,
             normalizedRecurrenceFrequency,
+            normalizedRecurrenceTime,
             priority
           )
         ),
@@ -877,6 +907,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
       setRequirePhoto(false);
       setTaskType('one_time');
       setRecurrenceFrequency('');
+      setRecurrenceTime(getRoundedHourTime());
       setPriority('Medium');
 
       // Auto-reset filter to show new task
@@ -918,12 +949,17 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
       requirePhoto: boolean;
       taskType: TaskType;
       recurrenceFrequency: RecurrenceFrequency | null;
+      recurrenceTime?: string | null;
       priority: TaskPriority;
     }
   ): Promise<boolean> => {
     const normalizedTaskType: TaskType = updatePayload.taskType === 'recurring' ? 'recurring' : 'one_time';
     const normalizedRecurrenceFrequency: RecurrenceFrequency | null =
       normalizedTaskType === 'recurring' ? updatePayload.recurrenceFrequency : null;
+    const normalizedRecurrenceTime: string | null =
+      normalizedTaskType === 'recurring' && normalizedRecurrenceFrequency
+        ? (normalizeRecurrenceTime(updatePayload.recurrenceTime) || getRoundedHourTime())
+        : null;
 
     if (!updatePayload.description.trim()) {
       alert('Task description is required.');
@@ -946,6 +982,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
       priority: updatePayload.priority === 'High' ? 'High' : 'Medium',
       task_type: normalizedTaskType,
       recurrence_frequency: normalizedRecurrenceFrequency,
+      recurrence_time: normalizedRecurrenceTime,
       next_recurrence_notification_at: nextRecurrenceNotificationAt,
       deadline: updatePayload.deadline,
       requirePhoto: updatePayload.requirePhoto
@@ -1835,6 +1872,19 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
                       <option value="monthly" className="text-slate-900">Monthly</option>
                     </select>
                     <Calendar className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
+                )}
+                {taskType === 'recurring' && recurrenceFrequency && (
+                  <div>
+                    <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 mb-1 block">
+                      Resurface time
+                    </label>
+                    <input
+                      type="time"
+                      value={recurrenceTime}
+                      onChange={(e) => setRecurrenceTime(e.target.value)}
+                      className="w-full min-h-[48px] bg-white border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900 transition-all"
+                    />
                   </div>
                 )}
               </div>
