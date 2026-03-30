@@ -839,19 +839,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
       return;
     }
 
-    const deadlineTimestamp = (() => {
-      if (!deadline) return undefined;
-      const selectedDate = new Date(`${deadline}T00:00:00`);
-      if (!Number.isFinite(selectedDate.getTime())) return undefined;
-      const nowForTime = new Date();
-      selectedDate.setHours(
-        nowForTime.getHours(),
-        nowForTime.getMinutes(),
-        nowForTime.getSeconds(),
-        nowForTime.getMilliseconds()
-      );
-      return selectedDate.getTime();
-    })();
+    const deadlineTimestamp = deadline ? new Date(deadline).getTime() : undefined;
     const normalizedTaskType: TaskType = taskType === 'recurring' ? 'recurring' : 'one_time';
     const normalizedRecurrenceFrequency: RecurrenceFrequency | null =
       normalizedTaskType === 'recurring' ? (recurrenceFrequency || null) : null;
@@ -1812,11 +1800,11 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
 		                    <div className="relative flex-1 min-w-0">
 		                      {!deadline && (
 		                        <span className="absolute left-3 top-1/2 -translate-y-1/2 pr-10 text-base font-semibold text-slate-500 pointer-events-none md:hidden">
-		                          dd-mm-yyyy
+		                          dd-mm-yyyy --:--
 		                        </span>
 		                      )}
 		                      <input 
-		                        type="date" 
+		                        type="datetime-local" 
 		                        value={deadline}
 	                        onChange={(e) => setDeadline(e.target.value)}
 	                        onInput={(e) => setDeadline(e.currentTarget.value)}

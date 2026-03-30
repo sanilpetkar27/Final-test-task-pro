@@ -13,7 +13,11 @@ interface TaskItemProps {
 const formatShortDate = (timestamp: number): string => {
   const date = new Date(timestamp);
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return `${date.getDate()} ${months[date.getMonth()]}`;
+  const hours24 = date.getHours();
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const ampm = hours24 >= 12 ? 'PM' : 'AM';
+  const hours12 = hours24 % 12 || 12;
+  return `${date.getDate()} ${months[date.getMonth()]}, ${hours12}:${minutes} ${ampm}`;
 };
 
 const formatCompletedDateTime = (timestamp: number): string => {

@@ -1360,7 +1360,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
               <span className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] bg-[var(--surface-2)]"><Calendar className={`w-4 h-4 flex-shrink-0 ${isOverdue ? 'text-red-400' : 'text-slate-400'}`} /></span>
               <span className="w-[90px] text-sm text-[var(--ink-3)]">Due date</span>
               <span className={`font-ui-mono text-sm font-medium ml-1 ${isOverdue ? 'text-red-600' : 'text-emerald-600'}`}>
-                {task.deadline ? formatFullDate(task.deadline) : 'No deadline'}
+                {task.deadline ? formatDateTimeWithMeridiem(task.deadline) : 'No deadline'}
               </span>
             </div>
 
