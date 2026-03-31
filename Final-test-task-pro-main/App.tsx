@@ -1900,20 +1900,12 @@ const App: React.FC = () => {
     completion: { proof?: { imageUrl: string; timestamp: number } | null }
   ): Promise<boolean> => {
     const completionTimestamp = completion.proof?.timestamp || Date.now();
-    const recurringFrequency = resolveRecurringFrequencyForTask(task);
-    const nextRecurrenceNotificationAt = recurringFrequency
-      ? computeNextRecurrenceNotificationAt(completionTimestamp, recurringFrequency)
-      : null;
 
     const completionPayload: Record<string, unknown> = {
       status: 'completed' as TaskStatus,
       completedAt: completionTimestamp,
       proof: completion.proof ?? task.proof ?? null,
     };
-
-    if (nextRecurrenceNotificationAt) {
-      completionPayload.next_recurrence_notification_at = nextRecurrenceNotificationAt;
-    }
 
     const { error: taskError } = await supabase
       .from('tasks')
@@ -1931,10 +1923,6 @@ const App: React.FC = () => {
       completedAt: completionTimestamp,
       proof: completion.proof ?? task.proof ?? undefined,
     };
-
-    if (nextRecurrenceNotificationAt) {
-      completedTaskPatch.nextRecurrenceNotificationAt = nextRecurrenceNotificationAt;
-    }
 
     setTasks((prev) =>
       upsertTaskInPlace(prev, {
