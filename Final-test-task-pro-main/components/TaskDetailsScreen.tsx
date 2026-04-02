@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../src/lib/supabase';
 import LoadingButton from '../src/components/ui/LoadingButton';
+import TwelveHourTimePicker, { getRoundedFiveMinuteTime } from '../src/components/ui/TwelveHourTimePicker';
 import { toast } from 'sonner';
 
 interface TaskDetailsScreenProps {
@@ -159,15 +160,6 @@ const formatDateTimeLabel = (value: string): string => {
   });
 };
 
-const getRoundedHourTime = (): string => {
-  const now = new Date();
-  if (now.getMinutes() >= 30) {
-    now.setHours(now.getHours() + 1);
-  }
-  now.setMinutes(0, 0, 0);
-  return `${String(now.getHours()).padStart(2, '0')}:00`;
-};
-
 const normalizeRecurrenceTime = (value: string | null | undefined): string | null => {
   const text = String(value || '').trim();
   if (!/^\d{2}:\d{2}$/.test(text)) return null;
@@ -217,7 +209,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   const [editIsHighPriority, setEditIsHighPriority] = useState(false);
   const [editTaskType, setEditTaskType] = useState<TaskType>('one_time');
   const [editRecurrenceFrequency, setEditRecurrenceFrequency] = useState<RecurrenceFrequency | ''>('');
-  const [editRecurrenceTime, setEditRecurrenceTime] = useState<string>(getRoundedHourTime());
+  const [editRecurrenceTime, setEditRecurrenceTime] = useState<string>(getRoundedFiveMinuteTime());
   const [editModalKeyboardInset, setEditModalKeyboardInset] = useState(0);
   const [editModalVisibleHeight, setEditModalVisibleHeight] = useState<number | null>(null);
   const [mentionCandidates, setMentionCandidates] = useState<MentionCandidate[]>([]);
@@ -422,7 +414,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
     setEditIsHighPriority(normalizedPriority === 'High');
     setEditTaskType(normalizedTaskType);
     setEditRecurrenceFrequency(normalizedTaskType === 'recurring' ? (normalizedRecurrence || '') : '');
-    setEditRecurrenceTime(normalizedTaskType === 'recurring' ? (recurrenceTime || getRoundedHourTime()) : getRoundedHourTime());
+    setEditRecurrenceTime(normalizedTaskType === 'recurring' ? (recurrenceTime || getRoundedFiveMinuteTime()) : getRoundedFiveMinuteTime());
     setIsEditing(false);
   }, [task.id, task.description, task.assignedTo, task.deadline, task.requirePhoto, normalizedPriority, normalizedTaskType, normalizedRecurrence, recurrenceTime]);
 
@@ -952,7 +944,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
     const rec: RecurrenceFrequency | null = editTaskType === 'recurring' ? (editRecurrenceFrequency || null) : null;
     const recurrenceTimeValue =
       editTaskType === 'recurring' && rec
-        ? (normalizeRecurrenceTime(editRecurrenceTime) || getRoundedHourTime())
+        ? (normalizeRecurrenceTime(editRecurrenceTime) || getRoundedFiveMinuteTime())
         : null;
     if (!editDescription.trim()) { alert('Description required.'); return; }
     if (editTaskType === 'recurring' && !rec) { alert('Select recurrence frequency.'); return; }
@@ -1773,7 +1765,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
               />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="relative">
-                  <select value={editTaskType} onChange={(e) => { setEditTaskType(e.target.value as TaskType); if (e.target.value === 'one_time') { setEditRecurrenceFrequency(''); setEditRecurrenceTime(getRoundedHourTime()); } }}
+                  <select value={editTaskType} onChange={(e) => { setEditTaskType(e.target.value as TaskType); if (e.target.value === 'one_time') { setEditRecurrenceFrequency(''); setEditRecurrenceTime(getRoundedFiveMinuteTime()); } }}
                     className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20 appearance-none pr-10">
                     <option value="one_time">One-time Task</option>
                     <option value="recurring">Recurring Task</option>
@@ -1797,11 +1789,9 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
                     <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 mb-1 block">
                       Resurface time
                     </label>
-                    <input
-                      type="time"
+                    <TwelveHourTimePicker
                       value={editRecurrenceTime}
-                      onChange={(e) => setEditRecurrenceTime(e.target.value)}
-                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20"
+                      onChange={setEditRecurrenceTime}
                     />
                   </div>
                 )}

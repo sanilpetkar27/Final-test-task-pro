@@ -9,6 +9,7 @@ import DelegationModal from './DelegationModal';
 import ReassignModal from './ReassignModal';
 import { Plus, Clock, CheckCircle2, UserPlus, ClipboardList as ClipboardIcon, CalendarClock, Timer, Camera, Bug, User, AlertTriangle, Calendar, Mic, MicOff, Filter, X } from 'lucide-react';
 import LoadingButton from '../src/components/ui/LoadingButton';
+import TwelveHourTimePicker, { getRoundedFiveMinuteTime } from '../src/components/ui/TwelveHourTimePicker';
 
 interface DashboardProps {
   tasks: DealershipTask[];
@@ -89,15 +90,6 @@ const DAILY_MS = 24 * 60 * 60 * 1000;
 const WEEKLY_MS = 7 * DAILY_MS;
 const MONTHLY_MS = 30 * DAILY_MS;
 
-const getRoundedHourTime = (): string => {
-  const now = new Date();
-  if (now.getMinutes() >= 30) {
-    now.setHours(now.getHours() + 1);
-  }
-  now.setMinutes(0, 0, 0);
-  return `${String(now.getHours()).padStart(2, '0')}:00`;
-};
-
 const normalizeRecurrenceTime = (value: string | null | undefined): string | null => {
   const text = String(value || '').trim();
   if (!/^\d{2}:\d{2}$/.test(text)) return null;
@@ -150,7 +142,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
   const [requirePhoto, setRequirePhoto] = useState(false);
   const [taskType, setTaskType] = useState<TaskType>('one_time');
   const [recurrenceFrequency, setRecurrenceFrequency] = useState<RecurrenceFrequency | ''>('');
-  const [recurrenceTime, setRecurrenceTime] = useState<string>(getRoundedHourTime());
+  const [recurrenceTime, setRecurrenceTime] = useState<string>(getRoundedFiveMinuteTime());
   const [priority, setPriority] = useState<TaskPriority>('Medium');
   
   // Clear legacy cached task description so old dictated text is not restored.
@@ -200,7 +192,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
     setRequirePhoto(false);
     setTaskType('one_time');
     setRecurrenceFrequency('');
-    setRecurrenceTime(getRoundedHourTime());
+    setRecurrenceTime(getRoundedFiveMinuteTime());
     setPriority('Medium');
     sessionStorage.removeItem('task_form_desc');
     sessionStorage.removeItem('task_form_assignee');
@@ -880,7 +872,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
     try {
       const normalizedRecurrenceTime: string | null =
         normalizedTaskType === 'recurring' && normalizedRecurrenceFrequency
-          ? (normalizeRecurrenceTime(recurrenceTime) || getRoundedHourTime())
+          ? (normalizeRecurrenceTime(recurrenceTime) || getRoundedFiveMinuteTime())
           : null;
 
       await withTimeout(
@@ -907,7 +899,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
       setRequirePhoto(false);
       setTaskType('one_time');
       setRecurrenceFrequency('');
-      setRecurrenceTime(getRoundedHourTime());
+      setRecurrenceTime(getRoundedFiveMinuteTime());
       setPriority('Medium');
 
       // Auto-reset filter to show new task
@@ -958,7 +950,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
       normalizedTaskType === 'recurring' ? updatePayload.recurrenceFrequency : null;
     const normalizedRecurrenceTime: string | null =
       normalizedTaskType === 'recurring' && normalizedRecurrenceFrequency
-        ? (normalizeRecurrenceTime(updatePayload.recurrenceTime) || getRoundedHourTime())
+        ? (normalizeRecurrenceTime(updatePayload.recurrenceTime) || getRoundedFiveMinuteTime())
         : null;
 
     if (!updatePayload.description.trim()) {
@@ -1879,11 +1871,9 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
                     <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 mb-1 block">
                       Resurface time
                     </label>
-                    <input
-                      type="time"
+                    <TwelveHourTimePicker
                       value={recurrenceTime}
-                      onChange={(e) => setRecurrenceTime(e.target.value)}
-                      className="w-full min-h-[48px] bg-white border border-slate-200 rounded-xl px-4 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900 transition-all"
+                      onChange={setRecurrenceTime}
                     />
                   </div>
                 )}
