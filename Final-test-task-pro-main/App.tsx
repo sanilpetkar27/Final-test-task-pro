@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AppTab, DealershipTask, Employee, UserRole, TaskStatus, TaskType, RecurrenceFrequency, TaskPriority, TaskRemark, StaffManagerLink } from './types';
 import Dashboard from './components/Dashboard';
+import DevAdminPanel from './components/DevAdminPanel';
 import StatsScreen from './components/StatsScreen';
 import TeamManager from './components/TeamManager';
 import ApprovalsPanel from './components/ApprovalsPanel';
@@ -25,6 +26,8 @@ import {
 } from 'lucide-react';
 
 const DEFAULT_COMPANY_ID = '00000000-0000-0000-0000-000000000001';
+const DEV_ADMIN_EMAIL = 'sanilpetkar99@gmail.com';
+const DEV_ADMIN_PATH = '/dev-admin';
 const USER_CACHE_KEY = 'universal_app_user';
 const ACTIVE_TAB_CACHE_KEY = 'universal_app_active_tab';
 const EMPLOYEES_CACHE_KEY = 'universalAppEmployees';
@@ -819,6 +822,11 @@ const formatNotificationTimeAgo = (createdAt: string): string => {
   return new Date(createdAt).toLocaleDateString();
 };
 
+const getCurrentPathname = (): string => {
+  if (typeof window === 'undefined') return '/';
+  return window.location.pathname || '/';
+};
+
 const App: React.FC = () => {
   // --- 1. USER & STATE MANAGEMENT ---
   const [currentUser, setCurrentUser] = useState<Employee | null>(() => {
@@ -854,10 +862,28 @@ const App: React.FC = () => {
   const [showNotificationsPanel, setShowNotificationsPanel] = useState(false);
   const [userNotifications, setUserNotifications] = useState<InAppNotification[]>([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [currentPath, setCurrentPath] = useState<string>(() => getCurrentPathname());
   const lastForegroundRefreshAtRef = useRef(0);
   const lastRealtimeTasksRefetchAtRef = useRef(0);
 
   const unreadNotificationCount = userNotifications.filter((item) => !item.is_read).length;
+  const isDevAdminRoute = currentPath === DEV_ADMIN_PATH;
+  const isDevAdminAuthorized =
+    String(currentUser?.email || '').trim().toLowerCase() === DEV_ADMIN_EMAIL;
+
+  const navigateToPath = useCallback((path: string, replace = false) => {
+    if (typeof window === 'undefined') return;
+    const targetPath = path || '/';
+    const currentBrowserPath = window.location.pathname || '/';
+
+    if (replace) {
+      window.history.replaceState({}, '', targetPath);
+    } else if (currentBrowserPath !== targetPath) {
+      window.history.pushState({}, '', targetPath);
+    }
+
+    setCurrentPath(targetPath);
+  }, []);
 
   const loadUserNotifications = useCallback(async () => {
     const userId = String(currentUser?.id || '').trim();
@@ -1627,6 +1653,23 @@ const App: React.FC = () => {
     }
     setAppReady(true);
   }, []);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentPath(getCurrentPathname());
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isDevAdminRoute && currentUser && !isDevAdminAuthorized) {
+      navigateToPath('/', true);
+    }
+  }, [currentUser, isDevAdminAuthorized, isDevAdminRoute, navigateToPath]);
 
   // Auto-Save Tasks
   useEffect(() => {
@@ -2704,6 +2747,20 @@ const App: React.FC = () => {
     return (
       <ErrorBoundary>
         <LoginScreen employees={employees} onLogin={handleLogin} />
+      </ErrorBoundary>
+    );
+  }
+
+  if (isDevAdminRoute && !isDevAdminAuthorized) {
+    return null;
+  }
+
+  if (isDevAdminRoute) {
+    return (
+      <ErrorBoundary>
+        <DevAdminPanel currentUser={currentUser} onBack={() => navigateToPath('/', true)} />
+        <Toaster />
+        <Analytics />
       </ErrorBoundary>
     );
   }

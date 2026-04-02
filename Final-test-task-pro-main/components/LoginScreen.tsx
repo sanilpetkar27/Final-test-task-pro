@@ -516,6 +516,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost';
 
   // Signup form states
   const [companyName, setCompanyName] = useState('');
@@ -862,6 +863,17 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ employees, onLogin }) => {
                 </div>
               </div>
             </div>
+
+            {isLocalhost && (
+              <div className="mt-4 text-center">
+                <a
+                  href="/dev-admin"
+                  className="text-xs font-semibold text-slate-500 underline underline-offset-4 hover:text-slate-700"
+                >
+                  Dev Admin
+                </a>
+              </div>
+            )}
           </div>
         </div>
       </div>
