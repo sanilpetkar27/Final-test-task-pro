@@ -50,6 +50,26 @@ const computeNextRecurrenceNotificationAt = (
   return Number(baseTimestamp || Date.now()) + intervalMs;
 };
 
+const calculateFirstResurfaceAt = (recurrenceTime: string): number | null => {
+  const match = /^(\d{2}):(\d{2})$/.exec(String(recurrenceTime || '').trim());
+  if (!match) return null;
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    return null;
+  }
+
+  const now = new Date();
+  const resurface = new Date();
+  // recurrence_time is stored in IST; convert it to UTC for the persisted bigint timestamp.
+  resurface.setUTCHours(hours - 5, minutes - 30, 0, 0);
+  if (resurface.getTime() <= now.getTime()) {
+    resurface.setUTCDate(resurface.getUTCDate() + 1);
+  }
+  return resurface.getTime();
+};
+
 const resolveRecurringFrequencyForTask = (
   task: DealershipTask | undefined
 ): RecurrenceFrequency | null => {
@@ -1983,7 +2003,10 @@ const App: React.FC = () => {
       recurrenceTime: normalizedRecurrenceTime,
       nextRecurrenceNotificationAt:
         normalizedTaskType === 'recurring'
-          ? computeNextRecurrenceNotificationAt(now, normalizedRecurrenceFrequency)
+          ? (
+              calculateFirstResurfaceAt(normalizedRecurrenceTime || '') ??
+              computeNextRecurrenceNotificationAt(now, normalizedRecurrenceFrequency)
+            )
           : null,
       createdAt: now,
       deadline: deadline,
