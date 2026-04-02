@@ -1227,6 +1227,10 @@ const App: React.FC = () => {
       table: 'tasks',
       ...(companyFilter ? { filter: companyFilter } : {}),
     };
+    const taskDeleteChangeFilter: { schema: 'public'; table: 'tasks' } = {
+      schema: 'public',
+      table: 'tasks',
+    };
     const taskScopeIdsForRealtime = buildTaskScopeIds(currentUser, employees);
     const triggerRealtimeTasksRefetch = () => {
       const now = Date.now();
@@ -1405,11 +1409,18 @@ const App: React.FC = () => {
           triggerRealtimeTasksRefetch();
         }
       })
-      .on('postgres_changes', { event: 'DELETE', ...taskChangeFilter }, (payload) => {
-        const deletedTaskId = String((payload.old as any)?.id || '').trim();
+      .on('postgres_changes', { event: 'DELETE', ...taskDeleteChangeFilter }, (payload) => {
+        const deletedRow = (payload.old || {}) as Record<string, unknown>;
+        const deletedTaskId = String(deletedRow.id || '').trim();
         if (!deletedTaskId) {
           console.warn('Realtime DELETE payload missing task id:', payload);
           triggerRealtimeTasksRefetch();
+          return;
+        }
+
+        const deletedCompanyId = String(deletedRow.company_id || '').trim();
+        const activeCompanyId = String(currentUser.company_id || '').trim();
+        if (activeCompanyId && deletedCompanyId && deletedCompanyId !== activeCompanyId) {
           return;
         }
 

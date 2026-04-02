@@ -1561,7 +1561,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
 
     if (selectedTaskId && !currentTaskIds.has(selectedTaskId) && previousTaskIds.has(selectedTaskId)) {
       setSelectedTaskId(null);
-      toast.info('This task has been deleted');
+      toast.info('This task was deleted');
     }
 
     previousTaskIdsRef.current = currentTaskIds;
