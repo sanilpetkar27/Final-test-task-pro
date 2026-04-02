@@ -60,13 +60,10 @@ const calculateFirstResurfaceAt = (recurrenceTime: string): number | null => {
     return null;
   }
 
-  const now = new Date();
   const resurface = new Date();
+  resurface.setUTCDate(resurface.getUTCDate() + 1);
   // recurrence_time is stored in IST; convert it to UTC for the persisted bigint timestamp.
   resurface.setUTCHours(hours - 5, minutes - 30, 0, 0);
-  if (resurface.getTime() <= now.getTime()) {
-    resurface.setUTCDate(resurface.getUTCDate() + 1);
-  }
   return resurface.getTime();
 };
 
