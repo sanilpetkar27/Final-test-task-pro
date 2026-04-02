@@ -10,6 +10,7 @@ import ReassignModal from './ReassignModal';
 import { Plus, Clock, CheckCircle2, UserPlus, ClipboardList as ClipboardIcon, CalendarClock, Timer, Camera, Bug, User, AlertTriangle, Calendar, Mic, MicOff, Filter, X } from 'lucide-react';
 import LoadingButton from '../src/components/ui/LoadingButton';
 import TwelveHourTimePicker, { getRoundedFiveMinuteTime } from '../src/components/ui/TwelveHourTimePicker';
+import { toast } from 'sonner';
 
 interface DashboardProps {
   tasks: DealershipTask[];
@@ -209,6 +210,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
   const [completedDateFilter, setCompletedDateFilter] = useState<CompletedDateFilter>('today');
   const [completedCustomFromDate, setCompletedCustomFromDate] = useState('');
   const [completedCustomToDate, setCompletedCustomToDate] = useState('');
+  const previousTaskIdsRef = useRef<Set<string>>(new Set(tasks.map((task) => task.id)));
   const [showCompletedFilterMenu, setShowCompletedFilterMenu] = useState(false);
   const completedFilterMenuRef = useRef<HTMLDivElement | null>(null);
   
@@ -1554,9 +1556,15 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
 
   // Auto-navigate back if selected task was deleted
   useEffect(() => {
-    if (selectedTaskId && !tasks.find(t => t.id === selectedTaskId)) {
+    const previousTaskIds = previousTaskIdsRef.current;
+    const currentTaskIds = new Set(tasks.map((task) => task.id));
+
+    if (selectedTaskId && !currentTaskIds.has(selectedTaskId) && previousTaskIds.has(selectedTaskId)) {
       setSelectedTaskId(null);
+      toast.info('This task has been deleted');
     }
+
+    previousTaskIdsRef.current = currentTaskIds;
   }, [selectedTaskId, tasks]);
 
   useEffect(() => {

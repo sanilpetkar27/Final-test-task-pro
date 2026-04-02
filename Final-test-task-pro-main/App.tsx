@@ -1406,9 +1406,17 @@ const App: React.FC = () => {
         }
       })
       .on('postgres_changes', { event: 'DELETE', ...taskChangeFilter }, (payload) => {
-        const deletedTaskId = payload.old.id;
-        setTasks(prev => prev.filter(task => task.id !== deletedTaskId));
-        triggerRealtimeTasksRefetch();
+        const deletedTaskId = String((payload.old as any)?.id || '').trim();
+        if (!deletedTaskId) {
+          console.warn('Realtime DELETE payload missing task id:', payload);
+          triggerRealtimeTasksRefetch();
+          return;
+        }
+
+        setTasks((prev) => {
+          const nextTasks = prev.filter((task) => task.id !== deletedTaskId);
+          return nextTasks.length === prev.length ? prev : nextTasks;
+        });
       })
       .subscribe();
 
