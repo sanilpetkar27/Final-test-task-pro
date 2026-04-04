@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { DealershipTask, Employee, UserRole, TaskStatus, TaskType, RecurrenceFrequency, TaskPriority, TaskRemark } from '../types';
 import { supabase } from '../src/lib/supabase';
-import { sendTaskCompletionNotification, sendTaskMentionNotification } from '../src/utils/pushNotifications';
+import { sendTaskCompletionNotification } from '../src/utils/pushNotifications';
 import TaskItem from './TaskItem';
 import TaskDetailsScreen from './TaskDetailsScreen';
 import CompletionModal from './CompletionModal';
@@ -44,6 +44,8 @@ type RemarkSubmissionPayload =
       mentionedUserIds?: string[];
       mentionedDisplayNames?: string[];
     };
+
+const SEND_MENTION_PUSH_URL = 'https://xdvybqfivmzfddmszqqk.supabase.co/functions/v1/send-mention-push';
 
 const isMissingTaskRecurrenceColumnError = (error: any): boolean => {
   const message = String(error?.message || '').toLowerCase();
@@ -1363,13 +1365,23 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
 
           if (mentionNotificationError) {
             console.warn('Mention notification insert failed:', mentionNotificationError);
+          } else {
+            resolvedMentionIds.forEach((userId) => {
+              void fetch(SEND_MENTION_PUSH_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  mentioned_user_id: userId,
+                  sender_name: currentUser.name,
+                  task_description: task.description,
+                  task_id: task.id,
+                  company_id: currentUser.company_id
+                })
+              }).catch((pushError) => {
+                console.warn('Mention push dispatch failed:', pushError);
+              });
+            });
           }
-
-          await Promise.all(
-            resolvedMentionIds.map((userId) =>
-              sendTaskMentionNotification(taskTitle, actorName, userId, companyId)
-            )
-          );
         }
       }
     } catch (err) {
