@@ -153,10 +153,6 @@ const TeamManager: React.FC<TeamManagerProps> = ({
   }, [currentUser.role]);
 
   useEffect(() => {
-    setRegisteredEmployees((employees || []).filter(Boolean));
-  }, [employees]);
-
-  useEffect(() => {
     const companyId = String(currentUser.company_id || '').trim();
     if (!companyId) {
       return;
@@ -210,33 +206,11 @@ const TeamManager: React.FC<TeamManagerProps> = ({
   const canSubmitCreateUser =
     !requiresManagerSelection || (managerOptions.length > 0 && selectedManagerIds.length > 0);
 
-  // Always show the logged-in admin/super-admin in team list, even if DB sync lags.
   const teamMembers = useMemo(() => {
-    const normalizedEmployees = (registeredEmployees || []).filter(Boolean);
-    const currentUserId = String(currentUser?.id || '').trim();
-
-    if (!currentUserId) {
-      return normalizedEmployees;
-    }
-
-    const alreadyIncluded = normalizedEmployees.some(
-      (emp) => String(emp?.id || '').trim() === currentUserId
+    return (registeredEmployees || []).filter((member) =>
+      Boolean(member && member.id && String(member.name || '').trim())
     );
-
-    if (alreadyIncluded) {
-      return normalizedEmployees;
-    }
-
-    const fallbackCurrentUser: Employee = {
-      ...currentUser,
-      id: currentUserId,
-      email: String(currentUser.email || `${currentUserId}@taskpro.local`),
-      mobile: String(currentUser.mobile || currentUserId.slice(0, 10)),
-      company_id: String(currentUser.company_id || '00000000-0000-0000-0000-000000000001'),
-    };
-
-    return [fallbackCurrentUser, ...normalizedEmployees];
-  }, [registeredEmployees, currentUser]);
+  }, [registeredEmployees]);
 
   const managerNameById = useMemo(() => {
     const managerMap = new Map<string, string>();
