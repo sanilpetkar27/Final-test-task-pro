@@ -17,6 +17,8 @@ interface DashboardProps {
   employees: Employee[];
   currentUser: Employee;
   tasksTabReselectSignal?: number;
+  deepLinkTaskTarget?: { taskId: string; openChat: boolean; token: number } | null;
+  onDeepLinkTaskHandled?: () => void;
   onAddTask: (
     desc: string,
     assignedTo?: string,
@@ -120,9 +122,10 @@ const parseDateToMs = (value: unknown): number => {
   return 0;
 };
 
-const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, tasksTabReselectSignal = 0, onAddTask, onStartTask, onReopenTask, onCompleteTask, onCompleteTaskWithoutPhoto, onReassignTask, onDeleteTask, onUpdateTaskRemarks }) => {
+const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, tasksTabReselectSignal = 0, deepLinkTaskTarget = null, onDeepLinkTaskHandled, onAddTask, onStartTask, onReopenTask, onCompleteTask, onCompleteTaskWithoutPhoto, onReassignTask, onDeleteTask, onUpdateTaskRemarks }) => {
   type CompletedDateFilter = 'today' | 'yesterday' | 'last7' | 'custom';
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [chatScrollSignal, setChatScrollSignal] = useState(0);
   
   // Voice recognition state
   const [isListening, setIsListening] = useState(false);
@@ -1583,6 +1586,23 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
     setSelectedTaskId(null);
   }, [tasksTabReselectSignal]);
 
+  useEffect(() => {
+    if (!deepLinkTaskTarget?.taskId) {
+      return;
+    }
+
+    const targetTask = tasks.find((task) => task.id === deepLinkTaskTarget.taskId);
+    if (!targetTask) {
+      return;
+    }
+
+    setSelectedTaskId(targetTask.id);
+    if (deepLinkTaskTarget.openChat) {
+      setChatScrollSignal((prev) => prev + 1);
+    }
+    onDeepLinkTaskHandled?.();
+  }, [deepLinkTaskTarget, tasks, onDeepLinkTaskHandled]);
+
   // --- Selected task for detail view ---
   const selectedTask = selectedTaskId ? tasks.find(t => t.id === selectedTaskId) || null : null;
 
@@ -1631,6 +1651,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
           parentTask={tasks.find(t => t.id === selectedTask.parentTaskId)}
           employees={employees}
           currentUser={currentUser}
+          chatScrollSignal={chatScrollSignal}
           onBack={() => setSelectedTaskId(null)}
           onStartTask={() => updateTaskStatus(selectedTask.id, 'in-progress')}
           onReopenTask={() => updateTaskStatus(selectedTask.id, 'pending')}

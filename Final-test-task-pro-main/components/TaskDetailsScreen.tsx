@@ -26,6 +26,7 @@ interface TaskDetailsScreenProps {
   onReassign: () => void;
   onDelegate: () => void;
   onDelete: () => Promise<void> | void;
+  chatScrollSignal?: number;
   onInlineEditSave?: (
     taskId: string,
     payload: {
@@ -193,7 +194,7 @@ const getRoleBadge = (role?: string): { label: string; className: string } => {
 const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   task, subTasks, parentTask, employees, currentUser, onBack,
   onStartTask, onReopenTask, onCompleteTask, onCompleteTaskWithoutPhoto,
-  onReassign, onDelegate, onDelete, onInlineEditSave, onAddRemark, readOnly = false
+  onReassign, onDelegate, onDelete, chatScrollSignal = 0, onInlineEditSave, onAddRemark, readOnly = false
 }) => {
   const [newRemark, setNewRemark] = useState('');
   const [isUploading, setIsUploading] = useState(false);
@@ -485,6 +486,26 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
       remarksScrollRef.current.scrollTop = remarksScrollRef.current.scrollHeight;
     }
   }, [groupedRemarks]);
+
+  useEffect(() => {
+    if (!chatScrollSignal) {
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      const target = remarkInputRef.current || remarksScrollRef.current;
+      if (!target) return;
+
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (remarkInputRef.current && !readOnly) {
+        remarkInputRef.current.focus({ preventScroll: true });
+      }
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [chatScrollSignal, task.id, readOnly]);
 
   useEffect(() => {
     if (!mentionMenuOpen) return;

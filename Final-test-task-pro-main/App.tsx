@@ -13,6 +13,7 @@ import { transformTaskToApp, transformTaskToDB, transformTasksToApp, DatabaseTas
 import { sendTaskAssignmentNotification, sendTaskCompletionNotification } from './src/utils/pushNotifications';
 import { Toaster, toast } from 'sonner';
 import { Analytics } from '@vercel/analytics/react';
+import OneSignal from 'react-onesignal';
 import {
   ClipboardList,
   CheckCircle2,
@@ -806,6 +807,12 @@ type InAppNotification = {
   entity_id?: string | null;
 };
 
+type PendingTaskDeepLink = {
+  taskId: string;
+  openChat: boolean;
+  token: number;
+};
+
 const formatNotificationTimeAgo = (createdAt: string): string => {
   const createdTs = Date.parse(createdAt);
   if (!Number.isFinite(createdTs)) return 'Just now';
@@ -825,6 +832,11 @@ const formatNotificationTimeAgo = (createdAt: string): string => {
 const getCurrentPathname = (): string => {
   if (typeof window === 'undefined') return '/';
   return window.location.pathname || '/';
+};
+
+const parseBooleanLikeValue = (value: unknown): boolean => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'true' || normalized === '1' || normalized === 'yes';
 };
 
 const App: React.FC = () => {
@@ -863,6 +875,7 @@ const App: React.FC = () => {
   const [userNotifications, setUserNotifications] = useState<InAppNotification[]>([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [currentPath, setCurrentPath] = useState<string>(() => getCurrentPathname());
+  const [pendingTaskDeepLink, setPendingTaskDeepLink] = useState<PendingTaskDeepLink | null>(null);
   const lastForegroundRefreshAtRef = useRef(0);
   const lastRealtimeTasksRefetchAtRef = useRef(0);
 
@@ -883,6 +896,14 @@ const App: React.FC = () => {
     }
 
     setCurrentPath(targetPath);
+  }, []);
+
+  const clearPendingTaskDeepLink = useCallback(() => {
+    setPendingTaskDeepLink(null);
+    if (typeof window !== 'undefined') {
+      window.history.replaceState({}, '', '/');
+      setCurrentPath('/');
+    }
   }, []);
 
   const loadUserNotifications = useCallback(async () => {
@@ -1653,6 +1674,56 @@ const App: React.FC = () => {
     }
     setAppReady(true);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const taskId = String(params.get('taskId') || '').trim();
+    const openChat = parseBooleanLikeValue(params.get('openChat'));
+
+    if (taskId && openChat) {
+      setPendingTaskDeepLink({
+        taskId,
+        openChat: true,
+        token: Date.now(),
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !OneSignal?.Notifications?.addEventListener) {
+      return;
+    }
+
+    const handleNotificationClick = (event: any) => {
+      const additionalData = event?.notification?.additionalData || {};
+      const taskId = String(additionalData?.task_id || '').trim();
+      if (!taskId) {
+        return;
+      }
+
+      setPendingTaskDeepLink({
+        taskId,
+        openChat: parseBooleanLikeValue(additionalData?.open_chat),
+        token: Date.now(),
+      });
+    };
+
+    OneSignal.Notifications.addEventListener('click', handleNotificationClick);
+
+    return () => {
+      OneSignal.Notifications.removeEventListener?.('click', handleNotificationClick);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (pendingTaskDeepLink?.taskId) {
+      setActiveTab(AppTab.TASKS);
+    }
+  }, [pendingTaskDeepLink]);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -2910,6 +2981,8 @@ const App: React.FC = () => {
             employees={scopedEmployees}
             currentUser={currentUser}
             tasksTabReselectSignal={tasksTabReselectSignal}
+            deepLinkTaskTarget={pendingTaskDeepLink}
+            onDeepLinkTaskHandled={clearPendingTaskDeepLink}
             onAddTask={addTask}
             onStartTask={startTask}
             onReopenTask={reopenTask}
