@@ -70,6 +70,12 @@ interface MentionCandidate {
   email?: string;
 }
 
+interface ParentTaskSummary {
+  id: string;
+  description: string;
+  title?: string | null;
+}
+
 const formatFullDate = (timestamp: number | undefined | null): string => {
   if (!timestamp) return '—';
   const date = new Date(timestamp);
@@ -219,6 +225,15 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   const [mentionStartIndex, setMentionStartIndex] = useState<number | null>(null);
   const [activeMentionIndex, setActiveMentionIndex] = useState(0);
   const [selectedMentions, setSelectedMentions] = useState<MentionCandidate[]>([]);
+  const [resolvedParentTask, setResolvedParentTask] = useState<ParentTaskSummary | null>(() =>
+    parentTask
+      ? {
+          id: String(parentTask.id || ''),
+          description: String(parentTask.description || ''),
+          title: null,
+        }
+      : null
+  );
   const remarksScrollRef = useRef<HTMLDivElement | null>(null);
   const remarkInputRef = useRef<HTMLTextAreaElement | null>(null);
   const editModalScrollRef = useRef<HTMLDivElement | null>(null);
@@ -258,6 +273,53 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         ]),
     []
   );
+
+  useEffect(() => {
+    const parentTaskId = String(task.parentTaskId || '').trim();
+    if (!parentTaskId) {
+      setResolvedParentTask(null);
+      return;
+    }
+
+    if (parentTask && String(parentTask.id || '').trim() === parentTaskId) {
+      setResolvedParentTask({
+        id: parentTaskId,
+        description: String(parentTask.description || ''),
+        title: null,
+      });
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadParentTask = async () => {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('id, description, title')
+        .eq('id', parentTaskId)
+        .single();
+
+      if (cancelled) return;
+
+      if (error) {
+        console.warn('Failed to load parent task details:', error);
+        setResolvedParentTask(null);
+        return;
+      }
+
+      setResolvedParentTask({
+        id: String((data as any)?.id || parentTaskId),
+        description: String((data as any)?.description || ''),
+        title: typeof (data as any)?.title === 'string' ? (data as any).title : null,
+      });
+    };
+
+    void loadParentTask();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [task.parentTaskId, parentTask?.id, parentTask?.description]);
 
   // --- Derived values ---
   const getEmployeeName = (id?: string | null): string => {
@@ -1387,6 +1449,16 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
               </div>
             )}
 
+            {resolvedParentTask && (resolvedParentTask.description || resolvedParentTask.title) && (
+              <div className="flex items-center gap-3 py-3 border-b border-[var(--border)]">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] bg-[var(--surface-2)]"><Layers className="w-4 h-4 text-amber-400 flex-shrink-0" /></span>
+                <span className="w-[90px] text-sm text-[var(--ink-3)]">Part of</span>
+                <span className="text-sm font-semibold text-amber-700 ml-1">
+                  {resolvedParentTask.description || resolvedParentTask.title}
+                </span>
+              </div>
+            )}
+
             {/* Recurrence badge */}
             {normalizedTaskType === 'recurring' && (
               <div className="flex items-center gap-3 py-3 border-b border-[var(--border)]">
@@ -1404,15 +1476,6 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
                 <span className="font-ui-mono text-sm font-medium text-slate-900 ml-1">
                   {formatRecurrenceTimeLabel(recurrenceTime)}
                 </span>
-              </div>
-            )}
-
-            {/* Parent task */}
-            {parentTask && (
-              <div className="flex items-center gap-3 py-3 border-b border-[var(--border)]">
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] bg-[var(--surface-2)]"><Layers className="w-4 h-4 text-amber-400 flex-shrink-0" /></span>
-                <span className="w-[90px] text-sm text-[var(--ink-3)]">Part of</span>
-                <span className="text-sm font-semibold text-amber-700 ml-1">{parentTask.description}</span>
               </div>
             )}
 
