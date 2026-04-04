@@ -115,6 +115,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
   setEmployees,
   onRefreshData
 }) => {
+  const [registeredEmployees, setRegisteredEmployees] = useState<Employee[]>(employees || []);
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -151,6 +152,45 @@ const TeamManager: React.FC<TeamManagerProps> = ({
     return [];
   }, [currentUser.role]);
 
+  useEffect(() => {
+    setRegisteredEmployees((employees || []).filter(Boolean));
+  }, [employees]);
+
+  useEffect(() => {
+    const companyId = String(currentUser.company_id || '').trim();
+    if (!companyId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadRegisteredEmployees = async () => {
+      const { data, error } = await supabase
+        .from('employees')
+        .select('*')
+        .eq('company_id', companyId);
+
+      if (cancelled) {
+        return;
+      }
+
+      if (error) {
+        console.warn('Failed to load full registered team list:', error);
+        return;
+      }
+
+      if (Array.isArray(data)) {
+        setRegisteredEmployees((data as Employee[]).filter(Boolean));
+      }
+    };
+
+    void loadRegisteredEmployees();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser.company_id]);
+
   const managerOptions = useMemo<Employee[]>(() => {
     const uniqueManagers = new Map<string, Employee>();
 
@@ -172,7 +212,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
 
   // Always show the logged-in admin/super-admin in team list, even if DB sync lags.
   const teamMembers = useMemo(() => {
-    const normalizedEmployees = (employees || []).filter(Boolean);
+    const normalizedEmployees = (registeredEmployees || []).filter(Boolean);
     const currentUserId = String(currentUser?.id || '').trim();
 
     if (!currentUserId) {
@@ -196,7 +236,7 @@ const TeamManager: React.FC<TeamManagerProps> = ({
     };
 
     return [fallbackCurrentUser, ...normalizedEmployees];
-  }, [employees, currentUser]);
+  }, [registeredEmployees, currentUser]);
 
   const managerNameById = useMemo(() => {
     const managerMap = new Map<string, string>();
