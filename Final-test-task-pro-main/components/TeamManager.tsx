@@ -14,7 +14,7 @@ interface TeamManagerProps {
   onRemoveEmployee: (id: string) => void;
   onUpdateStaffManagers: (staffId: string, managerIds: string[]) => Promise<boolean>;
   isSuperAdmin: boolean;
-  setEmployees?: (employees: Employee[]) => void;
+  setEmployees?: React.Dispatch<React.SetStateAction<Employee[]>>;
   onRefreshData?: () => Promise<void>;
 }
 
@@ -90,6 +90,21 @@ const getRoleLabel = (role: UserRole): string => {
   if (role === 'super_admin' || role === 'owner') return 'Owner';
   if (role === 'manager') return 'Manager';
   return 'Staff';
+};
+
+const upsertEmployee = (items: Employee[], nextEmployee: Employee): Employee[] => {
+  const nextId = String(nextEmployee?.id || '').trim();
+  const nextEmail = String(nextEmployee?.email || '').trim().toLowerCase();
+  const nextMobile = String(nextEmployee?.mobile || '').trim();
+
+  const filtered = (items || []).filter((employee) => {
+    const sameId = String(employee?.id || '').trim() === nextId;
+    const sameEmail = nextEmail && String(employee?.email || '').trim().toLowerCase() === nextEmail;
+    const sameMobile = nextMobile && String(employee?.mobile || '').trim() === nextMobile;
+    return !(sameId || sameEmail || sameMobile);
+  });
+
+  return [nextEmployee, ...filtered];
 };
 
 const toIndianE164 = (rawMobile: string): string => {
@@ -756,31 +771,11 @@ const TeamManager: React.FC<TeamManagerProps> = ({
         }
       }
 
-      // 4. Refresh team list for this company; fallback to local append if refresh fails.
-      if (setEmployees && currentUser.company_id) {
-        const { data: refreshedEmployees, error: refreshError } = await supabase
-          .from('employees')
-          .select('*')
-          .eq('company_id', currentUser.company_id);
+      // Update local state immediately so the new user appears without a manual refresh.
+      setRegisteredEmployees((prev) => upsertEmployee(prev, localCreatedEmployee));
 
-        if (!refreshError && refreshedEmployees) {
-          const employeeRows = refreshedEmployees as Employee[];
-          const hasCreatedEmployee = employeeRows.some((emp) => {
-            const sameId = String(emp?.id || '').trim() === String(localCreatedEmployee.id).trim();
-            const sameEmail =
-              String(emp?.email || '').trim().toLowerCase() ===
-              String(localCreatedEmployee.email || '').trim().toLowerCase();
-            const sameMobile =
-              String(emp?.mobile || '').trim() === String(localCreatedEmployee.mobile || '').trim();
-            return sameId || sameEmail || sameMobile;
-          });
-          setEmployees(hasCreatedEmployee ? employeeRows : [localCreatedEmployee, ...employeeRows]);
-        } else {
-          console.warn('Failed to refresh employees after create_user_by_admin:', refreshError);
-          setEmployees((teamMembers as Employee[]).some((emp) => emp.id === localCreatedEmployee.id)
-            ? teamMembers as Employee[]
-            : [localCreatedEmployee, ...(teamMembers as Employee[])]);
-        }
+      if (setEmployees) {
+        setEmployees((prev) => upsertEmployee(prev, localCreatedEmployee));
       } else {
         onAddEmployee(newName.trim(), formattedMobile, roleToCreate, managerOwnerId);
       }
