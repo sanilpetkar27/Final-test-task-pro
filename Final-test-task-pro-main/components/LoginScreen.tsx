@@ -26,6 +26,20 @@ const normalizeRole = (role: unknown): Employee['role'] => {
     : 'staff';
 };
 
+const ensureIndianMobilePrefix = (mobile: unknown): string => {
+  const rawMobile = String(mobile || '').trim();
+  if (!rawMobile) return '';
+  if (rawMobile.startsWith('+')) return rawMobile;
+
+  const digitsOnly = rawMobile.replace(/\D/g, '');
+  if (!digitsOnly) return '';
+  if (digitsOnly.startsWith('91') && digitsOnly.length > 10) {
+    return `+${digitsOnly}`;
+  }
+
+  return `+91${digitsOnly}`;
+};
+
 const isEmployeesPolicyError = (error: any): boolean => {
   const message = String(error?.message || '').toLowerCase();
   return message.includes('infinite recursion') && message.includes('employees');
@@ -138,6 +152,8 @@ const finalizeCompanySetupForUser = async (
   authUser: any,
   input: { companyName: string; adminName: string; mobile: string; email: string }
 ) => {
+  const formattedMobile = ensureIndianMobilePrefix(input.mobile);
+
   const { data: newCompany, error: companyError } = await supabase
     .from('companies')
     .insert({
@@ -154,7 +170,7 @@ const finalizeCompanySetupForUser = async (
       company_id: newCompany.id,
       role: 'super_admin',
       name: input.adminName,
-      mobile: input.mobile,
+      mobile: formattedMobile,
     },
   });
 
@@ -166,23 +182,26 @@ const finalizeCompanySetupForUser = async (
     id: authUser.id,
     email: input.email.trim(),
     name: input.adminName.trim(),
-    mobile: input.mobile.trim(),
+    mobile: formattedMobile,
     role: 'super_admin',
     company_id: newCompany.id,
   });
 
   let profileSynced = true;
+  const employeePayload = {
+    id: authUser.id,
+    auth_user_id: authUser.id,
+    name: input.adminName.trim(),
+    mobile: formattedMobile,
+    role: 'super_admin',
+    email: input.email.trim(),
+    company_id: newCompany.id,
+    points: 0,
+    updated_at: new Date().toISOString(),
+  };
   const { error: employeeError } = await supabase
     .from('employees')
-    .upsert({
-      id: authUser.id,
-      name: input.adminName.trim(),
-      mobile: input.mobile.trim(),
-      role: 'super_admin',
-      email: input.email.trim(),
-      company_id: newCompany.id,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'id' });
+    .upsert(employeePayload, { onConflict: 'mobile,company_id' });
 
   if (employeeError) {
     profileSynced = false;
@@ -437,6 +456,8 @@ const handleAuthLogin = async (email: string, password: string) => {
 const handleAuthSignup = async (companyName: string, adminName: string, mobile: string, email: string, password: string) => {
   console.log('Starting clean signup process...');
 
+  const formattedMobile = ensureIndianMobilePrefix(mobile);
+
   await supabaseAuth.signOut();
   localStorage.clear();
   clearPendingCompanySignup();
@@ -449,7 +470,7 @@ const handleAuthSignup = async (companyName: string, adminName: string, mobile: 
       data: {
         role: 'super_admin',
         name: adminName,
-        mobile,
+        mobile: formattedMobile,
       },
     },
   });
@@ -463,7 +484,7 @@ const handleAuthSignup = async (companyName: string, adminName: string, mobile: 
       email: email.trim().toLowerCase(),
       companyName: companyName.trim(),
       adminName: adminName.trim(),
-      mobile: mobile.trim(),
+      mobile: formattedMobile,
       createdAt: Date.now(),
     });
     markVerificationResendAttempt(email);
@@ -472,7 +493,7 @@ const handleAuthSignup = async (companyName: string, adminName: string, mobile: 
       id: authData.user.id,
       email: email.trim(),
       name: adminName.trim(),
-      mobile: mobile.trim(),
+      mobile: formattedMobile,
       role: 'super_admin',
       company_id: DEFAULT_COMPANY_ID,
     });
@@ -489,7 +510,7 @@ const handleAuthSignup = async (companyName: string, adminName: string, mobile: 
   const finalized = await finalizeCompanySetupForUser(authData.user, {
     companyName,
     adminName,
-    mobile,
+    mobile: formattedMobile,
     email,
   });
 
