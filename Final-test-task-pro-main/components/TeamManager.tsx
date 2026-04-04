@@ -11,7 +11,7 @@ interface TeamManagerProps {
   staffManagerLinks: StaffManagerLink[];
   currentUser: Employee;
   onAddEmployee: (name: string, mobile: string, role: UserRole, managerId?: string | null) => void;
-  onRemoveEmployee: (id: string) => void;
+  onRemoveEmployee: (id: string) => Promise<boolean>;
   onUpdateStaffManagers: (staffId: string, managerIds: string[]) => Promise<boolean>;
   isSuperAdmin: boolean;
   setEmployees?: React.Dispatch<React.SetStateAction<Employee[]>>;
@@ -1065,16 +1065,22 @@ const TeamManager: React.FC<TeamManagerProps> = ({
                           <button 
                             type="button"
                             onClick={() => {
-                              console.log('🗑️ Delete button clicked for:', emp.name, emp.id);
-                              
+                              console.log('Delete button clicked for:', emp.name, emp.id);
+
                               if (window.confirm(`Are you sure you want to delete ${emp.name}? This action cannot be undone.`)) {
-                                console.log('✅ Delete confirmed, calling parent function');
-                                
-                                // Call parent function for database deletion
-                                console.log('📞 Calling onRemoveEmployee with ID:', emp.id);
-                                void onRemoveEmployee(emp.id);
+                                console.log('Delete confirmed, calling parent function');
+                                console.log('Calling onRemoveEmployee with ID:', emp.id);
+                                void onRemoveEmployee(emp.id).then((deleted) => {
+                                  if (!deleted) {
+                                    return;
+                                  }
+
+                                  setRegisteredEmployees((prev) =>
+                                    prev.filter((employee) => String(employee.id || '').trim() !== String(emp.id || '').trim())
+                                  );
+                                });
                               } else {
-                                console.log('❌ Delete cancelled');
+                                console.log('Delete cancelled');
                               }
                             }}
                             className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-full cursor-pointer transition-all"

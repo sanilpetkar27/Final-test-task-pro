@@ -2550,20 +2550,20 @@ const App: React.FC = () => {
     }
   };
 
-  const removeEmployee = async (id: string) => {
+  const removeEmployee = async (id: string): Promise<boolean> => {
     const normalizedEmployeeId = String(id || '').trim();
     const employeeToDelete = employees.find(
       (employee) => String(employee.id || '').trim() === normalizedEmployeeId
     );
     if (!employeeToDelete) {
       toast.error('Employee not found.');
-      return;
+      return false;
     }
 
     const normalizedCurrentUserId = String(currentUser?.id || '').trim();
     if (String(employeeToDelete.id || '').trim() === normalizedCurrentUserId) {
       toast.error('You cannot delete your own account.');
-      return;
+      return false;
     }
 
     const resolvedCompanyId = String(
@@ -2588,11 +2588,10 @@ const App: React.FC = () => {
 
     if (!isSuperAdminOrOwner && !isManagerDeletingOwnStaff && !isManagerLinkedViaJunction) {
       toast.error('You can only delete staff members from your own team.');
-      return;
+      return false;
     }
 
     try {
-      // Delete employee from Supabase
       const { error } = await supabase
         .from('employees')
         .delete()
@@ -2600,20 +2599,23 @@ const App: React.FC = () => {
         .eq('company_id', resolvedCompanyId);
 
       if (error) {
-        console.error('❌ Error removing employee from database:', error);
-        toast.error(`Database Error: ${error.message}`);
-      } else {
-        setEmployees((prev) =>
-          prev.filter((employee) => String(employee.id || '').trim() !== normalizedEmployeeId)
-        );
-        setStaffManagerLinks((prev) =>
-          prev.filter((link) => String(link.staff_id || '').trim() !== normalizedEmployeeId)
-        );
-        toast.success('Employee deleted successfully');
+        console.error('Error removing employee from database:', error);
+        toast.error('Could not delete this employee. Please try again.');
+        return false;
       }
+
+      setEmployees((prev) =>
+        prev.filter((employee) => String(employee.id || '').trim() !== normalizedEmployeeId)
+      );
+      setStaffManagerLinks((prev) =>
+        prev.filter((link) => String(link.staff_id || '').trim() !== normalizedEmployeeId)
+      );
+      toast.success('Employee deleted successfully.');
+      return true;
     } catch (error) {
-      console.error('🚨 Unexpected error removing employee:', error);
-      toast.error(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Unexpected error removing employee:', error);
+      toast.error('Could not delete this employee. Please try again.');
+      return false;
     }
   };
 
