@@ -85,10 +85,10 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
 
   return (
     <header
-      className="sticky top-0 z-30 flex items-center justify-between border-b border-[var(--border)] bg-white/95 px-4 py-4 pt-safe-top font-sans text-slate-900 shadow-sm backdrop-blur sm:px-6"
+      className="sticky top-0 z-30 flex items-center justify-between gap-2 border-b border-[var(--border)] bg-white/95 px-4 py-4 pt-safe-top font-sans text-slate-900 shadow-sm backdrop-blur sm:px-6"
       style={{ paddingTop: 'max(3rem, 1.25rem)' }}
     >
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 sm:gap-4">
         <div className="rounded-[1rem] border border-[var(--border)] bg-white p-1 shadow-[0_4px_14px_rgba(15,23,42,0.08)]">
           <img src="/icon-192.png" alt="OpenTask logo" className="h-8 w-8 rounded-[0.75rem]" />
         </div>
@@ -103,23 +103,18 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
         </div>
       </div>
 
-      <div className="relative flex items-center gap-2" ref={companySwitcherRef}>
+      <div className="relative flex items-center gap-2 sm:gap-4" ref={companySwitcherRef}>
         {availableCompanies.length > 1 ? (
           <div className="relative">
             <button
               type="button"
               onClick={() => setShowCompanySwitcher((prev) => !prev)}
-              className="min-h-[44px] rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-4 py-2 text-left font-sans transition-all hover:bg-slate-200"
+              className="min-h-[44px] bg-transparent p-0 text-left font-sans transition-all"
             >
-              <div className="flex items-center gap-2">
-                <div className="min-w-0">
-                  <p className="truncate text-[10px] font-black uppercase tracking-[0.18em] text-[var(--ink-3)]">
-                    Workspace
-                  </p>
-                  <p className="max-w-[152px] truncate text-sm font-bold text-slate-900">
-                    {activeWorkspaceName}
-                  </p>
-                </div>
+              <div className="flex items-center gap-1 sm:gap-2">
+                <p className="max-w-[110px] truncate text-sm font-bold text-gray-900 sm:max-w-[200px] sm:text-base">
+                  {activeWorkspaceName}
+                </p>
                 <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform ${showCompanySwitcher ? 'rotate-180' : ''}`} />
               </div>
             </button>
@@ -163,9 +158,8 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             )}
           </div>
         ) : (
-          <div className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-4 py-2 font-sans">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--ink-3)]">Workspace</p>
-            <p className="max-w-[152px] truncate text-sm font-bold text-slate-900">{activeWorkspaceName}</p>
+          <div className="bg-transparent p-0 font-sans">
+            <p className="max-w-[110px] truncate text-sm font-bold text-gray-900 sm:max-w-[200px] sm:text-base">{activeWorkspaceName}</p>
           </div>
         )}
 
