@@ -128,7 +128,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
               </div>
             </button>
             {showCompanySwitcher && (
-              <div className="absolute left-0 top-full z-[1000] mt-2 w-screen max-w-[100vw] rounded-3xl border border-[var(--border)] bg-white p-2 shadow-[0_12px_28px_rgba(15,23,42,0.14)] sm:left-auto sm:right-0 sm:z-50 sm:w-[300px] sm:max-w-[calc(100vw-1rem)]">
+              <div className="fixed left-1/2 top-1/2 z-[1000] max-h-[min(70vh,28rem)] w-[min(22rem,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-3xl border border-[var(--border)] bg-white p-2 shadow-[0_12px_28px_rgba(15,23,42,0.14)] sm:absolute sm:left-auto sm:right-0 sm:top-full sm:z-50 sm:mt-2 sm:max-h-none sm:w-[300px] sm:max-w-[calc(100vw-1rem)] sm:translate-x-0 sm:translate-y-0">
                 <p className="px-3 pb-2 pt-1 text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
                   Switch Workspace
                 </p>
