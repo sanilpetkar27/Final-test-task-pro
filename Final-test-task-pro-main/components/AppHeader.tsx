@@ -93,7 +93,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           type="button"
           aria-label="Close workspace switcher"
           onClick={() => setShowCompanySwitcher(false)}
-          className="fixed inset-0 z-[999] bg-slate-950/20 sm:hidden"
+          className="fixed inset-0 z-[999] bg-slate-950/28 backdrop-blur-[2px] sm:hidden"
         />
       ) : null}
 
@@ -128,11 +128,11 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
               </div>
             </button>
             {showCompanySwitcher && (
-              <div className="fixed left-1/2 top-1/2 z-[1000] max-h-[min(70vh,28rem)] w-[min(22rem,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-3xl border border-[var(--border)] bg-white p-2 shadow-[0_12px_28px_rgba(15,23,42,0.14)] sm:absolute sm:left-auto sm:right-0 sm:top-full sm:z-50 sm:mt-2 sm:max-h-none sm:w-[300px] sm:max-w-[calc(100vw-1rem)] sm:translate-x-0 sm:translate-y-0">
-                <p className="px-3 pb-2 pt-1 text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
+              <div className="fixed left-1/2 top-[max(5.5rem,50%)] z-[1000] max-h-[min(56vh,18rem)] w-[min(19rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[1.5rem] border border-slate-200/90 bg-white/98 p-3 shadow-[0_18px_50px_rgba(15,23,42,0.18)] sm:absolute sm:left-auto sm:right-0 sm:top-full sm:z-50 sm:mt-2 sm:max-h-none sm:w-[300px] sm:max-w-[calc(100vw-1rem)] sm:translate-x-0 sm:translate-y-0 sm:rounded-3xl sm:border-[var(--border)] sm:bg-white sm:p-2 sm:shadow-[0_12px_28px_rgba(15,23,42,0.14)]">
+                <p className="px-2 pb-2 pt-0.5 text-[10px] font-black uppercase tracking-[0.24em] text-slate-500 sm:px-3 sm:pt-1">
                   Switch Workspace
                 </p>
-                <div className="space-y-1">
+                <div className="space-y-2 sm:space-y-1">
                   {availableCompanies.map((workspace) => {
                     const isActiveWorkspace =
                       workspace.companyId === String(activeCompanyId || '').trim() &&
@@ -146,15 +146,15 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                           setShowCompanySwitcher(false);
                           switchCompany(workspace.companyId);
                         }}
-                        className={`flex w-full items-center gap-3 rounded-2xl border px-3 py-3 text-left transition-all ${
+                        className={`flex w-full items-center gap-3 rounded-[1.25rem] border px-3 py-2.5 text-left transition-all sm:rounded-2xl sm:py-3 ${
                           isActiveWorkspace
                             ? 'border-[#4F46E5]/20 bg-[var(--accent-light)] shadow-[0_4px_12px_rgba(79,70,229,0.08)]'
-                            : 'border-transparent bg-white hover:border-slate-200 hover:bg-slate-50'
+                            : 'border-slate-200/70 bg-white hover:border-slate-200 hover:bg-slate-50'
                         }`}
                       >
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-bold text-slate-900">{workspace.companyName}</p>
-                          <span className="mt-1 inline-flex rounded-full bg-[var(--accent-light)] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-[#4F46E5]">
+                          <span className="mt-1 inline-flex rounded-full bg-[var(--accent-light)] px-2 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-[#4F46E5] sm:px-2.5 sm:text-[10px]">
                             {getRoleLabel(workspace.role)}
                           </span>
                         </div>
