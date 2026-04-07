@@ -88,6 +88,15 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
       className="sticky top-0 z-30 flex items-center justify-between gap-2 border-b border-[var(--border)] bg-white/95 px-4 py-4 pt-safe-top font-sans text-slate-900 shadow-sm backdrop-blur sm:px-6"
       style={{ paddingTop: 'max(3rem, 1.25rem)' }}
     >
+      {showCompanySwitcher ? (
+        <button
+          type="button"
+          aria-label="Close workspace switcher"
+          onClick={() => setShowCompanySwitcher(false)}
+          className="fixed inset-0 z-[999] bg-slate-950/20 sm:hidden"
+        />
+      ) : null}
+
       <div className="flex items-center gap-2 sm:gap-4">
         <div className="rounded-[1rem] border border-[var(--border)] bg-white p-1 shadow-[0_4px_14px_rgba(15,23,42,0.08)]">
           <img src="/icon-192.png" alt="OpenTask logo" className="h-8 w-8 rounded-[0.75rem]" />
@@ -119,7 +128,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
               </div>
             </button>
             {showCompanySwitcher && (
-              <div className="absolute right-0 top-full z-50 mt-2 w-[300px] max-w-[calc(100vw-1rem)] rounded-3xl border border-[var(--border)] bg-white p-2 shadow-[0_12px_28px_rgba(15,23,42,0.14)]">
+              <div className="absolute left-0 top-full z-[1000] mt-2 w-screen max-w-[100vw] rounded-3xl border border-[var(--border)] bg-white p-2 shadow-[0_12px_28px_rgba(15,23,42,0.14)] sm:left-auto sm:right-0 sm:z-50 sm:w-[300px] sm:max-w-[calc(100vw-1rem)]">
                 <p className="px-3 pb-2 pt-1 text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
                   Switch Workspace
                 </p>
