@@ -1333,38 +1333,22 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
             currentUser.email?.split('@')[0] ||
             'A teammate';
           const taskTitle = task.description?.trim() || 'Task';
-          const companyId = String(currentUser.company_id || task.company_id || '').trim();
           const nowIso = new Date().toISOString();
           const mentionMessage = `${actorName} mentioned you in task: ${taskTitle}`;
 
-          const newSchemaRows = resolvedMentionIds.map((userId) => ({
-            employee_id: userId,
-            message: mentionMessage,
-            company_id: companyId,
-            read: false,
+          const notificationRows = resolvedMentionIds.map((userId) => ({
+            user_id: userId,
+            title: 'You were mentioned in a task remark',
+            body: mentionMessage,
+            entity_type: 'task',
+            entity_id: taskId,
+            is_read: false,
             created_at: nowIso,
           }));
 
           let { error: mentionNotificationError } = await supabase
             .from('notifications')
-            .insert(newSchemaRows);
-
-          if (mentionNotificationError && isMissingColumnError(mentionNotificationError)) {
-            const fallbackRows = resolvedMentionIds.map((userId) => ({
-              user_id: userId,
-              title: 'You were mentioned in a task remark',
-              body: mentionMessage,
-              entity_type: 'task',
-              entity_id: taskId,
-              is_read: false,
-              created_at: nowIso,
-            }));
-
-            const fallbackResult = await supabase
-              .from('notifications')
-              .insert(fallbackRows);
-            mentionNotificationError = fallbackResult.error;
-          }
+            .insert(notificationRows);
 
           if (mentionNotificationError) {
             console.warn('Mention notification insert failed:', mentionNotificationError);

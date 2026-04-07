@@ -68,7 +68,6 @@ interface TaskRemarkGroup {
 interface MentionCandidate {
   id: string;
   name: string;
-  email?: string;
 }
 
 interface ParentTaskSummary {
@@ -378,8 +377,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         .filter((employee) => employee?.id && employee.id !== currentUser.id)
         .map((employee) => ({
           id: employee.id,
-          name: String(employee.name || '').trim() || String(employee.email || '').trim() || 'User',
-          email: String(employee.email || '').trim() || undefined,
+          name: String(employee.name || '').trim() || 'User',
         })),
     [employees, currentUser.id]
   );
@@ -521,31 +519,28 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         if (companyId) {
           let dbQuery = supabase
             .from('employees')
-            .select('id, name, email')
+            .select('id, name, role, mobile')
             .eq('company_id', companyId)
             .neq('id', currentUser.id)
             .order('name', { ascending: true })
             .limit(8);
 
           if (queryText) {
-            dbQuery = dbQuery.or(`name.ilike.%${queryText}%,email.ilike.%${queryText}%`);
+            dbQuery = dbQuery.ilike('name', `%${queryText}%`);
           }
 
           const { data, error } = await dbQuery;
           if (!error && Array.isArray(data)) {
             supabaseCandidates = data.map((row: any) => ({
               id: String(row.id || ''),
-              name: String(row.name || row.email || 'User').trim(),
-              email: typeof row.email === 'string' ? row.email.trim() : undefined,
+              name: String(row.name || 'User').trim(),
             }));
           }
         }
 
         const localFallback = mentionableMembers.filter((member) => {
           if (!queryText) return true;
-          const nameMatch = member.name.toLowerCase().includes(queryText.toLowerCase());
-          const emailMatch = String(member.email || '').toLowerCase().includes(queryText.toLowerCase());
-          return nameMatch || emailMatch;
+          return member.name.toLowerCase().includes(queryText.toLowerCase());
         });
 
         const merged = [...supabaseCandidates, ...localFallback]

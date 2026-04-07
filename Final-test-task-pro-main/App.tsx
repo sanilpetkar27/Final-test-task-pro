@@ -1,16 +1,18 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AppTab, DealershipTask, Employee, UserRole, TaskStatus, TaskType, RecurrenceFrequency, TaskPriority, TaskRemark, StaffManagerLink } from './types';
 import Dashboard from './components/Dashboard';
+import AppHeader from './components/AppHeader';
 import DevAdminPanel from './components/DevAdminPanel';
 import StatsScreen from './components/StatsScreen';
 import TeamManager from './components/TeamManager';
 import ApprovalsPanel from './components/ApprovalsPanel';
 import LoginScreen from './components/LoginScreen';
 import ErrorBoundary from './src/components/ErrorBoundary';
-import { supabase, supabaseAuth } from './src/lib/supabase';
+import { supabase } from './src/lib/supabase';
 import { useNotificationSetup } from './src/hooks/useNotificationSetup';
 import { transformTaskToApp, transformTaskToDB, transformTasksToApp, DatabaseTask } from './src/utils/transformers';
 import { sendTaskAssignmentNotification, sendTaskCompletionNotification } from './src/utils/pushNotifications';
+import { useAuthCompany } from './src/context/AuthCompanyContext';
 import { Toaster, toast } from 'sonner';
 import { Analytics } from '@vercel/analytics/react';
 import OneSignal from 'react-onesignal';
@@ -19,7 +21,6 @@ import {
   CheckCircle2,
   Users,
   LayoutDashboard,
-  LogOut,
   Loader2,
   AlertTriangle,
   Bell,
@@ -31,6 +32,7 @@ const DEV_ADMIN_EMAIL = 'sanilpetkar99@gmail.com';
 const DEV_ADMIN_PATH = '/dev-admin';
 const USER_CACHE_KEY = 'universal_app_user';
 const ACTIVE_TAB_CACHE_KEY = 'universal_app_active_tab';
+const ACTIVE_COMPANY_CACHE_KEY = 'universal_app_active_company';
 const EMPLOYEES_CACHE_KEY = 'universalAppEmployees';
 const TASKS_CACHE_KEY = 'universalAppTasks';
 const STAFF_MANAGER_LINKS_CACHE_KEY = 'universalAppStaffManagerLinks';
@@ -813,6 +815,14 @@ type PendingTaskDeepLink = {
   token: number;
 };
 
+type AvailableCompany = {
+  employeeId: string;
+  role: Employee['role'];
+  companyId: string;
+  companyName: string;
+  employeeRecord: Employee;
+};
+
 const formatNotificationTimeAgo = (createdAt: string): string => {
   const createdTs = Date.parse(createdAt);
   if (!Number.isFinite(createdTs)) return 'Just now';
@@ -839,33 +849,142 @@ const parseBooleanLikeValue = (value: unknown): boolean => {
   return normalized === 'true' || normalized === '1' || normalized === 'yes';
 };
 
+const readPersistedActiveCompanyId = (mobile?: string | null): string | null => {
+  if (typeof window === 'undefined') return null;
+
+  const normalizedMobile = normalizeMobile(mobile);
+  const lookupKeys = normalizedMobile
+    ? [`${ACTIVE_COMPANY_CACHE_KEY}:${normalizedMobile}`, ACTIVE_COMPANY_CACHE_KEY]
+    : [ACTIVE_COMPANY_CACHE_KEY];
+
+  for (const key of lookupKeys) {
+    try {
+      const value = String(localStorage.getItem(key) || '').trim();
+      if (value) return value;
+    } catch {
+      // Ignore local storage read failures and continue with defaults.
+    }
+  }
+
+  return null;
+};
+
+const persistActiveCompanyId = (mobile: string | null | undefined, companyId: string | null | undefined) => {
+  if (typeof window === 'undefined') return;
+
+  const normalizedMobile = normalizeMobile(mobile);
+  const normalizedCompanyId = String(companyId || '').trim();
+  if (!normalizedCompanyId) return;
+
+  try {
+    localStorage.setItem(ACTIVE_COMPANY_CACHE_KEY, normalizedCompanyId);
+    if (normalizedMobile) {
+      localStorage.setItem(`${ACTIVE_COMPANY_CACHE_KEY}:${normalizedMobile}`, normalizedCompanyId);
+    }
+  } catch {
+    // Ignore local storage write failures so company switching remains functional.
+  }
+};
+
+const clearCompanyScopedCaches = () => {
+  if (typeof window === 'undefined') return;
+
+  try {
+    localStorage.removeItem(EMPLOYEES_CACHE_KEY);
+    localStorage.removeItem(TASKS_CACHE_KEY);
+    localStorage.removeItem(STAFF_MANAGER_LINKS_CACHE_KEY);
+  } catch {
+    // Ignore local storage clear failures and continue runtime switching.
+  }
+};
+
+const getFallbackCompanyName = (companyId: string): string => {
+  const normalizedCompanyId = String(companyId || '').trim();
+  if (!normalizedCompanyId) return 'Workspace';
+  return `Workspace ${normalizedCompanyId.slice(0, 8)}`;
+};
+
+const loadAvailableCompaniesForEmployee = async (employee: Employee): Promise<AvailableCompany[]> => {
+  const employeeMobile = String(employee.mobile || '').trim();
+  if (!employeeMobile) {
+    return [];
+  }
+
+  const { data: employeeRows, error: employeeRowsError } = await supabase
+    .from('employees')
+    .select('*')
+    .eq('mobile', employeeMobile);
+
+  if (employeeRowsError) {
+    console.warn('Workspace lookup by mobile failed:', employeeRowsError);
+    return [];
+  }
+
+  const normalizedRows = Array.isArray(employeeRows)
+    ? employeeRows.map((row) => normalizeEmployeeProfile(row as Employee))
+    : [];
+  if (normalizedRows.length === 0) {
+    return [];
+  }
+
+  const uniqueCompanyIds = Array.from(
+    new Set(
+      normalizedRows
+        .map((row) => String(row.company_id || '').trim())
+        .filter(Boolean)
+    )
+  );
+
+  let companyNameById = new Map<string, string>();
+  if (uniqueCompanyIds.length > 0) {
+    const { data: companyRows, error: companyRowsError } = await supabase
+      .from('companies')
+      .select('id, name')
+      .in('id', uniqueCompanyIds);
+
+    if (companyRowsError) {
+      console.warn('Workspace company lookup failed:', companyRowsError);
+    } else {
+      companyNameById = new Map(
+        (companyRows || []).map((row: any) => [
+          String(row?.id || '').trim(),
+          String(row?.name || '').trim() || getFallbackCompanyName(String(row?.id || '').trim()),
+        ])
+      );
+    }
+  }
+
+  return normalizedRows
+    .map((row) => ({
+      employeeId: row.id,
+      role: normalizeRole(row.role),
+      companyId: String(row.company_id || '').trim() || DEFAULT_COMPANY_ID,
+      companyName:
+        companyNameById.get(String(row.company_id || '').trim()) ||
+        getFallbackCompanyName(String(row.company_id || '').trim()),
+      employeeRecord: row,
+    }))
+    .sort((left, right) => left.companyName.localeCompare(right.companyName));
+};
+
 const App: React.FC = () => {
   // --- 1. USER & STATE MANAGEMENT ---
-  const [currentUser, setCurrentUser] = useState<Employee | null>(() => {
-    try {
-      const saved = localStorage.getItem(USER_CACHE_KEY);
-      if (!saved || saved === 'undefined') return null;
-
-      const parsed = JSON.parse(saved);
-      return {
-        ...parsed,
-        role: normalizeRole(parsed?.role),
-        email: parsed?.email || `${parsed?.id || 'user'}@taskpro.local`,
-        company_id: parsed?.company_id || DEFAULT_COMPANY_ID,
-      } as Employee;
-    } catch (error) {
-      console.warn('Failed to parse cached user profile, clearing local cache.', error);
-      localStorage.removeItem(USER_CACHE_KEY);
-      return null;
-    }
-  });
-
+  const {
+    currentUser,
+    activeEmployeeRecord,
+    activeCompanyId,
+    isSyncing,
+    isCompanySwitching,
+    authLoading,
+    login,
+    logout,
+    finishCompanySwitch,
+  } = useAuthCompany();
   const [activeTab, setActiveTab] = useState<AppTab>(() => {
     const cachedTab = readPersistedActiveTab(currentUser?.id);
     return resolveActiveTabForRole(cachedTab, currentUser?.role);
   });
   const [tasksTabReselectSignal, setTasksTabReselectSignal] = useState(0);
-  const [isSyncing, setIsSyncing] = useState(false);
   const [appReady, setAppReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -879,10 +998,12 @@ const App: React.FC = () => {
   const lastForegroundRefreshAtRef = useRef(0);
   const lastRealtimeTasksRefetchAtRef = useRef(0);
 
+  const resolvedActiveCompanyId = String(activeCompanyId || activeEmployeeRecord?.company_id || '').trim() || null;
+
   const unreadNotificationCount = userNotifications.filter((item) => !item.is_read).length;
   const isDevAdminRoute = currentPath === DEV_ADMIN_PATH;
   const isDevAdminAuthorized =
-    String(currentUser?.email || '').trim().toLowerCase() === DEV_ADMIN_EMAIL;
+    String(activeEmployeeRecord?.email || '').trim().toLowerCase() === DEV_ADMIN_EMAIL;
 
   const navigateToPath = useCallback((path: string, replace = false) => {
     if (typeof window === 'undefined') return;
@@ -907,7 +1028,7 @@ const App: React.FC = () => {
   }, []);
 
   const loadUserNotifications = useCallback(async () => {
-    const userId = String(currentUser?.id || '').trim();
+    const userId = String(activeEmployeeRecord?.id || '').trim();
     if (!userId) {
       setUserNotifications([]);
       return;
@@ -931,14 +1052,14 @@ const App: React.FC = () => {
     } finally {
       setNotificationsLoading(false);
     }
-  }, [currentUser?.id]);
+  }, [activeEmployeeRecord?.id]);
 
   // --- OneSignal Notification Setup ---
   useNotificationSetup({
-    userId: currentUser?.id || null,
-    userMobile: currentUser?.mobile || null,
-    companyId: currentUser?.company_id || null,
-    isLoggedIn: !!currentUser
+    userId: activeEmployeeRecord?.id || null,
+    userMobile: activeEmployeeRecord?.mobile || null,
+    companyId: resolvedActiveCompanyId,
+    isLoggedIn: !!activeEmployeeRecord
   });
 
   // --- 2. UPDATED EMPLOYEES LIST (With Your Number) ---
@@ -978,29 +1099,29 @@ const App: React.FC = () => {
       }
       setLoadError(null);
 
-      const activeCompanyId = currentUser?.company_id || null;
+      const activeCompanyIdValue = resolvedActiveCompanyId;
 
       // Fetch employees from Supabase (company-scoped when available)
       let employeesQuery = supabase
         .from('employees')
         .select('*');
 
-      if (activeCompanyId) {
-        employeesQuery = employeesQuery.eq('company_id', activeCompanyId);
+      if (activeCompanyIdValue) {
+        employeesQuery = employeesQuery.eq('company_id', activeCompanyIdValue);
       }
 
       const { data: employeesData, error: employeesError } = await employeesQuery;
 
       let finalStaffManagerLinks = filterStaffManagerLinksByCompany(
         parseCachedArray<StaffManagerLink>(STAFF_MANAGER_LINKS_CACHE_KEY),
-        activeCompanyId
+        activeCompanyIdValue
       );
 
-      if (activeCompanyId) {
+      if (activeCompanyIdValue) {
         const { data: staffManagerLinksData, error: staffManagerLinksError } = await supabase
           .from('staff_manager_links')
           .select('*')
-          .eq('company_id', activeCompanyId);
+          .eq('company_id', activeCompanyIdValue);
 
         if (!staffManagerLinksError && Array.isArray(staffManagerLinksData)) {
           finalStaffManagerLinks = staffManagerLinksData as StaffManagerLink[];
@@ -1012,8 +1133,8 @@ const App: React.FC = () => {
       // Fetch tasks from Supabase with role + company filtering
       let tasksQuery = supabase.from('tasks').select('*');
 
-      if (activeCompanyId) {
-        tasksQuery = tasksQuery.eq('company_id', activeCompanyId);
+      if (activeCompanyIdValue) {
+        tasksQuery = tasksQuery.eq('company_id', activeCompanyIdValue);
       }
       tasksQuery = tasksQuery.in('status', ['pending', 'in_progress', 'in-progress', 'overdue', 'completed']);
       
@@ -1025,11 +1146,11 @@ const App: React.FC = () => {
       // Cache fallback is always tenant-scoped to avoid leaking demo/other-company users.
       const cachedEmployees = filterEmployeesByCompany(
         parseCachedArray<Employee>(EMPLOYEES_CACHE_KEY),
-        activeCompanyId
+        activeCompanyIdValue
       );
       const cachedTasks = filterTasksByCompany(
         parseCachedArray<DealershipTask>(TASKS_CACHE_KEY),
-        activeCompanyId
+        activeCompanyIdValue
       );
 
       const finalEmployeesBase = (employeesData && employeesData.length > 0)
@@ -1041,7 +1162,7 @@ const App: React.FC = () => {
         ? transformTasksToApp(tasksData as DatabaseTask[])
         : (cachedTasks.length > 0 ? cachedTasks : []);
       const activeTasks = finalTasks;
-      const mergedEmployees = mergeCurrentUserIntoEmployees(finalEmployeesBase as Employee[], currentUser).map((employee) => {
+      const mergedEmployees = mergeCurrentUserIntoEmployees(finalEmployeesBase as Employee[], activeEmployeeRecord).map((employee) => {
         if (employee.role !== 'staff') {
           return employee;
         }
@@ -1059,7 +1180,7 @@ const App: React.FC = () => {
       const finalEmployees = scopeEmployeesForCurrentUser(
         mergedEmployees,
         activeTasks,
-        currentUser,
+        activeEmployeeRecord,
         finalStaffManagerLinks
       );
 
@@ -1082,22 +1203,22 @@ const App: React.FC = () => {
       };
     } catch (error) {
       console.error('Supabase connection failed - using cached fallback data');
-      const activeCompanyId = currentUser?.company_id || null;
+      const activeCompanyIdValue = resolvedActiveCompanyId;
       const cachedEmployees = filterEmployeesByCompany(
         parseCachedArray<Employee>(EMPLOYEES_CACHE_KEY),
-        activeCompanyId
+        activeCompanyIdValue
       );
       const cachedTasks = filterTasksByCompany(
         parseCachedArray<DealershipTask>(TASKS_CACHE_KEY),
-        activeCompanyId
+        activeCompanyIdValue
       );
       const cachedStaffManagerLinks = filterStaffManagerLinksByCompany(
         parseCachedArray<StaffManagerLink>(STAFF_MANAGER_LINKS_CACHE_KEY),
-        activeCompanyId
+        activeCompanyIdValue
       );
-      const mergedEmployees = mergeCurrentUserIntoEmployees(cachedEmployees, currentUser);
+      const mergedEmployees = mergeCurrentUserIntoEmployees(cachedEmployees, activeEmployeeRecord);
       return {
-        employees: scopeEmployeesForCurrentUser(mergedEmployees, cachedTasks, currentUser, cachedStaffManagerLinks),
+        employees: scopeEmployeesForCurrentUser(mergedEmployees, cachedTasks, activeEmployeeRecord, cachedStaffManagerLinks),
         tasks: cachedTasks,
         staffManagerLinks: cachedStaffManagerLinks
       };
@@ -1123,15 +1244,15 @@ const App: React.FC = () => {
   const fetchTasks = useCallback(async () => {
     try {
       
-      const activeCompanyId = currentUser?.company_id || null;
+      const activeCompanyIdValue = resolvedActiveCompanyId;
 
       // Fetch employees from Supabase (company-scoped when available)
       let employeesQuery = supabase
         .from('employees')
         .select('*');
 
-      if (activeCompanyId) {
-        employeesQuery = employeesQuery.eq('company_id', activeCompanyId);
+      if (activeCompanyIdValue) {
+        employeesQuery = employeesQuery.eq('company_id', activeCompanyIdValue);
       }
 
       const { data: employeesData, error: employeesError } = await employeesQuery;
@@ -1139,8 +1260,8 @@ const App: React.FC = () => {
       // Fetch tasks from Supabase with role + company filtering
       let tasksQuery = supabase.from('tasks').select('*');
 
-      if (activeCompanyId) {
-        tasksQuery = tasksQuery.eq('company_id', activeCompanyId);
+      if (activeCompanyIdValue) {
+        tasksQuery = tasksQuery.eq('company_id', activeCompanyIdValue);
       }
       tasksQuery = tasksQuery.in('status', ['pending', 'in_progress', 'in-progress', 'overdue', 'completed']);
       
@@ -1158,71 +1279,15 @@ const App: React.FC = () => {
     } catch (err) {
       console.error('🚨 Unexpected error fetching tasks:', err);
     }
-  }, [currentUser?.id, currentUser?.role, currentUser?.company_id]); // Keep scoped to active user/company
+  }, [activeEmployeeRecord?.id, activeEmployeeRecord?.role, resolvedActiveCompanyId]); // Keep scoped to active user/company
 
   // Keep ref updated with latest fetchTasks function
   useEffect(() => {
     fetchTasksRef.current = fetchTasks;
   }, [fetchTasks]);
 
-  // --- ROBUST SYNCHRONIZATION EFFECT ---
   useEffect(() => {
-    // Check for existing auth session on app load
-    const checkAuthSession = async () => {
-      try {
-        const { data: { session }, error } = await supabaseAuth.getSession();
-
-        if (error) {
-          console.error('Error fetching auth session:', error);
-          return;
-        }
-
-        if (!session?.user) {
-          // Prevent stale cached profile from bypassing login after refresh.
-          setCurrentUser(null);
-          localStorage.removeItem(USER_CACHE_KEY);
-          localStorage.removeItem(EMPLOYEES_CACHE_KEY);
-          localStorage.removeItem(TASKS_CACHE_KEY);
-          localStorage.removeItem(STAFF_MANAGER_LINKS_CACHE_KEY);
-          return;
-        }
-
-        const authUserId = session.user.id;
-
-        const resolvedProfile = await resolveEmployeeProfileFromAuthUser(session.user);
-
-        if (resolvedProfile) {
-          setCurrentUser(resolvedProfile);
-          localStorage.setItem(USER_CACHE_KEY, JSON.stringify(resolvedProfile));
-          return;
-        }
-
-        const fallbackUser = toFallbackEmployeeFromAuthUser(session.user);
-        const syncedFallbackUser = await syncEmployeeProfileToDatabase(fallbackUser, session.user.id);
-        const nextUser = syncedFallbackUser || fallbackUser;
-
-        if (
-          currentUser &&
-          String(currentUser.email || '').toLowerCase() === String(nextUser.email || '').toLowerCase() &&
-          currentUser.role !== 'staff'
-        ) {
-          return;
-        }
-
-        setCurrentUser(nextUser);
-        localStorage.setItem(USER_CACHE_KEY, JSON.stringify(nextUser));
-      } catch (err) {
-        console.error('Auth session check error:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    checkAuthSession();
-  }, []);
-
-  useEffect(() => {
-    if (!currentUser) {
+    if (!activeEmployeeRecord) {
       setEmployees([]);
       setStaffManagerLinks([]);
       setTasks([]);
@@ -1230,17 +1295,29 @@ const App: React.FC = () => {
     }
 
     // Initial Load for the active logged-in user/company
-    loadInitialData(false).then(data => {
+    const isSilentRefresh = isCompanySwitching;
+
+    loadInitialData(isSilentRefresh).then(data => {
       if (data) {
         setEmployees(data.employees);
         setStaffManagerLinks(data.staffManagerLinks || []);
         setTasks(data.tasks);
       }
+    }).finally(() => {
+      if (isSilentRefresh) {
+        finishCompanySwitch();
+      }
     });
-  }, [currentUser?.id, currentUser?.company_id, currentUser?.role]);
+  }, [activeEmployeeRecord?.id, activeEmployeeRecord?.role, resolvedActiveCompanyId, isCompanySwitching, finishCompanySwitch]);
 
   useEffect(() => {
-    const normalizedTab = resolveActiveTabForRole(activeTab, currentUser?.role);
+    if (!authLoading && !activeEmployeeRecord) {
+      setLoading(false);
+    }
+  }, [authLoading, activeEmployeeRecord]);
+
+  useEffect(() => {
+    const normalizedTab = resolveActiveTabForRole(activeTab, activeEmployeeRecord?.role);
 
     if (normalizedTab !== activeTab) {
       setActiveTab(normalizedTab);
@@ -1249,7 +1326,7 @@ const App: React.FC = () => {
 
     if (typeof window === 'undefined') return;
 
-    const normalizedUserId = String(currentUser?.id || '').trim();
+    const normalizedUserId = String(activeEmployeeRecord?.id || '').trim();
     const perUserTabKey = normalizedUserId
       ? `${ACTIVE_TAB_CACHE_KEY}:${normalizedUserId}`
       : ACTIVE_TAB_CACHE_KEY;
@@ -1260,15 +1337,15 @@ const App: React.FC = () => {
     } catch {
       // Ignore local storage write failures so tab navigation remains functional.
     }
-  }, [activeTab, currentUser?.id, currentUser?.role]);
+  }, [activeTab, activeEmployeeRecord?.id, activeEmployeeRecord?.role]);
 
   // --- REALTIME SUBSCRIPTION FOR TASKS ---
   useEffect(() => {
-    if (!currentUser?.id) {
+    if (!activeEmployeeRecord?.id) {
       return;
     }
 
-    const companyFilter = currentUser.company_id ? `company_id=eq.${currentUser.company_id}` : undefined;
+    const companyFilter = resolvedActiveCompanyId ? `company_id=eq.${resolvedActiveCompanyId}` : undefined;
     const taskChangeFilter: { schema: 'public'; table: 'tasks'; filter?: string } = {
       schema: 'public',
       table: 'tasks',
@@ -1278,7 +1355,7 @@ const App: React.FC = () => {
       schema: 'public',
       table: 'tasks',
     };
-    const taskScopeIdsForRealtime = buildTaskScopeIds(currentUser, employees);
+    const taskScopeIdsForRealtime = buildTaskScopeIds(activeEmployeeRecord, employees);
     const triggerRealtimeTasksRefetch = () => {
       const now = Date.now();
       if (now - lastRealtimeTasksRefetchAtRef.current < 700) {
@@ -1292,7 +1369,7 @@ const App: React.FC = () => {
     };
 
     const taskListener = supabase
-      .channel(`public:tasks:${currentUser.company_id || 'all'}:${currentUser.id}`)
+      .channel(`public:tasks:${resolvedActiveCompanyId || 'all'}:${activeEmployeeRecord.id}`)
       .on('postgres_changes', { event: 'INSERT', ...taskChangeFilter }, async (payload) => {
         try {
           const payloadTaskId = String((payload.new as any)?.id || '');
@@ -1302,7 +1379,7 @@ const App: React.FC = () => {
           }
 
           const payloadRow = (payload.new || {}) as DatabaseTask;
-          if (!isTaskVisibleToUser(payloadRow, currentUser, taskScopeIdsForRealtime)) {
+          if (!isTaskVisibleToUser(payloadRow, activeEmployeeRecord, taskScopeIdsForRealtime)) {
             triggerRealtimeTasksRefetch();
             return;
           }
@@ -1377,7 +1454,7 @@ const App: React.FC = () => {
           }
 
           const payloadRow = (payload.new || {}) as DatabaseTask;
-          if (!isTaskVisibleToUser(payloadRow, currentUser, taskScopeIdsForRealtime)) {
+          if (!isTaskVisibleToUser(payloadRow, activeEmployeeRecord, taskScopeIdsForRealtime)) {
             triggerRealtimeTasksRefetch();
             return;
           }
@@ -1466,8 +1543,8 @@ const App: React.FC = () => {
         }
 
         const deletedCompanyId = String(deletedRow.company_id || '').trim();
-        const activeCompanyId = String(currentUser.company_id || '').trim();
-        if (activeCompanyId && deletedCompanyId && deletedCompanyId !== activeCompanyId) {
+        const currentCompanyId = String(resolvedActiveCompanyId || '').trim();
+        if (currentCompanyId && deletedCompanyId && deletedCompanyId !== currentCompanyId) {
           return;
         }
 
@@ -1482,7 +1559,7 @@ const App: React.FC = () => {
     return () => {
       supabase.removeChannel(taskListener);
     };
-  }, [currentUser?.id, currentUser?.company_id, currentUser?.role, currentUser?.auth_user_id, employees]);
+  }, [activeEmployeeRecord?.id, activeEmployeeRecord?.role, activeEmployeeRecord?.auth_user_id, resolvedActiveCompanyId, employees]);
 
   const reopenDueRecurringTasks = useCallback(async () => {
     if (!currentUser?.id || recurringReopenInFlightRef.current) {
@@ -1601,7 +1678,7 @@ const App: React.FC = () => {
         };
       })
     );
-  }, [currentUser?.id, currentUser?.company_id, currentUser?.role, employees]);
+  }, [currentUser?.id, currentUser?.role, resolvedActiveCompanyId, employees]);
 
   useEffect(() => {
     if (!currentUser?.id) {
@@ -1664,7 +1741,7 @@ const App: React.FC = () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [currentUser?.id, currentUser?.company_id, currentUser?.role]);
+  }, [currentUser?.id, currentUser?.role, resolvedActiveCompanyId]);
 
   // --- 3. EFFECTS (Notifications & Auto-Save) ---
 
@@ -2691,79 +2768,14 @@ const App: React.FC = () => {
   };
 
   const handleLogin = async (user: Employee) => {
-    const normalizedInputUser = normalizeEmployeeProfile(user);
-
-    try {
-      const rawCachedUser = localStorage.getItem(USER_CACHE_KEY);
-      if (rawCachedUser) {
-        const previousUser = JSON.parse(rawCachedUser) as Partial<Employee>;
-        if (previousUser?.company_id && normalizedInputUser.company_id && previousUser.company_id !== normalizedInputUser.company_id) {
-          localStorage.removeItem(EMPLOYEES_CACHE_KEY);
-          localStorage.removeItem(TASKS_CACHE_KEY);
-          localStorage.removeItem(STAFF_MANAGER_LINKS_CACHE_KEY);
-        }
-      }
-    } catch {
-      // Ignore cache parse issues and continue login flow.
-    }
-
-    setCurrentUser(normalizedInputUser);
-    localStorage.setItem(USER_CACHE_KEY, JSON.stringify(normalizedInputUser));
-    setActiveTab(resolveActiveTabForRole(readPersistedActiveTab(normalizedInputUser.id), normalizedInputUser.role));
-
-    try {
-      const { data: { session } } = await supabaseAuth.getSession();
-      if (!session?.user) {
-        return;
-      }
-
-      const { data: employeeData, error } = await supabase
-        .from('employees')
-        .select('*')
-        .eq('id', session.user.id)
-        .eq('company_id', normalizedInputUser.company_id || DEFAULT_COMPANY_ID)
-        .maybeSingle();
-
-      if (employeeData) {
-        const normalizedEmployeeData = normalizeEmployeeProfile(employeeData as Employee);
-        setCurrentUser(normalizedEmployeeData);
-        localStorage.setItem(USER_CACHE_KEY, JSON.stringify(normalizedEmployeeData));
-        return;
-      }
-
-      const syncedUser = await syncEmployeeProfileToDatabase({
-        ...normalizedInputUser,
-        id: session.user.id,
-      }, session.user.id);
-
-      if (syncedUser) {
-        setCurrentUser(syncedUser);
-        localStorage.setItem(USER_CACHE_KEY, JSON.stringify(syncedUser));
-        return;
-      }
-
-      if (error) {
-        console.warn('Using provided login profile because employee lookup failed.', error);
-      }
-    } catch (err) {
-      console.warn('Login profile sync skipped due to session/profile fetch error:', err);
-    }
+    await login(user);
+    setActiveTab(resolveActiveTabForRole(readPersistedActiveTab(user.id), user.role));
   };
 
   const handleLogout = async () => {
-    try {
-      await supabaseAuth.signOut();
-    } catch (error) {
-      console.warn('Auth sign-out failed, clearing local session anyway.', error);
-    } finally {
-      setCurrentUser(null);
-      setShowNotificationsPanel(false);
-      setUserNotifications([]);
-      localStorage.removeItem(USER_CACHE_KEY);
-      localStorage.removeItem(EMPLOYEES_CACHE_KEY);
-      localStorage.removeItem(TASKS_CACHE_KEY);
-      localStorage.removeItem(STAFF_MANAGER_LINKS_CACHE_KEY);
-    }
+    setShowNotificationsPanel(false);
+    setUserNotifications([]);
+    await logout();
   };
 
   // --- 5. RENDER UI ---
@@ -2779,7 +2791,7 @@ const App: React.FC = () => {
     );
   }
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <ErrorBoundary>
         <div className="flex flex-col min-h-screen w-full max-w-md sm:max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-auto bg-slate-50 items-center justify-center p-8 relative overflow-hidden font-sans">
@@ -2875,94 +2887,18 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Header */}
-      <header className="bg-white/95 backdrop-blur text-slate-900 px-4 py-4 sm:px-6 pt-safe-top sticky top-0 z-30 flex items-center justify-between shadow-sm border-b border-[var(--border)]" style={{ paddingTop: 'max(3rem, 1.25rem)' }}>
-        <div className="flex items-center gap-2">
-          <div className="bg-white p-1 rounded-[1rem] border border-[var(--border)] shadow-[0_4px_14px_rgba(15,23,42,0.08)]">
-            <img src="/icon-192.png" alt="OpenTask logo" className="w-8 h-8 rounded-[0.75rem]" />
-          </div>
-          <div>
-            <h1 className="text-lg font-black tracking-tight leading-none text-slate-900">OpenTask</h1>
-            <div className="flex items-center gap-1.5 mt-1">
-              <div className={`w-1.5 h-1.5 rounded-full ${isSyncing ? 'bg-emerald-400 animate-pulse' : 'bg-emerald-400'}`} />
-              <span className="font-ui-mono text-[8px] font-medium uppercase tracking-[0.22em] text-[var(--ink-3)]">
-                {isSyncing ? 'Syncing...' : 'Online'}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="relative flex items-center gap-2">
-          <button
-            onClick={toggleNotificationsPanel}
-            className="p-2.5 bg-[var(--surface-2)] hover:bg-slate-200 rounded-2xl text-slate-600 transition-all border border-[var(--border)] relative"
-            title="Notifications"
-          >
-            <Bell className="w-4 h-4" />
-            {unreadNotificationCount > 0 && (
-              <span className="font-ui-mono absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-[var(--red)] text-white text-[9px] font-medium rounded-full flex items-center justify-center border border-white">
-                {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
-              </span>
-            )}
-          </button>
-          <div className="text-right">
-            <p className="text-[10px] font-black leading-none text-slate-900">{currentUser.name}</p>
-            <p className="font-ui-mono text-[9px] text-[var(--accent)] uppercase font-medium tracking-[0.22em] mt-0.5">{getRoleLabel(currentUser.role)}</p>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="p-2.5 bg-[var(--surface-2)] hover:bg-slate-200 rounded-2xl text-slate-600 transition-all border border-[var(--border)]"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
-          {showNotificationsPanel && (
-            <div className="absolute right-0 top-full mt-2 w-[300px] max-w-[calc(100vw-1rem)] max-h-[360px] overflow-y-auto bg-white border border-slate-200 rounded-2xl shadow-[0_8px_24px_rgba(15,23,42,0.10)] z-50 p-2">
-              <div className="flex items-center justify-between px-2 py-1 border-b border-slate-100 mb-1">
-                <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">Notifications</p>
-                <div className="flex items-center gap-2">
-                  {userNotifications.length > 0 && (
-                    <button
-                      onClick={() => void clearAllNotifications()}
-                      className="text-[10px] font-black uppercase tracking-wide text-slate-500 hover:text-slate-700 px-2 py-1 rounded-lg border border-slate-200 hover:border-slate-300"
-                    >
-                      Clear all
-                    </button>
-                  )}
-                  <button
-                    onClick={() => setShowNotificationsPanel(false)}
-                    className="text-slate-400 hover:text-slate-600"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-              {notificationsLoading ? (
-                <div className="px-3 py-4 text-xs text-slate-500">Loading...</div>
-              ) : userNotifications.length === 0 ? (
-                <div className="px-3 py-4 text-xs text-slate-500">No notifications yet.</div>
-              ) : (
-                <div className="space-y-1">
-                  {userNotifications.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => void markNotificationAsRead(item.id)}
-                      className={`w-full text-left px-3 py-2 rounded-xl border transition-colors ${
-                        item.is_read
-                          ? 'bg-white border-slate-100'
-                          : 'bg-indigo-50 border-indigo-100'
-                      }`}
-                    >
-                      <p className={`text-xs font-bold ${item.is_read ? 'text-slate-700' : 'text-slate-900'}`}>{item.title}</p>
-                      <p className={`text-xs mt-0.5 ${item.is_read ? 'text-slate-500' : 'text-slate-700'}`}>{item.body}</p>
-                      <p className="text-[10px] text-slate-400 mt-1">{formatNotificationTimeAgo(item.created_at)}</p>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </header>
+      <AppHeader
+        unreadNotificationCount={unreadNotificationCount}
+        showNotificationsPanel={showNotificationsPanel}
+        notificationsLoading={notificationsLoading}
+        userNotifications={userNotifications}
+        onToggleNotificationsPanel={toggleNotificationsPanel}
+        onCloseNotificationsPanel={() => setShowNotificationsPanel(false)}
+        onClearAllNotifications={() => void clearAllNotifications()}
+        onMarkNotificationAsRead={(notificationId) => void markNotificationAsRead(notificationId)}
+        onLogout={() => void handleLogout()}
+        formatNotificationTimeAgo={formatNotificationTimeAgo}
+      />
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto overflow-x-hidden pb-28 px-4 sm:px-6 lg:px-8 pt-5 w-full bg-[var(--surface)]">
@@ -2977,6 +2913,7 @@ const App: React.FC = () => {
 
         {activeTab === AppTab.TASKS && (
           <Dashboard
+            key={`dashboard:${resolvedActiveCompanyId || 'none'}:${currentUser.id}`}
             tasks={tasks}
             employees={scopedEmployees}
             currentUser={currentUser}
@@ -2995,11 +2932,15 @@ const App: React.FC = () => {
         )}
 
         {activeTab === AppTab.APPROVALS && (
-          <ApprovalsPanel currentUser={currentUser} />
+          <ApprovalsPanel
+            key={`approvals:${resolvedActiveCompanyId || 'none'}:${currentUser.id}`}
+            currentUser={currentUser}
+          />
         )}
 
         {isManager && activeTab === AppTab.TEAM && (
           <TeamManager
+            key={`team:${resolvedActiveCompanyId || 'none'}:${currentUser.id}`}
             employees={scopedEmployees}
             staffManagerLinks={staffManagerLinks}
             currentUser={currentUser}

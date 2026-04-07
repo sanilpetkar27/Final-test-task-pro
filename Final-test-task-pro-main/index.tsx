@@ -4,6 +4,7 @@ import ReactDOM from 'react-dom/client';
 import * as Sentry from '@sentry/react';
 import App from './App';
 import ErrorBoundary from './src/components/ErrorBoundary';
+import { AuthCompanyProvider } from './src/context/AuthCompanyContext';
 import { validateEnv } from './src/utils/validateEnv';
 import './src/styles.css';
 
@@ -25,7 +26,9 @@ const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
     <ErrorBoundary>
-      <App />
+      <AuthCompanyProvider>
+        <App />
+      </AuthCompanyProvider>
     </ErrorBoundary>
   </React.StrictMode>
 );
