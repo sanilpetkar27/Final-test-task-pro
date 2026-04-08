@@ -189,38 +189,35 @@ export const sendTaskAssignmentNotification = async (
 export const sendTaskCompletionNotification = async (
   taskDescription: string,
   completedByName: string,
-  assignedById: string
+  assignedById: string,
+  companyId: string
 ): Promise<void> => {
   try {
+    const targetEmployeeId = String(assignedById || '').trim();
+    const tenantCompanyId = String(companyId || '').trim();
+    if (!targetEmployeeId) {
+      console.warn('Missing assigner id for completion notification. Skipping notification.');
+      return;
+    }
+
+    if (!tenantCompanyId) {
+      console.warn('Missing company_id for completion notification. Skipping notification:', targetEmployeeId);
+      return;
+    }
+
     const traceId = buildTraceId('cmp');
     console.log('Sending task completion notification...', {
       traceId,
       taskDescription,
       completedByName,
-      assignedById,
+      assignedById: targetEmployeeId,
+      companyId: tenantCompanyId,
     });
-
-    const { data: employee, error: employeeError } = await supabase
-      .from('employees')
-      .select('company_id')
-      .eq('id', assignedById)
-      .maybeSingle();
-
-    if (employeeError) {
-      console.error('Supabase query error:', employeeError);
-      return;
-    }
-
-    const companyId = String((employee as any)?.company_id || '').trim();
-    if (!companyId) {
-      console.warn('Missing company_id for assigner. Skipping notifications:', assignedById);
-      return;
-    }
 
     const record: NotificationRecord = {
       description: `Task completed by ${completedByName}: ${taskDescription}`,
-      assigned_to: assignedById,
-      company_id: companyId,
+      assigned_to: targetEmployeeId,
+      company_id: tenantCompanyId,
       message: `Task completed by ${completedByName}: ${taskDescription}`,
       trace_id: traceId,
     };

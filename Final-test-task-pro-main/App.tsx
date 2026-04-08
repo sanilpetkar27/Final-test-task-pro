@@ -1998,11 +1998,18 @@ const App: React.FC = () => {
 
   const notifyTaskCreatorOfCompletion = async (task: DealershipTask | undefined, completedByName: string): Promise<void> => {
     const assignedById = String(task?.assignedBy || '').trim();
-    if (!task || !assignedById) {
+    const companyId = String(task?.company_id || '').trim();
+    const completedById = String(currentUser?.id || '').trim();
+
+    if (!task || !assignedById || !companyId) {
       return;
     }
 
-    await sendTaskCompletionNotification(task.description, completedByName, assignedById);
+    if (completedById && assignedById === completedById) {
+      return;
+    }
+
+    await sendTaskCompletionNotification(task.description, completedByName, assignedById, companyId);
   };
 
   const requestHighPriorityTaskClosure = async (

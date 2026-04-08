@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { DealershipTask, Employee, UserRole, TaskStatus, TaskType, RecurrenceFrequency, TaskPriority, TaskRemark } from '../types';
 import { supabase } from '../src/lib/supabase';
-import { sendTaskCompletionNotification } from '../src/utils/pushNotifications';
 import TaskItem from './TaskItem';
 import TaskDetailsScreen from './TaskDetailsScreen';
 import CompletionModal from './CompletionModal';
@@ -1148,23 +1147,6 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
               // The parent App.tsx will handle employee state updates
               // Note: Dashboard doesn't have setEmployees prop, so we can't update local state
               // The parent App.tsx will handle employee state updates
-              
-              // Send completion notification to task creator
-              // Fire-and-forget in the background to avoid blocking local state updates
-              void (async () => {
-                try {
-                  const taskCreator = employees.find(emp => emp.id === completedTask?.assignedBy);
-                  if (taskCreator) {
-                    await sendTaskCompletionNotification(
-                      completedTask.description,
-                      currentUser.name,
-                      taskCreator.id
-                    );
-                  }
-                } catch (notiError) {
-                  console.error('Background task completion notification failed:', notiError);
-                }
-              })();
             }
           }
         }
