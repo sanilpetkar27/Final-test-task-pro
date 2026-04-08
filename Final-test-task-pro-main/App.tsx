@@ -697,6 +697,28 @@ const isTaskVisibleToUser = (
   return candidateIds.some((id) => id === assignedTo || id === assignedBy);
 };
 
+const isHiddenSelfAssignedTaskForSuperAdmin = (
+  taskRow: Partial<DatabaseTask> | DealershipTask | Record<string, unknown>,
+  currentUser: Employee | null
+): boolean => {
+  if (currentUser?.role !== 'super_admin') {
+    return false;
+  }
+
+  const row = taskRow as Record<string, unknown>;
+  const assignedTo = String(row.assignedTo ?? row.assigned_to ?? '').trim();
+  const assignedBy = String(row.assignedBy ?? row.assigned_by ?? '').trim();
+  const isSelfAssigned = Boolean(assignedTo) && assignedTo === assignedBy;
+  const isMyOwnTask = assignedTo === currentUser.id || assignedBy === currentUser.id;
+
+  return isSelfAssigned && !isMyOwnTask;
+};
+
+const filterSuperAdminVisibleTasks = <T extends Partial<DatabaseTask> | DealershipTask | Record<string, unknown>>(
+  taskRows: T[],
+  currentUser: Employee | null
+): T[] => taskRows.filter((taskRow) => !isHiddenSelfAssignedTaskForSuperAdmin(taskRow, currentUser));
+
 const toTimestampNumber = (value: unknown): number => {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value;
@@ -1143,15 +1165,21 @@ const App: React.FC = () => {
       tasksQuery = applyTaskVisibilityFilter(tasksQuery, currentUser, (employeesData || []) as Employee[]);
       
       const { data: tasksData, error: tasksError } = await tasksQuery;
+      const filteredTasksData = Array.isArray(tasksData)
+        ? filterSuperAdminVisibleTasks(tasksData as DatabaseTask[], currentUser)
+        : null;
 
       // Cache fallback is always tenant-scoped to avoid leaking demo/other-company users.
       const cachedEmployees = filterEmployeesByCompany(
         parseCachedArray<Employee>(EMPLOYEES_CACHE_KEY),
         activeCompanyIdValue
       );
-      const cachedTasks = filterTasksByCompany(
-        parseCachedArray<DealershipTask>(TASKS_CACHE_KEY),
-        activeCompanyIdValue
+      const cachedTasks = filterSuperAdminVisibleTasks(
+        filterTasksByCompany(
+          parseCachedArray<DealershipTask>(TASKS_CACHE_KEY),
+          activeCompanyIdValue
+        ),
+        currentUser
       );
 
       const finalEmployeesBase = (employeesData && employeesData.length > 0)
@@ -1159,8 +1187,8 @@ const App: React.FC = () => {
         : (cachedEmployees.length > 0 ? cachedEmployees : []);
 
       // Transform database tasks to app tasks
-      const finalTasks = (tasksData && tasksData.length > 0)
-        ? transformTasksToApp(tasksData as DatabaseTask[])
+      const finalTasks = filteredTasksData
+        ? transformTasksToApp(filteredTasksData as DatabaseTask[])
         : (cachedTasks.length > 0 ? cachedTasks : []);
       const activeTasks = finalTasks;
       const mergedEmployees = mergeCurrentUserIntoEmployees(finalEmployeesBase as Employee[], activeEmployeeRecord).map((employee) => {
@@ -1193,7 +1221,7 @@ const App: React.FC = () => {
 
       localStorage.setItem(EMPLOYEES_CACHE_KEY, JSON.stringify(mergedEmployees));
       localStorage.setItem(STAFF_MANAGER_LINKS_CACHE_KEY, JSON.stringify(finalStaffManagerLinks));
-      if (tasksData && tasksData.length > 0) {
+      if (filteredTasksData) {
         localStorage.setItem(TASKS_CACHE_KEY, JSON.stringify(finalTasks));
       }
 
@@ -1219,8 +1247,13 @@ const App: React.FC = () => {
       );
       const mergedEmployees = mergeCurrentUserIntoEmployees(cachedEmployees, activeEmployeeRecord);
       return {
-        employees: scopeEmployeesForCurrentUser(mergedEmployees, cachedTasks, activeEmployeeRecord, cachedStaffManagerLinks),
-        tasks: cachedTasks,
+        employees: scopeEmployeesForCurrentUser(
+          mergedEmployees,
+          filterSuperAdminVisibleTasks(cachedTasks, currentUser),
+          activeEmployeeRecord,
+          cachedStaffManagerLinks
+        ),
+        tasks: filterSuperAdminVisibleTasks(cachedTasks, currentUser),
         staffManagerLinks: cachedStaffManagerLinks
       };
     } finally {
@@ -1274,7 +1307,8 @@ const App: React.FC = () => {
       if (tasksError) {
         console.error('❌ Failed to fetch tasks:', tasksError);
       } else {
-        const freshTasks = transformTasksToApp((tasksData || []) as DatabaseTask[]);
+        const filteredTasks = filterSuperAdminVisibleTasks((tasksData || []) as DatabaseTask[], currentUser);
+        const freshTasks = transformTasksToApp(filteredTasks as DatabaseTask[]);
         setTasks(freshTasks);
       }
     } catch (err) {
@@ -1384,6 +1418,9 @@ const App: React.FC = () => {
             triggerRealtimeTasksRefetch();
             return;
           }
+          if (isHiddenSelfAssignedTaskForSuperAdmin(payloadRow, activeEmployeeRecord)) {
+            return;
+          }
 
           // Apply realtime row immediately so UI updates without waiting for refetch.
           const optimisticTask = transformTaskToApp(payloadRow);
@@ -1398,6 +1435,9 @@ const App: React.FC = () => {
           
           if (taskError || !task) {
             console.warn('Realtime INSERT: using payload fallback; failed to refetch full task row.', taskError);
+            return;
+          }
+          if (isHiddenSelfAssignedTaskForSuperAdmin(task as DatabaseTask, activeEmployeeRecord)) {
             return;
           }
 
@@ -1459,6 +1499,10 @@ const App: React.FC = () => {
             triggerRealtimeTasksRefetch();
             return;
           }
+          if (isHiddenSelfAssignedTaskForSuperAdmin(payloadRow, activeEmployeeRecord)) {
+            setTasks((prev) => prev.filter((task) => task.id !== payloadTaskId));
+            return;
+          }
 
           // Apply realtime row immediately; later refetch enriches employee lookups.
           const optimisticTask = transformTaskToApp(payloadRow);
@@ -1486,6 +1530,10 @@ const App: React.FC = () => {
           
           if (taskError || !task) {
             console.warn('Realtime UPDATE fallback applied; failed to refetch full task row.', taskError);
+            return;
+          }
+          if (isHiddenSelfAssignedTaskForSuperAdmin(task as DatabaseTask, activeEmployeeRecord)) {
+            setTasks((prev) => prev.filter((existingTask) => existingTask.id !== payloadTaskId));
             return;
           }
 
