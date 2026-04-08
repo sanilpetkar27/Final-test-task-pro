@@ -50,7 +50,7 @@ interface TaskDetailsScreenProps {
           mentionedUserIds?: string[];
           mentionedDisplayNames?: string[];
         }
-  ) => void;
+  ) => Promise<void> | void;
 }
 
 // --- Helpers ---
@@ -203,6 +203,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   onReassign, onDelegate, onDelete, chatScrollSignal = 0, onInlineEditSave, onAddRemark, readOnly = false
 }) => {
   const [newRemark, setNewRemark] = useState('');
+  const [remarkAddedThisSession, setRemarkAddedThisSession] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [selectedProofIndex, setSelectedProofIndex] = useState<number | null>(null);
   const [showExtensionInput, setShowExtensionInput] = useState(false);
@@ -470,15 +471,8 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   const selectedProofPhoto = selectedProofIndex != null ? proofPhotos[selectedProofIndex] ?? null : null;
 
   const isHighPriorityTask = normalizedPriority === 'High';
-  const hasCompletionRemark = useMemo(
-    () =>
-      normalizedRemarks.some((remark) => {
-        if (!remark.remark.trim()) return false;
-        return remark.employeeId === currentUser.id ||
-          (typeof currentUser.auth_user_id === 'string' && remark.employeeId === currentUser.auth_user_id);
-      }),
-    [normalizedRemarks, currentUser.id, currentUser.auth_user_id]
-  );
+  const requiresFreshCompletionRemark = !isHighPriorityTask;
+  const canCompleteTaskThisSession = isHighPriorityTask || remarkAddedThisSession;
 
   // --- Effects ---
   useEffect(() => {
@@ -494,6 +488,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   }, [task.id, task.description, task.assignedTo, task.deadline, task.requirePhoto, normalizedPriority, normalizedTaskType, normalizedRecurrence, recurrenceTime]);
 
   useEffect(() => {
+    setRemarkAddedThisSession(false);
     setSelectedProofIndex(null);
     setUploadingProofDraftIds([]);
     setProofDrafts((prev) => {
@@ -812,11 +807,6 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   };
 
   const openProofPicker = () => {
-    if (!isHighPriorityTask && !hasCompletionRemark) {
-      alert('Add a remark before completing this task.');
-      return;
-    }
-
     if (proofDrafts.length >= MAX_TASK_PROOF_PHOTOS) {
       toast.warning('Maximum 5 photos reached');
       return;
@@ -873,8 +863,8 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   };
 
   const handleCompleteWithProofPhotos = async () => {
-    if (!isHighPriorityTask && !hasCompletionRemark) {
-      alert('Add a remark before completing this task.');
+    if (!canCompleteTaskThisSession) {
+      alert('Please add a remark in the chat before completing this task');
       return;
     }
     if (isUploading) return;
@@ -1018,17 +1008,18 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
     });
   };
 
-  const handleAddRemark = () => {
+  const handleAddRemark = async () => {
     const text = newRemark.trim();
     if (!text || !onAddRemark) return;
 
     const payload = extractMentionPayload(text);
-    onAddRemark(task.id, {
+    await Promise.resolve(onAddRemark(task.id, {
       text,
       mentionedUserIds: payload.mentionedUserIds,
       mentionedDisplayNames: payload.mentionedDisplayNames,
-    });
+    }));
 
+    setRemarkAddedThisSession(true);
     setNewRemark('');
     setMentionMenuOpen(false);
     setMentionCandidates([]);
@@ -1097,8 +1088,8 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   };
 
   const handleCompleteWithoutPhoto = async () => {
-    if (!isHighPriorityTask && !hasCompletionRemark) {
-      alert('Add a remark before completing this task.');
+    if (!canCompleteTaskThisSession) {
+      alert('Please add a remark in the chat before completing this task');
       return;
     }
     if (isCompleting) return;
@@ -1306,19 +1297,22 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         disabled: isUploading || proofDrafts.length >= MAX_TASK_PROOF_PHOTOS,
         className: '!bg-[#10B981] !text-white hover:!bg-[#059669]'
       });
-    } else {
-      actions.push({
-        key: 'complete',
-        label: 'Complete',
-        icon: <Check className="w-5 h-5" />,
-        onClick: handleCompleteWithoutPhoto,
-        useLoadingButton: true,
-        isLoading: isCompleting,
-        loadingText: 'Completing...',
-        disabled: isCompleting,
-        className: '!bg-[#10B981] !text-white hover:!bg-[#059669]'
-      });
-    }
+	    } else {
+	      actions.push({
+	        key: 'complete',
+	        label: 'Complete',
+	        icon: <Check className="w-5 h-5" />,
+	        onClick: handleCompleteWithoutPhoto,
+	        useLoadingButton: true,
+	        isLoading: isCompleting,
+	        loadingText: 'Completing...',
+	        disabled: isCompleting || !canCompleteTaskThisSession,
+	        className:
+	          canCompleteTaskThisSession
+	            ? '!bg-[#10B981] !text-white hover:!bg-[#059669]'
+	            : '!bg-slate-200 !text-slate-500 hover:!bg-slate-200'
+	      });
+	    }
     if (canRequestExtension) {
       actions.push({
         key: 'extension',
@@ -1747,6 +1741,9 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
                   {proofDrafts.length >= MAX_TASK_PROOF_PHOTOS && (
                     <p className="font-medium text-amber-600">Maximum 5 photos reached.</p>
                   )}
+                  {requiresFreshCompletionRemark && !remarkAddedThisSession && (
+                    <p className="font-medium text-amber-600">Add a remark in the chat below before completing.</p>
+                  )}
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row">
                   <button
@@ -1763,13 +1760,25 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
                     isLoading={isUploading}
                     loadingText="Uploading..."
                     variant="primary"
-                    disabled={proofDrafts.length === 0 || isUploading}
-                    className="rounded-xl bg-[#10B981] px-4 py-3 text-sm font-semibold text-white hover:bg-[#059669] disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={proofDrafts.length === 0 || isUploading || !canCompleteTaskThisSession}
+                    className={`rounded-xl px-4 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${
+                      canCompleteTaskThisSession
+                        ? 'bg-[#10B981] text-white hover:bg-[#059669]'
+                        : 'bg-slate-200 text-slate-500 hover:bg-slate-200'
+                    }`}
                   >
                     Complete Task
                   </LoadingButton>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {!readOnly && task.status === 'in-progress' && !task.requirePhoto && requiresFreshCompletionRemark && !remarkAddedThisSession && (
+          <div className="px-4 md:px-6 py-4 border-b border-[var(--border)]">
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700">
+              Add a remark in the chat below before completing.
             </div>
           </div>
         )}
