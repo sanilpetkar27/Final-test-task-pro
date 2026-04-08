@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Employee } from '../types';
 import { ClipboardList, Mail, Eye, EyeOff, ArrowRight, Lock, Loader2, AlertCircle, ShieldCheck, Info, Building2, User, Phone } from 'lucide-react';
-import { supabase, supabaseAuth } from '../src/lib/supabase';
+import { publicAppUrl, supabase, supabaseAuth } from '../src/lib/supabase';
 import { toast } from 'sonner';
 
 // --- HELPER FUNCTIONS (Comprehensive Auth Fixes) ---
@@ -92,8 +92,7 @@ const clearPendingCompanySignup = () => {
 };
 
 const getEmailRedirectTo = (): string | undefined => {
-  if (typeof window === 'undefined') return undefined;
-  return window.location.origin;
+  return publicAppUrl || undefined;
 };
 
 const getVerificationResendKey = (email: string): string =>

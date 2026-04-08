@@ -10,6 +10,13 @@ if (!supabaseAnonKey) {
   throw new Error('Missing required environment variable: VITE_SUPABASE_ANON_KEY');
 }
 
+const DEFAULT_WEB_APP_URL = 'https://opentask.in';
+const configuredWebAppUrl = String(import.meta.env.VITE_APP_URL || '').trim();
+
+export const publicAppUrl =
+  configuredWebAppUrl ||
+  (typeof window !== 'undefined' ? window.location.origin : DEFAULT_WEB_APP_URL);
+
 // Check if we have real Supabase credentials
 const hasRealCredentials = () =>
   !supabaseUrl.toLowerCase().includes('demo') && supabaseAnonKey !== 'demo-key';
@@ -116,7 +123,15 @@ const createMockClient = () => {
 const realClient = hasRealCredentials()
   ? createClient(
       supabaseUrl,
-      supabaseAnonKey
+      supabaseAnonKey,
+      {
+        auth: {
+          autoRefreshToken: true,
+          persistSession: true,
+          detectSessionInUrl: true,
+          flowType: 'pkce',
+        },
+      }
     )
   : null;
 
