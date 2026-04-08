@@ -43,6 +43,13 @@ export interface TaskRemark {
   mentionedDisplayNames?: string[];
 }
 
+export interface ProofPhoto {
+  imageUrl: string;
+  timestamp: number;
+}
+
+export type TaskProof = ProofPhoto | ProofPhoto[];
+
 export interface DealershipTask {
   id: string;
   description: string;
@@ -57,10 +64,7 @@ export interface DealershipTask {
   createdAt: number;
   deadline?: number; // Timestamp for when the task is due
   completedAt?: number;
-  proof?: {
-    imageUrl: string;
-    timestamp: number;
-  };
+  proof?: TaskProof;
   requirePhoto?: boolean; // Whether photo proof is required for completion
   assignedTo?: string; // Employee ID (The person doing the work)
   assignedBy?: string; // Employee ID (The person who created the task)

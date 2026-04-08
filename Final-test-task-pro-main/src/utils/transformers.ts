@@ -1,4 +1,5 @@
-import { DealershipTask, TaskType, RecurrenceFrequency, TaskExtensionStatus, TaskPriority } from '../types';
+import { DealershipTask, TaskType, RecurrenceFrequency, TaskExtensionStatus, TaskPriority, TaskProof } from '../types';
+import { toTaskProofValue } from './taskProofs';
 
 // Database task interface (camelCase from Supabase)
 export interface DatabaseTask {
@@ -26,10 +27,7 @@ export interface DatabaseTask {
   deadline?: number;
   completedAt?: number;
   completed_at?: number;
-  proof?: {
-    imageUrl: string;
-    timestamp: number;
-  };
+  proof?: TaskProof | null;
   requirePhoto?: boolean;
   require_photo?: boolean;
   assignedTo?: string; // Employee ID (camelCase)
@@ -89,10 +87,7 @@ export const transformTaskToApp = (dbTask: DatabaseTask): DealershipTask => {
     createdAt: Number(dbTask.createdAt ?? dbTask.created_at ?? Date.now()),
     deadline: dbTask.deadline,
     completedAt: dbTask.completedAt ?? dbTask.completed_at,
-    proof: dbTask.proof ? {
-      imageUrl: dbTask.proof.imageUrl,
-      timestamp: dbTask.proof.timestamp,
-    } : undefined,
+    proof: toTaskProofValue(dbTask.proof),
     requirePhoto: dbTask.requirePhoto ?? dbTask.require_photo,
     assignedTo: dbTask.assignedTo ?? dbTask.assigned_to,
     assignedBy: dbTask.assignedBy ?? dbTask.assigned_by,
@@ -141,10 +136,7 @@ export const transformTaskToDB = (appTask: DealershipTask): DatabaseTask => {
     createdAt: appTask.createdAt,
     deadline: appTask.deadline,
     completedAt: appTask.completedAt,
-    proof: appTask.proof ? {
-      imageUrl: appTask.proof.imageUrl,
-      timestamp: appTask.proof.timestamp,
-    } : undefined,
+    proof: toTaskProofValue(appTask.proof),
     requirePhoto: appTask.requirePhoto,
     assignedTo: appTask.assignedTo,
     assignedBy: appTask.assignedBy,

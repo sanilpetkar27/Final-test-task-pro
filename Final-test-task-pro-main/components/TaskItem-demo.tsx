@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { DealershipTask, Employee } from '../types';
+import { getTaskProofPhotos } from '../src/utils/taskProofs';
 import { Play, Check, RotateCcw, Trash2, UserPlus, Users, Camera, AlertTriangle, Clock, Check as CheckIcon, Layers, User, UserCheck, ChevronDown, ChevronRight, X } from 'lucide-react';
 
 interface TaskItemProps {
@@ -38,6 +39,8 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const [showFullImage, setShowFullImage] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const proofPhotos = getTaskProofPhotos(task.proof);
+  const firstProofPhoto = proofPhotos[0];
 
   const isManager = currentUser.role === 'manager';
   const canDelete = currentUser.id === task.assignedBy || isManager;
@@ -267,7 +270,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
 
           {task.status === 'completed' && (
             <>
-              {task.proof && (
+              {proofPhotos.length > 0 && (
                 <button 
                   onClick={() => setShowFullImage(true)}
                   className="bg-purple-100 text-purple-700 px-4 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all flex flex-col items-center justify-center min-w-[80px]"
@@ -294,7 +297,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
       </div>
 
       {/* Proof Image Modal */}
-      {showFullImage && task.proof && (
+      {showFullImage && firstProofPhoto && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-hidden">
             <div className="p-4 border-b border-slate-200 flex items-center justify-between">
@@ -308,12 +311,12 @@ const TaskItem: React.FC<TaskItemProps> = ({
             </div>
             <div className="p-4">
               <img 
-                src={task.proof.imageUrl} 
+                src={firstProofPhoto.imageUrl} 
                 alt="Task proof" 
                 className="w-full rounded-lg"
               />
               <p className="text-sm text-slate-500 mt-2">
-                Completed: {new Date(task.proof.timestamp).toLocaleString()}
+                Completed: {new Date(firstProofPhoto.timestamp).toLocaleString()}
               </p>
             </div>
           </div>

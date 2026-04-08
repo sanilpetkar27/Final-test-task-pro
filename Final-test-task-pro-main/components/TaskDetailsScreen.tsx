@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { DealershipTask, Employee, TaskRemark, TaskType, RecurrenceFrequency, TaskExtensionStatus } from '../types';
+import { DealershipTask, Employee, TaskRemark, TaskType, RecurrenceFrequency, TaskExtensionStatus, ProofPhoto, TaskProof } from '../types';
 import {
   ArrowLeft, User, Calendar, Clock, Check, Camera,
   Edit, Trash2, UserPlus, Play, RotateCcw,
   Send, X, ChevronDown, CalendarClock, Layers, CheckCircle, Phone,
-  Eye, GitFork, Flag
+  Eye, GitFork, Flag, Plus, Loader2
 } from 'lucide-react';
 import { supabase } from '../src/lib/supabase';
 import LoadingButton from '../src/components/ui/LoadingButton';
 import TwelveHourTimePicker, { getRoundedFiveMinuteTime } from '../src/components/ui/TwelveHourTimePicker';
+import { getTaskProofPhotos, MAX_TASK_PROOF_PHOTOS } from '../src/utils/taskProofs';
 import { toast } from 'sonner';
 
 interface TaskDetailsScreenProps {
@@ -21,7 +22,7 @@ interface TaskDetailsScreenProps {
   onBack: () => void;
   onStartTask: () => Promise<void> | void;
   onReopenTask: () => Promise<void> | void;
-  onCompleteTask: (proof: { imageUrl: string; timestamp: number }) => Promise<void> | void;
+  onCompleteTask: (proof: TaskProof) => Promise<void> | void;
   onCompleteTaskWithoutPhoto: () => Promise<void> | void;
   onReassign: () => void;
   onDelegate: () => void;
@@ -74,6 +75,12 @@ interface ParentTaskSummary {
   id: string;
   description: string;
   title?: string | null;
+}
+
+interface ProofDraft {
+  id: string;
+  file: File;
+  previewUrl: string;
 }
 
 const formatFullDate = (timestamp: number | undefined | null): string => {
@@ -197,7 +204,7 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
 }) => {
   const [newRemark, setNewRemark] = useState('');
   const [isUploading, setIsUploading] = useState(false);
-  const [showFullImage, setShowFullImage] = useState(false);
+  const [selectedProofIndex, setSelectedProofIndex] = useState<number | null>(null);
   const [showExtensionInput, setShowExtensionInput] = useState(false);
   const [extensionDate, setExtensionDate] = useState('');
   const [isExtensionUpdating, setIsExtensionUpdating] = useState(false);
@@ -225,6 +232,8 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   const [mentionStartIndex, setMentionStartIndex] = useState<number | null>(null);
   const [activeMentionIndex, setActiveMentionIndex] = useState(0);
   const [selectedMentions, setSelectedMentions] = useState<MentionCandidate[]>([]);
+  const [proofDrafts, setProofDrafts] = useState<ProofDraft[]>([]);
+  const [uploadingProofDraftIds, setUploadingProofDraftIds] = useState<string[]>([]);
   const [resolvedParentTask, setResolvedParentTask] = useState<ParentTaskSummary | null>(() =>
     parentTask
       ? {
@@ -238,6 +247,8 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   const remarkInputRef = useRef<HTMLTextAreaElement | null>(null);
   const editModalScrollRef = useRef<HTMLDivElement | null>(null);
   const extensionInputRef = useRef<HTMLInputElement | null>(null);
+  const proofInputRef = useRef<HTMLInputElement | null>(null);
+  const proofDraftsRef = useRef<ProofDraft[]>([]);
 
   const syncInputOnPickerClose = (input: HTMLInputElement | null, setter: (value: string) => void) => {
     if (!input) return;
@@ -455,6 +466,9 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
     return groups;
   }, [normalizedRemarks]);
 
+  const proofPhotos = useMemo(() => getTaskProofPhotos(task.proof), [task.proof]);
+  const selectedProofPhoto = selectedProofIndex != null ? proofPhotos[selectedProofIndex] ?? null : null;
+
   const isHighPriorityTask = normalizedPriority === 'High';
   const hasCompletionRemark = useMemo(
     () =>
@@ -478,6 +492,25 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
     setEditRecurrenceTime(normalizedTaskType === 'recurring' ? (recurrenceTime || getRoundedFiveMinuteTime()) : getRoundedFiveMinuteTime());
     setIsEditing(false);
   }, [task.id, task.description, task.assignedTo, task.deadline, task.requirePhoto, normalizedPriority, normalizedTaskType, normalizedRecurrence, recurrenceTime]);
+
+  useEffect(() => {
+    setSelectedProofIndex(null);
+    setUploadingProofDraftIds([]);
+    setProofDrafts((prev) => {
+      clearProofDrafts(prev);
+      return [];
+    });
+  }, [task.id]);
+
+  useEffect(() => {
+    proofDraftsRef.current = proofDrafts;
+  }, [proofDrafts]);
+
+  useEffect(() => {
+    return () => {
+      clearProofDrafts(proofDraftsRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (remarksScrollRef.current) {
@@ -772,47 +805,129 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   }, [isEditing]);
 
   // --- Handlers ---
-  const handlePhotoUpload = async (file: File) => {
+  const clearProofDrafts = (drafts: ProofDraft[]) => {
+    drafts.forEach((draft) => {
+      URL.revokeObjectURL(draft.previewUrl);
+    });
+  };
+
+  const openProofPicker = () => {
+    if (!isHighPriorityTask && !hasCompletionRemark) {
+      alert('Add a remark before completing this task.');
+      return;
+    }
+
+    if (proofDrafts.length >= MAX_TASK_PROOF_PHOTOS) {
+      toast.warning('Maximum 5 photos reached');
+      return;
+    }
+
+    proofInputRef.current?.click();
+  };
+
+  const handleProofSelection = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    event.target.value = '';
+
+    if (files.length === 0) {
+      return;
+    }
+
+    const validFiles = files.filter((file) => file.type.startsWith('image/'));
+    if (validFiles.length !== files.length) {
+      toast.error('Only image files can be uploaded');
+    }
+
+    const remainingSlots = MAX_TASK_PROOF_PHOTOS - proofDrafts.length;
+    if (remainingSlots <= 0) {
+      toast.warning('Maximum 5 photos reached');
+      return;
+    }
+
+    if (validFiles.length > remainingSlots) {
+      toast.warning(`Only ${remainingSlots} more photo${remainingSlots === 1 ? '' : 's'} can be added`);
+    }
+
+    const nextDrafts = validFiles.slice(0, remainingSlots).map((file, index) => ({
+      id: `${task.id}-${Date.now()}-${index}`,
+      file,
+      previewUrl: URL.createObjectURL(file),
+    }));
+
+    if (nextDrafts.length === 0) {
+      return;
+    }
+
+    setProofDrafts((prev) => [...prev, ...nextDrafts]);
+  };
+
+  const removeProofDraft = (draftId: string) => {
+    setProofDrafts((prev) => {
+      const draftToRemove = prev.find((draft) => draft.id === draftId);
+      if (draftToRemove) {
+        URL.revokeObjectURL(draftToRemove.previewUrl);
+      }
+      return prev.filter((draft) => draft.id !== draftId);
+    });
+    setUploadingProofDraftIds((prev) => prev.filter((id) => id !== draftId));
+  };
+
+  const handleCompleteWithProofPhotos = async () => {
     if (!isHighPriorityTask && !hasCompletionRemark) {
       alert('Add a remark before completing this task.');
       return;
     }
     if (isUploading) return;
+    if (proofDrafts.length === 0) {
+      toast.error('Add at least 1 photo to complete this task');
+      return;
+    }
+
     setIsUploading(true);
+    setUploadingProofDraftIds([]);
+
     try {
-      const fileName = `task-proof-${task.id}-${Date.now()}.jpg`;
-      const { data, error } = await supabase.storage.from('task-proofs').upload(fileName, file, { contentType: 'image/jpeg', cacheControl: '3600', upsert: false });
-      if (error) { alert('Failed to upload photo: ' + error.message); return; }
-      const { data: { publicUrl } } = supabase.storage.from('task-proofs').getPublicUrl(fileName);
-      await withTimeout(
-        Promise.resolve(onCompleteTask({ imageUrl: publicUrl, timestamp: Date.now() })),
-        30000
-      );
+      const batchTimestamp = Date.now();
+      const proofPayload: ProofPhoto[] = [];
+
+      for (let index = 0; index < proofDrafts.length; index += 1) {
+        const draft = proofDrafts[index];
+        setUploadingProofDraftIds((prev) => [...prev, draft.id]);
+
+        const fileName = `task-proof-${task.id}-${batchTimestamp}-${index}.jpg`;
+        const { error } = await supabase.storage
+          .from('task-proofs')
+          .upload(fileName, draft.file, {
+            contentType: draft.file.type || 'image/jpeg',
+            cacheControl: '3600',
+            upsert: false,
+          });
+
+        if (error) {
+          throw new Error(`Failed to upload photo ${index + 1}: ${error.message}`);
+        }
+
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from('task-proofs').getPublicUrl(fileName);
+        proofPayload.push({ imageUrl: publicUrl, timestamp: Date.now() });
+
+        setUploadingProofDraftIds((prev) => prev.filter((id) => id !== draft.id));
+      }
+
+      await withTimeout(Promise.resolve(onCompleteTask(proofPayload)), 30000);
+      clearProofDrafts(proofDrafts);
+      setProofDrafts([]);
     } catch (error) {
       if (error instanceof Error && error.message === 'Operation timed out') {
         alert('Request timed out. Please check your connection.');
         return;
       }
-      alert('Failed to upload photo');
+      alert(error instanceof Error ? error.message : 'Failed to upload proof photos');
     } finally {
+      setUploadingProofDraftIds([]);
       setIsUploading(false);
     }
-  };
-
-  const triggerPhotoUpload = () => {
-    if (!isHighPriorityTask && !hasCompletionRemark) {
-      alert('Add a remark before completing this task.');
-      return;
-    }
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.capture = 'environment';
-    input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (file) handlePhotoUpload(file);
-    };
-    input.click();
   };
 
   const syncMentionMenuFromInput = (value: string, caretPosition: number) => {
@@ -1180,13 +1295,15 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
     if (task.requirePhoto) {
       actions.push({
         key: 'complete-photo',
-        label: 'Complete',
+        label:
+          proofDrafts.length >= MAX_TASK_PROOF_PHOTOS
+            ? '5/5 Added'
+            : proofDrafts.length > 0
+            ? 'Add More'
+            : 'Add Photos',
         icon: <Camera className="w-5 h-5" />,
-        onClick: triggerPhotoUpload,
-        useLoadingButton: true,
-        isLoading: isUploading,
-        loadingText: 'Uploading...',
-        disabled: isUploading,
+        onClick: openProofPicker,
+        disabled: isUploading || proofDrafts.length >= MAX_TASK_PROOF_PHOTOS,
         className: '!bg-[#10B981] !text-white hover:!bg-[#059669]'
       });
     } else {
@@ -1236,12 +1353,12 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
   }
 
   if (task.status === 'completed') {
-    if (task.proof) {
+    if (proofPhotos.length > 0) {
       actions.push({
         key: 'view-proof',
         label: 'View Proof',
         icon: <Eye className="w-5 h-5" />,
-        onClick: () => setShowFullImage(true),
+        onClick: () => setSelectedProofIndex(0),
         className: '!bg-[var(--accent-light)] !text-[var(--accent)] hover:!bg-[var(--accent-light)] border border-[var(--accent)]/20'
       });
     }
@@ -1273,14 +1390,14 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
     }
   }
 
-	  if (task.status === 'pending_approval' && task.proof) {
+	  if (task.status === 'pending_approval' && proofPhotos.length > 0) {
     actions.push({
-      key: 'view-proof',
-      label: 'View Proof',
-      icon: <Eye className="w-5 h-5" />,
-      onClick: () => setShowFullImage(true),
-      className: '!bg-[var(--accent-light)] !text-[var(--accent)] hover:!bg-[var(--accent-light)] border border-[var(--accent)]/20'
-    });
+	      key: 'view-proof',
+	      label: 'View Proof',
+	      icon: <Eye className="w-5 h-5" />,
+	      onClick: () => setSelectedProofIndex(0),
+	      className: '!bg-[var(--accent-light)] !text-[var(--accent)] hover:!bg-[var(--accent-light)] border border-[var(--accent)]/20'
+	    });
 	  }
 
   if (canStopRecurrence) {
@@ -1516,6 +1633,147 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
         </div>
 
         {/* ── Section: Quick Actions Grid ── */}
+        {proofPhotos.length > 0 && (
+          <div className="px-4 md:px-6 py-4 border-b border-[var(--border)]">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="section-kicker">Proof Photos</h3>
+              <span className="font-ui-mono text-[11px] font-medium uppercase tracking-[0.2em] text-slate-500">
+                {proofPhotos.length} photo{proofPhotos.length === 1 ? '' : 's'}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {proofPhotos.map((photo, index) => (
+                <button
+                  key={`${photo.imageUrl}-${photo.timestamp}-${index}`}
+                  type="button"
+                  onClick={() => setSelectedProofIndex(index)}
+                  className="group overflow-hidden rounded-2xl border border-[var(--border)] bg-white text-left transition-transform active:scale-[0.98]"
+                >
+                  <div className="aspect-square overflow-hidden bg-slate-100">
+                    <img
+                      src={photo.imageUrl}
+                      alt={`Task proof ${index + 1}`}
+                      className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
+                    />
+                  </div>
+                  <div className="px-3 py-2">
+                    <p className="text-sm font-semibold text-slate-900">Photo {index + 1}</p>
+                    <p className="text-xs text-slate-500">{new Date(photo.timestamp).toLocaleString()}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {!readOnly && task.status === 'in-progress' && task.requirePhoto && (
+          <div className="px-4 md:px-6 py-4 border-b border-[var(--border)]">
+            <h3 className="section-kicker mb-3">Completion Proof</h3>
+            <div className="rounded-[24px] border border-[var(--border)] bg-white p-4 sm:p-5 space-y-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">Add 1 to 5 photos before completing this task.</p>
+                  <p className="text-xs text-slate-500">Each photo uploads separately to the `task-proofs` bucket.</p>
+                </div>
+                <span className="inline-flex w-fit items-center rounded-full bg-[var(--surface-2)] px-3 py-1 font-ui-mono text-[11px] font-medium uppercase tracking-[0.2em] text-slate-600">
+                  {proofDrafts.length}/{MAX_TASK_PROOF_PHOTOS} photos added
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {proofDrafts.map((draft, index) => {
+                  const isDraftUploading = uploadingProofDraftIds.includes(draft.id);
+                  return (
+                    <div
+                      key={draft.id}
+                      className="relative overflow-hidden rounded-2xl border border-[var(--border)] bg-slate-100"
+                    >
+                      <img
+                        src={draft.previewUrl}
+                        alt={`Selected proof ${index + 1}`}
+                        className="aspect-square h-full w-full object-cover"
+                      />
+                      <div className="pointer-events-none absolute left-2 top-2 rounded-full bg-black/65 px-2 py-1 text-[11px] font-medium text-white">
+                        Photo {index + 1}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeProofDraft(draft.id)}
+                        disabled={isDraftUploading || isUploading}
+                        className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-sm transition hover:bg-white disabled:opacity-50"
+                        aria-label={`Remove photo ${index + 1}`}
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                      {isDraftUploading && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-900/65 text-white">
+                          <Loader2 className="h-6 w-6 animate-spin" />
+                          <span className="text-xs font-medium">Uploading...</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {proofDrafts.length < MAX_TASK_PROOF_PHOTOS && (
+                  <button
+                    type="button"
+                    onClick={openProofPicker}
+                    disabled={isUploading}
+                    className="flex aspect-square flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[var(--border)] bg-[var(--surface-2)] px-4 text-center text-slate-600 transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-50"
+                  >
+                    <span className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-white text-[var(--accent)] shadow-sm">
+                      <Plus className="h-6 w-6" />
+                    </span>
+                    <span className="text-sm font-semibold">Add Photo</span>
+                    <span className="text-xs text-slate-500">Camera or gallery</span>
+                  </button>
+                )}
+              </div>
+
+              <input
+                ref={proofInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                multiple
+                onChange={handleProofSelection}
+                className="hidden"
+              />
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="space-y-1 text-xs text-slate-500">
+                  <p>Minimum 1 photo required.</p>
+                  {proofDrafts.length >= MAX_TASK_PROOF_PHOTOS && (
+                    <p className="font-medium text-amber-600">Maximum 5 photos reached.</p>
+                  )}
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={openProofPicker}
+                    disabled={isUploading || proofDrafts.length >= MAX_TASK_PROOF_PHOTOS}
+                    className="rounded-xl border border-[var(--border)] bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Add Photo
+                  </button>
+                  <LoadingButton
+                    type="button"
+                    onClick={handleCompleteWithProofPhotos}
+                    isLoading={isUploading}
+                    loadingText="Uploading..."
+                    variant="primary"
+                    disabled={proofDrafts.length === 0 || isUploading}
+                    className="rounded-xl bg-[#10B981] px-4 py-3 text-sm font-semibold text-white hover:bg-[#059669] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Complete Task
+                  </LoadingButton>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {!readOnly && actions.length > 0 && (
           <div className="px-4 md:px-6 py-4 border-b border-[var(--border)]">
             <h3 className="section-kicker mb-3">Quick Actions</h3>
@@ -1942,18 +2200,41 @@ const TaskDetailsScreen: React.FC<TaskDetailsScreenProps> = ({
       )}
 
       {/* ─── Proof Image Modal ─── */}
-      {showFullImage && task.proof && (
+      {selectedProofPhoto && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
             <div className="p-4 border-b border-slate-200 flex items-center justify-between">
               <h3 className="font-semibold text-slate-800">Task Proof</h3>
-              <button onClick={() => setShowFullImage(false)} className="p-2 hover:bg-slate-100 rounded-lg"><X className="w-5 h-5 text-slate-500" /></button>
+              <button onClick={() => setSelectedProofIndex(null)} className="p-2 hover:bg-slate-100 rounded-lg"><X className="w-5 h-5 text-slate-500" /></button>
             </div>
             <div className="p-4">
               <div className="max-h-[65vh] overflow-y-auto rounded-lg">
-                <img src={task.proof.imageUrl} alt="Task proof" className="w-full h-auto object-contain rounded-lg" />
+                <img src={selectedProofPhoto.imageUrl} alt="Task proof" className="w-full h-auto object-contain rounded-lg" />
               </div>
-              <p className="text-sm text-slate-500 mt-2">Completed: {new Date(task.proof.timestamp).toLocaleString()}</p>
+              <div className="mt-3 space-y-2">
+                <p className="text-sm font-medium text-slate-700">
+                  Photo {(selectedProofIndex || 0) + 1} of {proofPhotos.length}
+                </p>
+                <p className="text-sm text-slate-500">Completed: {new Date(selectedProofPhoto.timestamp).toLocaleString()}</p>
+              </div>
+              {proofPhotos.length > 1 && (
+                <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+                  {proofPhotos.map((photo, index) => (
+                    <button
+                      key={`${photo.imageUrl}-${photo.timestamp}-thumb-${index}`}
+                      type="button"
+                      onClick={() => setSelectedProofIndex(index)}
+                      className={`overflow-hidden rounded-xl border ${index === selectedProofIndex ? 'border-[var(--accent)]' : 'border-slate-200'}`}
+                    >
+                      <img
+                        src={photo.imageUrl}
+                        alt={`Task proof thumbnail ${index + 1}`}
+                        className="h-16 w-16 object-cover"
+                      />
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

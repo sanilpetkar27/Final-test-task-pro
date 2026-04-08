@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { AppTab, DealershipTask, Employee, UserRole, TaskStatus, TaskType, RecurrenceFrequency, TaskPriority, TaskRemark, StaffManagerLink } from './types';
+import { AppTab, DealershipTask, Employee, UserRole, TaskStatus, TaskType, RecurrenceFrequency, TaskPriority, TaskRemark, StaffManagerLink, TaskProof } from './types';
 import Dashboard from './components/Dashboard';
 import AppHeader from './components/AppHeader';
 import DevAdminPanel from './components/DevAdminPanel';
@@ -11,6 +11,7 @@ import ErrorBoundary from './src/components/ErrorBoundary';
 import { supabase } from './src/lib/supabase';
 import { useNotificationSetup } from './src/hooks/useNotificationSetup';
 import { transformTaskToApp, transformTaskToDB, transformTasksToApp, DatabaseTask } from './src/utils/transformers';
+import { getLatestTaskProofTimestamp } from './src/utils/taskProofs';
 import { sendTaskAssignmentNotification, sendTaskCompletionNotification } from './src/utils/pushNotifications';
 import { useAuthCompany } from './src/context/AuthCompanyContext';
 import { Toaster, toast } from 'sonner';
@@ -2014,7 +2015,7 @@ const App: React.FC = () => {
 
   const requestHighPriorityTaskClosure = async (
     task: DealershipTask,
-    completion: { proof?: { imageUrl: string; timestamp: number } | null }
+    completion: { proof?: TaskProof | null }
   ): Promise<boolean> => {
     if (!currentUser) {
       return false;
@@ -2131,9 +2132,9 @@ const App: React.FC = () => {
 
   const finalizeTaskCompletion = async (
     task: DealershipTask,
-    completion: { proof?: { imageUrl: string; timestamp: number } | null }
+    completion: { proof?: TaskProof | null }
   ): Promise<boolean> => {
-    const completionTimestamp = completion.proof?.timestamp || Date.now();
+    const completionTimestamp = getLatestTaskProofTimestamp(completion.proof) || Date.now();
 
     const completionPayload: Record<string, unknown> = {
       status: 'completed' as TaskStatus,
@@ -2383,7 +2384,7 @@ const App: React.FC = () => {
     }
   };
 
-  const completeTask = async (taskId: string, proofData: { imageUrl: string, timestamp: number }) => {
+  const completeTask = async (taskId: string, proofData: TaskProof) => {
     try {
       const task = tasks.find(t => t.id === taskId);
       if (!task) {

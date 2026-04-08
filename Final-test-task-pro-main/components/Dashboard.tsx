@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { DealershipTask, Employee, UserRole, TaskStatus, TaskType, RecurrenceFrequency, TaskPriority, TaskRemark } from '../types';
+import { DealershipTask, Employee, UserRole, TaskStatus, TaskType, RecurrenceFrequency, TaskPriority, TaskRemark, TaskProof } from '../types';
 import { supabase } from '../src/lib/supabase';
+import { getTaskProofPhotos } from '../src/utils/taskProofs';
 import TaskItem from './TaskItem';
 import TaskDetailsScreen from './TaskDetailsScreen';
 import CompletionModal from './CompletionModal';
@@ -31,7 +32,7 @@ interface DashboardProps {
   ) => Promise<void> | void;
   onStartTask: (id: string) => Promise<void> | void;
   onReopenTask: (id: string) => Promise<void> | void;
-  onCompleteTask: (id: string, proof: { imageUrl: string, timestamp: number }) => Promise<void> | void;
+  onCompleteTask: (id: string, proof: TaskProof) => Promise<void> | void;
   onCompleteTaskWithoutPhoto: (id: string) => Promise<void> | void;
   onReassignTask: (taskId: string, newAssigneeId: string) => Promise<void> | void;
   onDeleteTask: (id: string) => Promise<void> | void;
@@ -1079,7 +1080,11 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
   };
 
   // Update task status in database and local state
-  const updateTaskStatus = async (taskId: string, newStatus: 'pending' | 'in-progress' | 'completed', proofUrl?: string) => {
+  const updateTaskStatus = async (
+    taskId: string,
+    newStatus: 'pending' | 'in-progress' | 'completed',
+    proof?: TaskProof
+  ) => {
     try {
       if (newStatus === 'in-progress') {
         await withTimeout(Promise.resolve(onStartTask(taskId)), 30000);
@@ -1088,9 +1093,9 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
 
       if (newStatus === 'completed') {
         pendingCompletionAutoReturnRef.current = true;
-        if (proofUrl) {
+        if (getTaskProofPhotos(proof).length > 0) {
           await withTimeout(
-            Promise.resolve(onCompleteTask(taskId, { imageUrl: proofUrl, timestamp: Date.now() })),
+            Promise.resolve(onCompleteTask(taskId, proof as TaskProof)),
             30000
           );
         } else {
@@ -1104,11 +1109,11 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
 
       await withTimeout(Promise.resolve(onReopenTask(taskId)), 30000);
       return;
-      console.log(`🔄 Updating task ${taskId} to status: ${newStatus}`, proofUrl ? `with proof: ${proofUrl}` : '');
+      console.log(`🔄 Updating task ${taskId} to status: ${newStatus}`, proof ? 'with proof' : '');
       
       const updateData: any = { status: newStatus };
-      if (proofUrl) {
-        updateData.proof = { imageUrl: proofUrl, timestamp: Date.now() };
+      if (proof) {
+        updateData.proof = proof;
         updateData.completedAt = Date.now();
       }
       
@@ -1155,8 +1160,8 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
         if (newStatus === 'in-progress') {
           onStartTask(taskId);
         } else if (newStatus === 'completed') {
-          if (proofUrl) {
-            onCompleteTask(taskId, { imageUrl: proofUrl, timestamp: Date.now() });
+          if (proof) {
+            onCompleteTask(taskId, proof);
           } else {
             onCompleteTaskWithoutPhoto(taskId);
           }
@@ -1621,7 +1626,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, employees, currentUser, ta
           onBack={() => setSelectedTaskId(null)}
           onStartTask={() => updateTaskStatus(selectedTask.id, 'in-progress')}
           onReopenTask={() => updateTaskStatus(selectedTask.id, 'pending')}
-          onCompleteTask={(proof) => updateTaskStatus(selectedTask.id, 'completed', proof.imageUrl)}
+          onCompleteTask={(proof) => updateTaskStatus(selectedTask.id, 'completed', proof)}
           onCompleteTaskWithoutPhoto={() => updateTaskStatus(selectedTask.id, 'completed')}
           onReassign={() => setReassigningTaskId(selectedTask.id)}
           onDelegate={() => {
