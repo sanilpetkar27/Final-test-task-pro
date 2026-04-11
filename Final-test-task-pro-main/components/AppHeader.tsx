@@ -53,9 +53,6 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   } = useAuthCompany();
 
   const [showCompanySwitcher, setShowCompanySwitcher] = useState(false);
-  const [isMobile, setIsMobile] = useState<boolean>(() =>
-    typeof window !== 'undefined' ? window.innerWidth <= 768 : false,
-  );
   const companySwitcherRef = useRef<HTMLDivElement | null>(null);
 
   const activeWorkspace = useMemo(() => {
@@ -70,7 +67,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   }, [activeCompanyId, activeEmployeeRecord?.company_id, activeEmployeeRecord?.id, availableCompanies]);
 
   useEffect(() => {
-    if (!showCompanySwitcher || isMobile) return;
+    if (!showCompanySwitcher) return;
 
     const handlePointerDown = (event: MouseEvent) => {
       if (!companySwitcherRef.current?.contains(event.target as Node)) {
@@ -82,22 +79,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
     return () => {
       document.removeEventListener('mousedown', handlePointerDown);
     };
-  }, [isMobile, showCompanySwitcher]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const handleResize = () => {
-      const nextIsMobile = window.innerWidth <= 768;
-      setIsMobile(nextIsMobile);
-      setShowCompanySwitcher(false);
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => {
-      window.removeEventListener('resize', handleResize);
-    };
-  }, []);
+  }, [showCompanySwitcher]);
 
   const activeWorkspaceName = activeWorkspace?.companyName || 'Workspace';
 
@@ -106,13 +88,22 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
       className="sticky top-0 z-30 flex items-center justify-between gap-2 border-b border-[var(--border)] bg-white/95 px-4 py-4 pt-safe-top font-sans text-slate-900 shadow-sm backdrop-blur sm:px-6"
       style={{ paddingTop: 'max(3rem, 1.25rem)' }}
     >
+      {showCompanySwitcher ? (
+        <button
+          type="button"
+          aria-label="Close workspace switcher"
+          onClick={() => setShowCompanySwitcher(false)}
+          className="fixed inset-0 z-40 bg-slate-950/10 sm:hidden"
+        />
+      ) : null}
+
       <div className="flex items-center gap-2 sm:gap-4">
         <div className="rounded-[1rem] border border-[var(--border)] bg-white p-1 shadow-[0_4px_14px_rgba(15,23,42,0.08)]">
           <img src="/icon-192.png" alt="OpenTask logo" className="h-8 w-8 rounded-[0.75rem]" />
         </div>
         <div>
           <h1 className="leading-none text-lg font-black tracking-tight text-slate-900">OpenTask</h1>
-          <div className="online-indicator mt-1 flex items-center gap-1.5">
+          <div className="mt-1 flex items-center gap-1.5">
             <div className={`h-1.5 w-1.5 rounded-full ${isSyncing ? 'animate-pulse bg-emerald-400' : 'bg-emerald-400'}`} />
             <span className="font-ui-mono text-[8px] font-medium uppercase tracking-[0.22em] text-[var(--ink-3)]">
               {isSyncing ? 'Syncing...' : 'Online'}
@@ -129,21 +120,14 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
               onClick={() => setShowCompanySwitcher((prev) => !prev)}
               className="min-h-[44px] bg-transparent p-0 text-left font-sans transition-all"
             >
-              <div className="hidden items-center gap-1 sm:flex sm:gap-2">
+              <div className="flex items-center gap-1 sm:gap-2">
                 <p className="max-w-[110px] truncate text-sm font-bold text-gray-900 sm:max-w-[200px] sm:text-base">
                   {activeWorkspaceName}
                 </p>
                 <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform ${showCompanySwitcher ? 'rotate-180' : ''}`} />
               </div>
-              <div className="flex flex-col sm:hidden">
-                <p className="max-w-[110px] truncate text-sm font-bold text-gray-900">{activeWorkspaceName}</p>
-                <span className="switch-label mt-0.5 items-center gap-1 text-[10px] font-medium text-[#888]">
-                  <span>Switch</span>
-                  <ChevronDown className={`h-3 w-3 transition-transform ${showCompanySwitcher ? 'rotate-180' : ''}`} />
-                </span>
-              </div>
             </button>
-            {showCompanySwitcher && !isMobile && (
+            {showCompanySwitcher && (
               <div className="absolute left-0 top-full z-50 mt-2 w-64 max-w-[calc(100vw-2rem)] rounded-xl border border-gray-100 bg-white shadow-lg sm:left-auto sm:right-0 sm:max-w-[calc(100vw-1rem)] sm:rounded-3xl sm:border-[var(--border)] sm:shadow-[0_12px_28px_rgba(15,23,42,0.14)]">
                 <div className="max-h-[60vh] overflow-y-auto p-2 sm:max-h-none">
                   <p className="px-3 pb-2 pt-1 text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
@@ -259,82 +243,6 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           </div>
         ) : null}
       </div>
-
-      {isMobile && showCompanySwitcher ? (
-        <>
-          <div
-            className="fixed inset-0 z-[999] bg-black/50"
-            onClick={() => setShowCompanySwitcher(false)}
-          />
-          <div
-            className="fixed inset-x-0 bottom-0 z-[1000] rounded-t-[16px] bg-white px-5 pb-[calc(env(safe-area-inset-bottom)+20px)] pt-5 shadow-[0_-12px_28px_rgba(15,23,42,0.18)]"
-            style={{
-              transform: 'translateY(0)',
-              transition: 'transform 0.3s ease-out',
-            }}
-          >
-            <div className="mb-5 flex items-center justify-between">
-              <h3 className="m-0 text-[18px] font-bold text-slate-900">Switch Workspace</h3>
-              <button
-                type="button"
-                onClick={() => setShowCompanySwitcher(false)}
-                className="border-none bg-transparent p-0 text-[20px] text-slate-600"
-                aria-label="Close workspace switcher"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="max-h-[60vh] overflow-y-auto">
-              {availableCompanies.map((workspace, index) => {
-                const isActiveWorkspace =
-                  workspace.companyId === String(activeCompanyId || '').trim() &&
-                  workspace.employeeId === String(activeEmployeeRecord?.id || '').trim();
-
-                return (
-                  <button
-                    key={`${workspace.companyId}:${workspace.employeeId}`}
-                    type="button"
-                    onClick={() => {
-                      setShowCompanySwitcher(false);
-                      switchCompany(workspace.companyId);
-                    }}
-                    className="mb-2.5 flex w-full items-center rounded-xl px-4 py-3.5 text-left"
-                    style={{
-                      border: isActiveWorkspace ? '2px solid #4F46E5' : '1px solid #eee',
-                      background: isActiveWorkspace ? '#F0F0FF' : '#fff',
-                    }}
-                  >
-                    <div
-                      className="mr-3.5 flex h-5 w-5 items-center justify-center rounded-full"
-                      style={{
-                        border: '2px solid',
-                        borderColor: isActiveWorkspace ? '#4F46E5' : '#ccc',
-                      }}
-                    >
-                      {isActiveWorkspace ? (
-                        <div className="h-2.5 w-2.5 rounded-full bg-[#4F46E5]" />
-                      ) : null}
-                    </div>
-
-                    <span className="flex-1 text-[15px] font-semibold text-slate-900">{workspace.companyName}</span>
-
-                    <span
-                      className="rounded-lg px-2.5 py-1 text-sm font-bold"
-                      style={{
-                        background: isActiveWorkspace ? '#4F46E5' : '#f0f0f0',
-                        color: isActiveWorkspace ? '#fff' : '#666',
-                      }}
-                    >
-                      {index + 1}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </>
-      ) : null}
     </header>
   );
 };

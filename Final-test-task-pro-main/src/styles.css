@@ -49,10 +49,6 @@
 }
 
 @layer utilities {
-  .switch-label {
-    display: none;
-  }
-
   .font-ui-mono {
     font-family: 'DM Mono', monospace;
   }
@@ -172,14 +168,4 @@ input[type='datetime-local']::-webkit-datetime-edit {
 
 input[type='datetime-local']::-webkit-datetime-edit-fields-wrapper {
   color: #1e293b;
-}
-
-@media (max-width: 768px) {
-  .online-indicator {
-    display: none;
-  }
-
-  .switch-label {
-    display: flex;
-  }
 }
