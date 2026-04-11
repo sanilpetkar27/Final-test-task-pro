@@ -1,15 +1,16 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
+import type { Employee } from '../../types';
 import {
   initializeOneSignal,
-  areNotificationsEnabled,
-  promptPushNotifications,
   getOneSignalSubscriptionId,
+  requestNotificationPermission,
   requestPushSubscription,
   setOneSignalExternalUserId,
 } from '../utils/notifications';
 
 interface UseNotificationSetupProps {
+  currentEmployee: Employee | null;
   userId: string | null;
   userMobile: string | null;
   companyId: string | null;
@@ -20,17 +21,39 @@ interface UseNotificationSetupProps {
  * Hook to set up OneSignal notifications when user logs in.
  * We scope writes by employee id + company id to avoid cross-tenant updates.
  */
-export const useNotificationSetup = ({ userId, userMobile, companyId, isLoggedIn }: UseNotificationSetupProps) => {
+export const useNotificationSetup = ({ currentEmployee, userId, userMobile, companyId, isLoggedIn }: UseNotificationSetupProps) => {
   const setupInFlightRef = useRef(false);
   const lastCompletedSetupKeyRef = useRef<string | null>(null);
   const retryTimerRef = useRef<number | null>(null);
 
-  const saveOneSignalIdToDatabase = useCallback(async (oneSignalId: string, employeeId: string, tenantCompanyId: string) => {
+  const saveOneSignalIdToDatabase = useCallback(async (oneSignalId: string, employee: Employee) => {
     try {
+      const employeeId = String(employee.id || '').trim();
+      const tenantCompanyId = String(employee.company_id || '').trim();
+      if (!employeeId || !tenantCompanyId) {
+        console.warn('Skipping OneSignal save due to missing employee scope', { employeeId, tenantCompanyId });
+        return;
+      }
+
       console.log('Saving OneSignal ID to database...', { oneSignalId, employeeId, companyId: tenantCompanyId });
 
-      // Ensure a device subscription id is bound to only one employee inside a tenant.
-      // This avoids cross-user push leakage when stale rows still hold the same OneSignal id.
+      if (String(employee.onesignal_id || '').trim() === oneSignalId) {
+        console.log('OneSignal ID already synced. Skipping update to prevent refresh loop.');
+        return;
+      }
+
+      const { error: updateError } = await supabase
+        .from('employees')
+        .update({ onesignal_id: oneSignalId })
+        .eq('id', employeeId)
+        .eq('company_id', tenantCompanyId);
+
+      if (updateError) {
+        console.error('Failed to save OneSignal ID:', updateError);
+      } else {
+        console.log('OneSignal ID saved to database');
+      }
+
       const { error: dedupeError } = await supabase
         .from('employees')
         .update({ onesignal_id: null })
@@ -41,45 +64,29 @@ export const useNotificationSetup = ({ userId, userMobile, companyId, isLoggedIn
       if (dedupeError) {
         console.warn('Failed to clear duplicate OneSignal IDs in company scope:', dedupeError);
       }
-
-      const { data: currentEmployee, error: fetchError } = await supabase
-        .from('employees')
-        .select('onesignal_id')
-        .eq('id', employeeId)
-        .eq('company_id', tenantCompanyId)
-        .maybeSingle();
-
-      if (fetchError) {
-        console.error('Failed to fetch current OneSignal ID:', fetchError);
-      } else if (currentEmployee && currentEmployee.onesignal_id === oneSignalId) {
-        console.log('OneSignal ID already synced. Skipping update to prevent refresh loop.');
-        return;
-      }
-
-      const { error } = await supabase
-        .from('employees')
-        .update({ onesignal_id: oneSignalId })
-        .eq('id', employeeId)
-        .eq('company_id', tenantCompanyId);
-
-      if (error) {
-        console.error('Failed to save OneSignal ID:', error);
-      } else {
-        console.log('OneSignal ID saved to database');
-      }
     } catch (error) {
       console.error('Error saving OneSignal ID:', error);
     }
   }, []);
 
-  const setupNotifications = useCallback(async (): Promise<boolean> => {
+  const registerOneSignalDevice = useCallback(async (employee: Employee): Promise<{ didSync: boolean; shouldRetry: boolean }> => {
+    const employeeId = String(employee.id || '').trim();
+    const tenantCompanyId = String(employee.company_id || '').trim();
+
+    if (!employeeId || !tenantCompanyId) {
+      console.log('Skipping notification setup - employee scope is incomplete');
+      return { didSync: false, shouldRetry: false };
+    }
+
     if (!isLoggedIn || !userId || !companyId) {
       console.log('Skipping notification setup - user not logged in or missing tenant context');
-      return false;
+      return { didSync: false, shouldRetry: false };
     }
 
     try {
-      console.log('Starting notification setup for user:', userId);
+      console.log('Starting notification setup for user:', employeeId);
+
+      await initializeOneSignal();
 
       if (window.location.hostname === 'localhost') {
         let testId = localStorage.getItem('mock_onesignal_id');
@@ -89,18 +96,16 @@ export const useNotificationSetup = ({ userId, userMobile, companyId, isLoggedIn
           localStorage.setItem('mock_onesignal_id', testId);
         }
 
-        await saveOneSignalIdToDatabase(testId, userId, companyId);
-        return true;
+        await saveOneSignalIdToDatabase(testId, employee);
+        return { didSync: true, shouldRetry: false };
       }
 
-      const isEnabled = await areNotificationsEnabled();
-      if (!isEnabled) {
-        await promptPushNotifications();
-        await new Promise(resolve => setTimeout(resolve, 2000));
+      const permissionGranted = await requestNotificationPermission();
+      if (!permissionGranted) {
+        console.warn('OneSignal permission was not granted. Skipping device registration.');
+        return { didSync: false, shouldRetry: false };
       }
 
-      // Request push subscription explicitly, then retry to fetch id because iOS/PWA
-      // often delays subscription creation on fresh app launch.
       await requestPushSubscription();
 
       let subscriptionId: string | null = null;
@@ -116,26 +121,26 @@ export const useNotificationSetup = ({ userId, userMobile, companyId, isLoggedIn
       }
 
       if (subscriptionId) {
-        await setOneSignalExternalUserId(userId);
-        await saveOneSignalIdToDatabase(subscriptionId, userId, companyId);
-        return true;
+        await setOneSignalExternalUserId(employeeId);
+        await saveOneSignalIdToDatabase(subscriptionId, employee);
+        return { didSync: true, shouldRetry: false };
       }
 
       console.warn('OneSignal subscription ID not available yet. Will retry setup.');
-      return false;
+      return { didSync: false, shouldRetry: true };
     } catch (error) {
       console.error('Error in notification setup:', error);
-      return false;
+      return { didSync: false, shouldRetry: true };
     }
-  }, [isLoggedIn, userId, companyId, saveOneSignalIdToDatabase]);
+  }, [companyId, isLoggedIn, saveOneSignalIdToDatabase, userId]);
 
   useEffect(() => {
-    if (!isLoggedIn || !userId || !companyId) {
+    if (!isLoggedIn || !userId || !companyId || !currentEmployee) {
       lastCompletedSetupKeyRef.current = null;
       return;
     }
 
-    const setupKey = `${userId}:${companyId}`;
+    const setupKey = `${currentEmployee.id}:${currentEmployee.company_id}`;
     if (lastCompletedSetupKeyRef.current === setupKey) {
       return;
     }
@@ -156,21 +161,20 @@ export const useNotificationSetup = ({ userId, userMobile, companyId, isLoggedIn
 
       setupInFlightRef.current = true;
       try {
-        await initializeOneSignal();
-        if (cancelled) return;
-
-        const didSync = await setupNotifications();
+        const { didSync, shouldRetry } = await registerOneSignalDevice(currentEmployee);
         if (!cancelled) {
           if (didSync) {
             lastCompletedSetupKeyRef.current = setupKey;
             clearRetryTimer();
-          } else {
+          } else if (shouldRetry) {
             clearRetryTimer();
             retryTimerRef.current = window.setTimeout(() => {
               if (!cancelled) {
                 runSetup();
               }
             }, 5000);
+          } else {
+            clearRetryTimer();
           }
         }
       } catch (err) {
@@ -197,7 +201,7 @@ export const useNotificationSetup = ({ userId, userMobile, companyId, isLoggedIn
         retryTimerRef.current = null;
       }
     };
-  }, [isLoggedIn, userId, companyId, setupNotifications]);
+  }, [companyId, currentEmployee, isLoggedIn, registerOneSignalDevice, userId, userMobile]);
 };
 
 export default useNotificationSetup;

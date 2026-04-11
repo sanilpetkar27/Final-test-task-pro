@@ -304,6 +304,7 @@ const normalizeEmployeeProfile = (employee: Partial<Employee> & { id: string }):
     mobile: safeMobile || safeId.slice(0, 10),
     role: normalizeRole(employee.role),
     company_id: String(employee.company_id || DEFAULT_COMPANY_ID),
+    onesignal_id: employee.onesignal_id ? String(employee.onesignal_id) : null,
     auth_user_id: employee.auth_user_id ? String(employee.auth_user_id) : undefined,
     manager_id: safeManagerId,
   };
@@ -1079,6 +1080,7 @@ const App: React.FC = () => {
 
   // --- OneSignal Notification Setup ---
   useNotificationSetup({
+    currentEmployee: activeEmployeeRecord,
     userId: activeEmployeeRecord?.id || null,
     userMobile: activeEmployeeRecord?.mobile || null,
     companyId: resolvedActiveCompanyId,

@@ -20,6 +20,7 @@ export interface Employee {
   role: UserRole;
   mobile: string;
   company_id: string;
+  onesignal_id?: string | null;
   auth_user_id?: string;
   manager_id?: string | null;
 }
