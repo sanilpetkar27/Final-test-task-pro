@@ -526,24 +526,6 @@ const LeadDetailScreen: React.FC<LeadDetailScreenProps> = ({
                   />
                 </section>
 
-                <section className="rounded-[1.9rem] border border-slate-200/80 bg-white px-5 py-5 shadow-[0_16px_34px_rgba(15,23,42,0.05)]">
-                  <div className="mb-4 flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Lead Snapshot</p>
-                      <h3 className="mt-2 text-lg font-black text-slate-950">Context</h3>
-                    </div>
-                    <span className="rounded-full bg-indigo-50 px-3 py-2 text-xs font-black uppercase tracking-[0.16em] text-[var(--accent)]">
-                      {resolveEmployeeName(lead.assigned_to, employees)}
-                    </span>
-                  </div>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <InfoPill label="Source" value={lead.source || 'Not set'} />
-                    <InfoPill label="Industry" value={lead.industry || 'Not set'} />
-                    <InfoPill label="Email" value={lead.email || 'Not set'} />
-                    <InfoPill label="Estimated Value" value={formatCurrency(lead.estimated_value)} />
-                  </div>
-                </section>
-
                 {lead.stage === 'won' ? (
                   <section className="rounded-[1.9rem] border border-slate-200/80 bg-white px-5 py-5 shadow-[0_16px_34px_rgba(15,23,42,0.05)]">
                     <div className="flex items-center justify-between gap-3">
@@ -752,13 +734,6 @@ const ActionSquare = ({
     {icon}
     <span>{label}</span>
   </button>
-);
-
-const InfoPill = ({ label, value }: { label: string; value: string }) => (
-  <div className="rounded-[1.35rem] bg-slate-50 px-4 py-4">
-    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{label}</p>
-    <p className="mt-2 text-sm font-semibold text-slate-800">{value}</p>
-  </div>
 );
 
 const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
