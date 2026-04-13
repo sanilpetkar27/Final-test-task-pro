@@ -57,6 +57,12 @@ export type CRMLeadActivity = {
   created_at: string;
 };
 
+export type LeadUrgency =
+  | { kind: 'overdue'; label: string; overdueDays: number; timestamp: number }
+  | { kind: 'today'; label: string; overdueDays: 0; timestamp: number }
+  | { kind: 'upcoming'; label: string; overdueDays: 0; timestamp: number }
+  | { kind: 'none'; label: string; overdueDays: 0; timestamp: null };
+
 export const LEAD_STAGE_OPTIONS: Array<{ value: CRMLeadStage; label: string }> = [
   { value: 'new', label: 'New' },
   { value: 'contacted', label: 'Contacted' },
@@ -177,11 +183,140 @@ export const formatDateTime = (value: string | null | undefined): string => {
   });
 };
 
+export const formatLongDate = (value: Date | number | string): string => {
+  const date = value instanceof Date ? value : new Date(value);
+  if (!Number.isFinite(date.getTime())) return 'Today';
+
+  return date.toLocaleDateString('en-IN', {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+  });
+};
+
+export const formatCompactDateTime = (value: string | null | undefined): string => {
+  if (!value) return 'Not scheduled';
+
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) return 'Not scheduled';
+
+  return new Date(parsed).toLocaleString('en-IN', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+};
+
+export const toDateTimeLocalValue = (value: string | null | undefined): string => {
+  if (!value) return '';
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) return '';
+
+  const date = new Date(parsed);
+  const pad = (input: number) => String(input).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
 export const toDateInputValue = (value: string | null | undefined): string => {
   if (!value) return '';
   const parsed = Date.parse(value);
   if (!Number.isFinite(parsed)) return '';
   return new Date(parsed).toISOString().slice(0, 10);
+};
+
+export const getGreetingLabel = (value: Date = new Date()): string => {
+  const hours = value.getHours();
+  if (hours < 12) return 'morning';
+  if (hours < 17) return 'afternoon';
+  return 'evening';
+};
+
+export const getFirstName = (name: string | null | undefined): string => {
+  const normalized = String(name || '').trim();
+  if (!normalized) return 'there';
+  return normalized.split(/\s+/)[0] || normalized;
+};
+
+export const getDialableMobile = (value: string | null | undefined): string => {
+  return String(value || '').replace(/\D/g, '');
+};
+
+export const getWhatsAppMobile = (value: string | null | undefined): string => {
+  let digits = getDialableMobile(value).replace(/^0+/, '');
+  if (digits.startsWith('91') && digits.length > 10) {
+    digits = digits.slice(2);
+  }
+  if (digits.length > 10) {
+    digits = digits.slice(-10);
+  }
+  return digits;
+};
+
+export const buildWhatsAppUrl = (value: string | null | undefined, text?: string): string | null => {
+  const digits = getWhatsAppMobile(value);
+  if (!digits) return null;
+
+  const baseUrl = `https://wa.me/91${digits}`;
+  if (!text) return baseUrl;
+  return `${baseUrl}?text=${encodeURIComponent(text)}`;
+};
+
+export const buildTelUrl = (value: string | null | undefined): string | null => {
+  const digits = getDialableMobile(value);
+  return digits ? `tel:${digits}` : null;
+};
+
+export const getLeadNextFollowUpTimestamp = (lead: Pick<CRMLead, 'payment_due_date'>): number | null => {
+  const parsed = Date.parse(String(lead.payment_due_date || ''));
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+export const getLeadUrgency = (lead: Pick<CRMLead, 'payment_due_date' | 'stage'>, nowValue: number = Date.now()): LeadUrgency => {
+  if (lead.stage === 'won' || lead.stage === 'lost') {
+    return { kind: 'none', label: 'Closed', overdueDays: 0, timestamp: null };
+  }
+
+  const timestamp = getLeadNextFollowUpTimestamp(lead);
+  if (!timestamp) {
+    return { kind: 'none', label: 'No follow-up set', overdueDays: 0, timestamp: null };
+  }
+
+  const now = new Date(nowValue);
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const startOfTomorrow = startOfToday + 24 * 60 * 60 * 1000;
+
+  if (timestamp < startOfToday) {
+    const followUpDate = new Date(timestamp);
+    const startOfFollowUpDay = new Date(
+      followUpDate.getFullYear(),
+      followUpDate.getMonth(),
+      followUpDate.getDate(),
+    ).getTime();
+    const overdueDays = Math.max(1, Math.floor((startOfToday - startOfFollowUpDay) / (24 * 60 * 60 * 1000)));
+    return {
+      kind: 'overdue',
+      label: `OVERDUE ${overdueDays} day${overdueDays === 1 ? '' : 's'}`,
+      overdueDays,
+      timestamp,
+    };
+  }
+
+  if (timestamp < startOfTomorrow) {
+    return {
+      kind: 'today',
+      label: 'DUE TODAY',
+      overdueDays: 0,
+      timestamp,
+    };
+  }
+
+  return {
+    kind: 'upcoming',
+    label: `UP NEXT ${formatCompactDateTime(new Date(timestamp).toISOString())}`,
+    overdueDays: 0,
+    timestamp,
+  };
 };
 
 export const resolveEmployeeName = (employeeId: string | null | undefined, employees: Employee[]): string => {

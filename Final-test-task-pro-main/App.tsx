@@ -1031,6 +1031,8 @@ const App: React.FC = () => {
   const isDevAdminRoute = currentPath === DEV_ADMIN_PATH;
   const isDevAdminAuthorized =
     String(activeEmployeeRecord?.email || '').trim().toLowerCase() === DEV_ADMIN_EMAIL;
+  const canAccessCrm =
+    String(activeEmployeeRecord?.email || currentUser?.email || '').trim().toLowerCase() === DEV_ADMIN_EMAIL;
 
   const navigateToPath = useCallback((path: string, replace = false) => {
     if (typeof window === 'undefined') return;
@@ -1879,17 +1881,21 @@ const App: React.FC = () => {
       return;
     }
 
-    if (currentPath === '/crm') {
+    if (currentPath === '/crm' && canAccessCrm) {
       if (activeTab !== AppTab.CRM) {
         setActiveTab(AppTab.CRM);
       }
       return;
     }
 
+    if (currentPath === '/crm' && !canAccessCrm) {
+      navigateToPath('/', true);
+    }
+
     if (activeTab === AppTab.CRM) {
       setActiveTab(AppTab.TASKS);
     }
-  }, [activeTab, currentPath, isDevAdminRoute]);
+  }, [activeTab, canAccessCrm, currentPath, isDevAdminRoute, navigateToPath]);
 
   // Auto-Save Tasks
   useEffect(() => {
@@ -2071,6 +2077,10 @@ const App: React.FC = () => {
   };
 
   const handleCrmTabClick = () => {
+    if (!canAccessCrm) {
+      return;
+    }
+
     navigateToPath('/crm');
     setActiveTab(AppTab.CRM);
   };
@@ -3042,7 +3052,7 @@ const App: React.FC = () => {
           />
         )}
 
-        {activeTab === AppTab.CRM && resolvedActiveCompanyId && (
+        {canAccessCrm && activeTab === AppTab.CRM && resolvedActiveCompanyId && (
           <LeadsScreen
             companyId={resolvedActiveCompanyId}
             currentUser={currentUser}
@@ -3099,12 +3109,14 @@ const App: React.FC = () => {
             label="Approvals"
           />
 
-          <NavBtn
-            active={activeTab === AppTab.CRM}
-            onClick={handleCrmTabClick}
-            icon={<BriefcaseBusiness className="w-6 h-6" />}
-            label="CRM"
-          />
+          {canAccessCrm && (
+            <NavBtn
+              active={activeTab === AppTab.CRM}
+              onClick={handleCrmTabClick}
+              icon={<BriefcaseBusiness className="w-6 h-6" />}
+              label="CRM"
+            />
+          )}
 
           {isManager && (
             <NavBtn
