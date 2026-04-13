@@ -7,6 +7,7 @@ import StatsScreen from './components/StatsScreen';
 import TeamManager from './components/TeamManager';
 import ApprovalsPanel from './components/ApprovalsPanel';
 import LoginScreen from './components/LoginScreen';
+import LeadsScreen from './src/screens/CRM/LeadsScreen';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import { supabase } from './src/lib/supabase';
 import { useNotificationSetup } from './src/hooks/useNotificationSetup';
@@ -25,7 +26,8 @@ import {
   Loader2,
   AlertTriangle,
   Bell,
-  X
+  X,
+  BriefcaseBusiness
 } from 'lucide-react';
 
 const DEFAULT_COMPANY_ID = '00000000-0000-0000-0000-000000000001';
@@ -120,7 +122,7 @@ const canAccessTeamTab = (role: Employee['role'] | null | undefined): boolean =>
 };
 
 const normalizePersistedAppTab = (tabValue: string | null): AppTab | null => {
-  if (tabValue === AppTab.TASKS || tabValue === AppTab.APPROVALS || tabValue === AppTab.TEAM) {
+  if (tabValue === AppTab.TASKS || tabValue === AppTab.APPROVALS || tabValue === AppTab.TEAM || tabValue === AppTab.CRM) {
     return tabValue;
   }
 
@@ -132,6 +134,7 @@ const resolveActiveTabForRole = (
   role: Employee['role'] | null | undefined
 ): AppTab => {
   if (nextTab === AppTab.APPROVALS) return AppTab.APPROVALS;
+  if (nextTab === AppTab.CRM) return AppTab.CRM;
   if (nextTab === AppTab.TEAM && canAccessTeamTab(role)) return AppTab.TEAM;
   return AppTab.TASKS;
 };
@@ -1849,9 +1852,10 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (pendingTaskDeepLink?.taskId) {
+      navigateToPath('/', true);
       setActiveTab(AppTab.TASKS);
     }
-  }, [pendingTaskDeepLink]);
+  }, [navigateToPath, pendingTaskDeepLink]);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -1869,6 +1873,23 @@ const App: React.FC = () => {
       navigateToPath('/', true);
     }
   }, [currentUser, isDevAdminAuthorized, isDevAdminRoute, navigateToPath]);
+
+  useEffect(() => {
+    if (isDevAdminRoute) {
+      return;
+    }
+
+    if (currentPath === '/crm') {
+      if (activeTab !== AppTab.CRM) {
+        setActiveTab(AppTab.CRM);
+      }
+      return;
+    }
+
+    if (activeTab === AppTab.CRM) {
+      setActiveTab(AppTab.TASKS);
+    }
+  }, [activeTab, currentPath, isDevAdminRoute]);
 
   // Auto-Save Tasks
   useEffect(() => {
@@ -2021,12 +2042,37 @@ const App: React.FC = () => {
   };
 
   const handleTasksTabClick = () => {
+    if (currentPath === '/crm') {
+      navigateToPath('/');
+    }
+
     if (activeTab === AppTab.TASKS) {
       setTasksTabReselectSignal((prev) => prev + 1);
       return;
     }
 
     setActiveTab(AppTab.TASKS);
+  };
+
+  const handleApprovalsTabClick = () => {
+    if (currentPath === '/crm') {
+      navigateToPath('/');
+    }
+
+    setActiveTab(AppTab.APPROVALS);
+  };
+
+  const handleTeamTabClick = () => {
+    if (currentPath === '/crm') {
+      navigateToPath('/');
+    }
+
+    setActiveTab(AppTab.TEAM);
+  };
+
+  const handleCrmTabClick = () => {
+    navigateToPath('/crm');
+    setActiveTab(AppTab.CRM);
   };
 
   // --- 4. CORE ACTIONS (Add, Delete, Complete) ---
@@ -2996,6 +3042,14 @@ const App: React.FC = () => {
           />
         )}
 
+        {activeTab === AppTab.CRM && resolvedActiveCompanyId && (
+          <LeadsScreen
+            companyId={resolvedActiveCompanyId}
+            currentUser={currentUser}
+            employees={scopedEmployees}
+          />
+        )}
+
         {isManager && activeTab === AppTab.TEAM && (
           <TeamManager
             key={`team:${resolvedActiveCompanyId || 'none'}:${currentUser.id}`}
@@ -3040,15 +3094,22 @@ const App: React.FC = () => {
 
           <NavBtn
             active={activeTab === AppTab.APPROVALS}
-            onClick={() => setActiveTab(AppTab.APPROVALS)}
+            onClick={handleApprovalsTabClick}
             icon={<CheckCircle2 className="w-6 h-6" />}
             label="Approvals"
+          />
+
+          <NavBtn
+            active={activeTab === AppTab.CRM}
+            onClick={handleCrmTabClick}
+            icon={<BriefcaseBusiness className="w-6 h-6" />}
+            label="CRM"
           />
 
           {isManager && (
             <NavBtn
               active={activeTab === AppTab.TEAM}
-              onClick={() => setActiveTab(AppTab.TEAM)}
+              onClick={handleTeamTabClick}
               icon={<Users className="w-6 h-6" />}
               label="Team"
             />

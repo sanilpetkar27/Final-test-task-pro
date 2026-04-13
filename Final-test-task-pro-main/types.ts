@@ -114,6 +114,7 @@ export enum AppTab {
   DASHBOARD = 'dashboard',
   TASKS = 'tasks',
   APPROVALS = 'approvals',
+  CRM = 'crm',
   TEAM = 'team',
   FINANCE = 'finance',
   RECEIVABLES = 'receivables',
