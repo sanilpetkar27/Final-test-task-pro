@@ -10,6 +10,7 @@ import type { Employee } from '../../types';
 import { supabase, supabaseAuth } from '../lib/supabase';
 
 const DEFAULT_COMPANY_ID = '00000000-0000-0000-0000-000000000001';
+const SUPER_ADMIN_EMAIL = 'sanilpetkar99@gmail.com';
 const USER_CACHE_KEY = 'universal_app_user';
 const ACTIVE_COMPANY_CACHE_KEY = 'universal_app_active_company';
 const EMPLOYEES_CACHE_KEY = 'universalAppEmployees';
@@ -40,7 +41,12 @@ type AuthCompanyContextValue = {
 
 const AuthCompanyContext = createContext<AuthCompanyContextValue | null>(null);
 
-const normalizeRole = (role: unknown): Employee['role'] => {
+const normalizeRole = (role: unknown, email?: unknown): Employee['role'] => {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (normalizedEmail === SUPER_ADMIN_EMAIL) {
+    return 'super_admin';
+  }
+
   return role === 'owner' || role === 'manager' || role === 'staff' || role === 'super_admin'
     ? role
     : 'staff';
@@ -67,7 +73,7 @@ const normalizeEmployeeProfile = (employee: Partial<Employee> & { id: string }):
     name: safeName || 'User',
     email: safeEmail,
     mobile: safeMobile || safeId.slice(0, 10),
-    role: normalizeRole(employee.role),
+    role: normalizeRole(employee.role, safeEmail),
     company_id: String(employee.company_id || DEFAULT_COMPANY_ID),
     onesignal_id: employee.onesignal_id ? String(employee.onesignal_id) : null,
     auth_user_id: employee.auth_user_id ? String(employee.auth_user_id) : undefined,
@@ -91,7 +97,7 @@ const toFallbackEmployeeFromAuthUser = (authUser: {
     name: name || 'User',
     email: email || `${authUser?.id || 'user'}@taskpro.local`,
     mobile: mobile || String(authUser?.id || '0000000000').slice(0, 10),
-    role: normalizeRole(metadata.role),
+    role: normalizeRole(metadata.role, email),
     company_id: String(metadata.company_id || DEFAULT_COMPANY_ID),
   };
 };
@@ -380,7 +386,7 @@ export const AuthCompanyProvider: React.FC<React.PropsWithChildren> = ({ childre
       const parsed = JSON.parse(saved) as Partial<Employee>;
       return {
         ...parsed,
-        role: normalizeRole(parsed?.role),
+        role: normalizeRole(parsed?.role, parsed?.email),
         email: parsed?.email || `${parsed?.id || 'user'}@taskpro.local`,
         company_id: parsed?.company_id || DEFAULT_COMPANY_ID,
       } as Employee;

@@ -32,6 +32,7 @@ import {
 
 const DEFAULT_COMPANY_ID = '00000000-0000-0000-0000-000000000001';
 const DEV_ADMIN_EMAIL = 'sanilpetkar99@gmail.com';
+const SUPER_ADMIN_EMAIL = DEV_ADMIN_EMAIL;
 const DEV_ADMIN_PATH = '/dev-admin';
 const USER_CACHE_KEY = 'universal_app_user';
 const ACTIVE_TAB_CACHE_KEY = 'universal_app_active_tab';
@@ -102,7 +103,12 @@ const normalizeTaskPriority = (task: DealershipTask | undefined): TaskPriority =
   return rawPriority === 'high' ? 'High' : rawPriority === 'low' ? 'Low' : 'Medium';
 };
 
-const normalizeRole = (role: unknown): Employee['role'] => {
+const normalizeRole = (role: unknown, email?: unknown): Employee['role'] => {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (normalizedEmail === SUPER_ADMIN_EMAIL) {
+    return 'super_admin';
+  }
+
   return role === 'owner' || role === 'manager' || role === 'staff' || role === 'super_admin'
     ? role
     : 'staff';
@@ -171,7 +177,7 @@ const toFallbackEmployeeFromAuthUser = (authUser: any): Employee => {
     name: name || 'User',
     email: email || `${authUser?.id || 'user'}@taskpro.local`,
     mobile: mobile || String(authUser?.id || '0000000000').slice(0, 10),
-    role: normalizeRole(metadata.role),
+    role: normalizeRole(metadata.role, email),
     company_id: String(metadata.company_id || DEFAULT_COMPANY_ID),
   };
 };
@@ -305,7 +311,7 @@ const normalizeEmployeeProfile = (employee: Partial<Employee> & { id: string }):
     name: safeName || 'User',
     email: safeEmail,
     mobile: safeMobile || safeId.slice(0, 10),
-    role: normalizeRole(employee.role),
+    role: normalizeRole(employee.role, safeEmail),
     company_id: String(employee.company_id || DEFAULT_COMPANY_ID),
     onesignal_id: employee.onesignal_id ? String(employee.onesignal_id) : null,
     auth_user_id: employee.auth_user_id ? String(employee.auth_user_id) : undefined,
@@ -984,7 +990,7 @@ const loadAvailableCompaniesForEmployee = async (employee: Employee): Promise<Av
   return normalizedRows
     .map((row) => ({
       employeeId: row.id,
-      role: normalizeRole(row.role),
+      role: normalizeRole(row.role, row.email),
       companyId: String(row.company_id || '').trim() || DEFAULT_COMPANY_ID,
       companyName:
         companyNameById.get(String(row.company_id || '').trim()) ||
