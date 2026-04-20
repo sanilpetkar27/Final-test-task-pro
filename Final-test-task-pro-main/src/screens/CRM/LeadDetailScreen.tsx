@@ -237,7 +237,7 @@ const LeadDetailScreen: React.FC<LeadDetailScreenProps> = ({
     try {
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY || 'AIzaSyAdOHVLF40eNJbdmc_0D1XkEZIGYu4OOIU';
       
-      const prompt = `You are a professional CRM assistant. Improve the following quick note into a polished, professional business log entry. Keep it concise, remove filler, and organize it clearly. Here is the raw note: "${activityNote.trim()}"`;
+      const prompt = `You are a professional CRM assistant. Improve the following quick note into a single polished, professional business log entry. CRITICAL RULE: DO NOT provide options. DO NOT include any conversational text like "Here is an option". Output ONLY the exact final revised sentence and absolutely nothing else. Here is the raw note: "${activityNote.trim()}"`;
 
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
@@ -265,7 +265,7 @@ const LeadDetailScreen: React.FC<LeadDetailScreenProps> = ({
     try {
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY || 'AIzaSyAdOHVLF40eNJbdmc_0D1XkEZIGYu4OOIU';
 
-      const prompt = `You are an expert sales representative. Draft a friendly, concise, and professional WhatsApp follow-up message to a lead named "${lead.name}". Their exact requirement/interest is: "${lead.requirement || 'unknown products'}". My name is ${currentUser.name}. Keep it under 3 short paragraphs. Include a gentle call to action. Do not use placeholders like [Insert Link]. Make it sound human and persuasive. Do not use emojis aggressively.`;
+      const prompt = `You are an expert sales representative. Draft a friendly, concise, and professional WhatsApp follow-up message to a lead named "${lead.name}". Their exact requirement/interest is: "${lead.requirement || 'unknown products'}". My name is ${currentUser.name}. Keep it under 3 short paragraphs. Include a gentle call to action. Do not use placeholders like [Insert Link]. Make it sound human and persuasive. Do not use emojis aggressively. CRITICAL RULE: DO NOT include any conversational text like "Here is your draft:". Output ONLY the exact generated WhatsApp message text and absolutely nothing else.`;
 
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
