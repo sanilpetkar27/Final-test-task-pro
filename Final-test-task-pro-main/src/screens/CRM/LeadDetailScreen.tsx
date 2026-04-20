@@ -714,12 +714,14 @@ const LeadDetailScreen: React.FC<LeadDetailScreenProps> = ({
                       <input type="number" min="0" value={activityAmount} onChange={(event) => setActivityAmount(event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[var(--accent)]" placeholder="0" />
                     </Field>
                   </div>
-                  <div className="relative mt-4">
+                  <div className="mt-4 flex flex-col gap-3">
                     <textarea value={activityNote} onChange={(event) => setActivityNote(event.target.value)} rows={4} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[var(--accent)]" placeholder="Add a note for this follow-up" disabled={improvingNote} />
-                    <button type="button" onClick={() => void handleAIImproveNote()} disabled={improvingNote} className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-xl bg-violet-50 px-3 py-1.5 text-xs font-bold text-violet-600 transition hover:bg-violet-100 disabled:opacity-50">
-                      <Sparkles className={`h-3.5 w-3.5 ${improvingNote ? 'animate-pulse' : ''}`} />
-                      {improvingNote ? 'Improving...' : 'Improve'}
-                    </button>
+                    <div className="flex justify-end">
+                      <button type="button" onClick={() => void handleAIImproveNote()} disabled={improvingNote} className="inline-flex items-center gap-1.5 rounded-xl bg-violet-50 px-4 py-2 text-xs font-bold text-violet-600 transition hover:bg-violet-100 disabled:opacity-50">
+                        <Sparkles className={`h-3.5 w-3.5 ${improvingNote ? 'animate-pulse' : ''}`} />
+                        {improvingNote ? 'Improving...' : 'Improve Note'}
+                      </button>
+                    </div>
                   </div>
                   <button type="button" onClick={() => void handleLogActivity()} disabled={loggingActivity} className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(79,70,229,0.22)] disabled:opacity-60">
                     <Save className="h-4 w-4" />
@@ -744,12 +746,14 @@ const LeadDetailScreen: React.FC<LeadDetailScreenProps> = ({
       {isDraftOpen ? (
         <BottomSheet title="Draft Message" onClose={() => setIsDraftOpen(false)}>
           <p className="text-sm text-slate-500">Message context includes {lead.name} and {lead.requirement || 'their requirement'}.</p>
-          <div className="relative mt-4">
-            <textarea value={draftMessage} onChange={(event) => setDraftMessage(event.target.value)} rows={7} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[var(--accent)] pb-14" disabled={rewritingDraft} />
-            <button type="button" onClick={() => void handleAIRewriteDraft()} disabled={rewritingDraft} className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 px-4 py-2 text-xs font-bold text-white shadow-md transition hover:scale-105 disabled:opacity-70 disabled:hover:scale-100">
-              <Sparkles className={`h-3.5 w-3.5 ${rewritingDraft ? 'animate-spin opacity-80' : ''}`} />
-              {rewritingDraft ? 'Rewriting...' : 'Rewrite Magic'}
-            </button>
+          <div className="mt-4 flex flex-col gap-3">
+            <textarea value={draftMessage} onChange={(event) => setDraftMessage(event.target.value)} rows={7} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[var(--accent)]" disabled={rewritingDraft} />
+            <div className="flex justify-end">
+              <button type="button" onClick={() => void handleAIRewriteDraft()} disabled={rewritingDraft} className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 px-5 py-2.5 text-xs font-bold text-white shadow-md transition hover:scale-105 disabled:opacity-70 disabled:hover:scale-100">
+                <Sparkles className={`h-4 w-4 ${rewritingDraft ? 'animate-spin opacity-80' : ''}`} />
+                {rewritingDraft ? 'Rewriting...' : 'Rewrite Magic'}
+              </button>
+            </div>
           </div>
           <div className="mt-4 flex flex-wrap gap-3">
             <button type="button" onClick={() => void handleCopyDraft()} className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">
