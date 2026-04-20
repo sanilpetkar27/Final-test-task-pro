@@ -26,13 +26,16 @@ type LeadDraft = {
 
 const GEMINI_API_KEY = 'AIzaSyAdOHVLF40eNJbdmc_0D1XkEZIGYu4OOIU';
 
-const LEAD_EXTRACTION_SYSTEM_PROMPT = `Extract lead information from this WhatsApp conversation or screenshot. Return JSON only with these fields:
+const LEAD_EXTRACTION_SYSTEM_PROMPT = `You are a CRM data extractor. Extract lead information from WhatsApp conversations OR plain text lead info. The input might be formal chat logs OR simple plain text like:
+"Tejas Naik\n9657788339\nwant 3BHK flat"
+
+Return ONLY a valid JSON object with these exact fields:
 {
-  name: string or null,
-  mobile: string or null (digits only, no spaces or dashes),
-  requirement: string or null
+  "name": string or null,
+  "mobile": string or null (digits only, no spaces or dashes),
+  "requirement": string or null
 }
-If you cannot find a field return null for that field.`;
+If a field is not found return null. No markdown, no explanation, just raw JSON.`;
 
 const emptyLeadDraft: LeadDraft = {
   name: '',
@@ -115,9 +118,8 @@ const inferLeadFromChatText = (rawText: string): LeadDraft | null => {
   const text = String(rawText || '').trim();
   if (!text) return null;
 
-  // Strip WhatsApp timestamp prefixes like [12/04/2025, 10:32 AM] or [12/04, 10:32]
-  const cleanLine = (line: string) =>
-    line.replace(/^\[.*?\]\s*/, '').trim();
+  // Strip WhatsApp timestamp prefixes like [12/04/2025, 10:32 AM]
+  const cleanLine = (line: string) => line.replace(/^\[.*?\]\s*/, '').trim();
 
   const lines = text
     .split(/\r?\n/)
@@ -128,46 +130,53 @@ const inferLeadFromChatText = (rawText: string): LeadDraft | null => {
   const mobile = mobileMatch ? getDigitsOnly(mobileMatch[1]).slice(-10) : '';
 
   let name = '';
+
+  // Try colon-delimited format first ("Name: message")
   for (const line of lines) {
-    // match "Name: message" pattern - name is before the first colon
     const match = line.match(/^([^:]{2,60}):/);
     const candidate = String(match?.[1] || '').trim();
-    // Skip common WhatsApp UI/system words and self-references
     if (
       candidate &&
       !/^(me|you|i|system|messages|whatsapp)$/i.test(candidate) &&
-      !/^\d/.test(candidate) // skip lines starting with digits (timestamps)
+      !/^\d/.test(candidate)
     ) {
       name = candidate;
       break;
     }
   }
 
+  // Fallback: find the first line that looks like a name (letters only, no digits, not a number)
+  if (!name) {
+    for (const line of lines) {
+      const trimmed = line.replace(/^[^:]{1,60}:\s*/, '').trim() || line.trim();
+      const isLikelyName = /^[A-Za-z][A-Za-z .'-]{1,50}$/.test(trimmed);
+      const isMobileNumber = /^[\d\s+()-]{7,}$/.test(trimmed);
+      if (isLikelyName && !isMobileNumber) {
+        name = trimmed;
+        break;
+      }
+    }
+  }
+
   let requirement = '';
   for (const line of lines) {
     if (/^me\s*:/i.test(line)) continue;
-    const content = line.replace(/^[^:]{1,60}:\s*/, '').trim();
+    const content = line.replace(/^[^:]{1,60}:\s*/, '').trim() || line.trim();
     if (!content) continue;
-    if (mobile && content.includes(mobile)) continue;
-    if (/\b(need|looking for|want|require|interested in)\b/i.test(content)) {
+    if (mobile && content.replace(/\D/g, '').includes(mobile)) continue;
+    if (/^[A-Za-z][A-Za-z .'-]{1,50}$/.test(content) && content === name) continue; // skip name line
+    if (/\b(need|looking for|want|require|interested in|bhk|flat|house|plot|office)\b/i.test(content)) {
       requirement = content;
       break;
     }
-    if (!requirement) {
+    if (!requirement && !/^[\d\s+()-]{7,}$/.test(content) && content !== name) {
       requirement = content;
     }
   }
 
-  if (!name && !mobile && !requirement) {
-    return null;
-  }
+  if (!name && !mobile && !requirement) return null;
 
-  return {
-    name,
-    mobile,
-    requirement,
-    nextFollowUp: '',
-  };
+  return { name, mobile, requirement, nextFollowUp: '' };
 };
 
 const readImageFile = (file: File): Promise<{ base64: string; mimeType: string }> =>
@@ -302,28 +311,36 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({
   ) => {
     setExtracting(true);
     try {
-      // Try direct Gemini API first (no backend needed)
       const isChat = payload.inputType === 'chat';
       const conversation = isChat ? String(payload.conversation || '') : null;
       const imageBase64 = !isChat ? String(payload.imageBase64 || '') : null;
       const mimeType = !isChat ? String(payload.mimeType || 'image/png') : null;
 
-      const textPart = { text: `${LEAD_EXTRACTION_SYSTEM_PROMPT}\n\n${conversation || 'Extract from image.'}` };
-      const parts = imageBase64
+      const textPart = { text: `${LEAD_EXTRACTION_SYSTEM_PROMPT}\n\nInput:\n${conversation || 'Extract from the attached image.'}` };
+      const parts: object[] = imageBase64
         ? [textPart, { inlineData: { mimeType, data: imageBase64 } }]
         : [textPart];
 
-      const geminiRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents: [{ parts }], generationConfig: { temperature: 0.1 } }),
+      const body = JSON.stringify({ contents: [{ parts }], generationConfig: { temperature: 0.1 } });
+      const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite'];
+
+      let rawText = '';
+      for (const model of models) {
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`,
+          { method: 'POST', headers: { 'Content-Type': 'application/json' }, body }
+        );
+        const resData = await res.json();
+        if (res.ok) {
+          rawText = resData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          break;
         }
-      );
-      const geminiData = await geminiRes.json();
-      if (geminiRes.ok) {
-        const rawText: string = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        const errMsg: string = resData?.error?.message || '';
+        const isOverloaded = errMsg.toLowerCase().includes('high demand') || errMsg.toLowerCase().includes('overloaded') || res.status === 503;
+        if (!isOverloaded) break; // non-retryable error
+      }
+
+      if (rawText) {
         const extracted = normalizeExtractedLeadDraft(rawText);
         if (extracted && (extracted.name || extracted.mobile)) {
           setExtractedDraft(extracted);
@@ -332,17 +349,17 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({
         }
       }
 
-      // Fallback to regex parser for chat
+      // Fallback to regex parser
       if (fallback) {
         const fallbackResult = fallback();
-        if (fallbackResult) {
+        if (fallbackResult && (fallbackResult.name || fallbackResult.mobile)) {
           setExtractedDraft(fallbackResult);
           toast.success('Lead details extracted.');
           return;
         }
       }
 
-      toast.error('AI could not extract lead details from this input.');
+      toast.error('AI could not extract lead details. Please fill in manually.');
     } catch (error) {
       console.error('Lead extraction failed:', error);
       if (fallback) {
