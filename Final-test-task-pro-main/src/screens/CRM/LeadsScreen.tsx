@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Phone, Plus, RefreshCcw, SquarePen } from 'lucide-react';
+import { Phone, Plus, RefreshCcw, SquarePen, MessageCircle } from 'lucide-react';
+import { motion, useAnimation, PanInfo } from 'framer-motion';
 import { toast } from 'sonner';
 import type { Employee } from '../../../types';
 import { supabase } from '../../lib/supabase';
@@ -275,6 +276,34 @@ const LeadActionCard = ({
     lead.mobile,
     `Hi ${lead.name}, following up regarding ${lead.requirement || 'your requirement'}.`,
   );
+  
+  const controls = useAnimation();
+
+  const handleDragEnd = (event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    const offset = info.offset.x;
+    const velocity = info.velocity.x;
+
+    if (offset > 80 || velocity > 400) {
+      // Swipe Right -> WhatsApp
+      controls.start({ x: 0 }); // snap back
+      if (!whatsAppUrl) {
+        toast.error('Mobile number not available.');
+        return;
+      }
+      window.open(whatsAppUrl, '_blank', 'noopener,noreferrer');
+    } else if (offset < -80 || velocity < -400) {
+      // Swipe Left -> Call
+      controls.start({ x: 0 }); // snap back
+      if (!telUrl) {
+        toast.error('Mobile number not available.');
+        return;
+      }
+      window.location.href = telUrl;
+    } else {
+      // Snap back if threshold not met
+      controls.start({ x: 0 });
+    }
+  };
 
   const urgencyClassName =
     urgency.kind === 'overdue'
@@ -282,66 +311,82 @@ const LeadActionCard = ({
       : 'bg-amber-50 text-amber-700';
 
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className="w-full rounded-[1.8rem] border border-slate-200/80 bg-white px-5 py-5 text-left shadow-[0_16px_34px_rgba(15,23,42,0.06)] transition hover:-translate-y-0.5"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-[1.35rem] font-black tracking-tight text-slate-950">{lead.name}</p>
-          <p className="mt-1 line-clamp-2 text-sm text-slate-500">
-            {lead.requirement || 'Requirement not added yet.'}
-          </p>
+    <div className="relative w-full overflow-hidden rounded-[1.8rem] bg-slate-100">
+      {/* Background Action Indicators */}
+      <div className="absolute inset-y-0 left-0 flex w-1/2 items-center justify-start bg-[#10B981] px-6 text-white font-bold opacity-90">
+        <span className="flex items-center gap-2"><MessageCircle className="h-5 w-5" /> WhatsApp</span>
+      </div>
+      <div className="absolute inset-y-0 right-0 flex w-1/2 items-center justify-end bg-indigo-500 px-6 text-white font-bold opacity-90">
+        <span className="flex items-center gap-2">Call <Phone className="h-5 w-5" /></span>
+      </div>
+
+      <motion.button
+        type="button"
+        drag="x"
+        dragConstraints={{ left: 0, right: 0 }}
+        dragElastic={0.2}
+        onDragEnd={handleDragEnd}
+        animate={controls}
+        onClick={onOpen}
+        className="relative w-full rounded-[1.8rem] border border-slate-200/80 bg-white px-5 py-5 text-left shadow-[0_16px_34px_rgba(15,23,42,0.06)]"
+      >
+        <div className="flex items-start justify-between gap-3 pointer-events-none">
+          <div className="min-w-0">
+            <p className="truncate text-[1.35rem] font-black tracking-tight text-slate-950">{lead.name}</p>
+            <p className="mt-1 line-clamp-2 text-sm text-slate-500">
+              {lead.requirement || 'Requirement not added yet.'}
+            </p>
+          </div>
+          <span className={`shrink-0 rounded-full px-3 py-2 text-[11px] font-black uppercase tracking-[0.16em] ${urgencyClassName}`}>
+            {urgency.label}
+          </span>
         </div>
-        <span className={`shrink-0 rounded-full px-3 py-2 text-[11px] font-black uppercase tracking-[0.16em] ${urgencyClassName}`}>
-          {urgency.label}
-        </span>
-      </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-500">
-        <span>{resolveEmployeeName(lead.assigned_to, employees)}</span>
-        <span className="text-slate-300">/</span>
-        <span>{formatCompactDateTime(lead.payment_due_date)}</span>
-      </div>
+        <div className="mt-4 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-500 pointer-events-none">
+          <span>{resolveEmployeeName(lead.assigned_to, employees)}</span>
+          <span className="text-slate-300">/</span>
+          <span>{formatCompactDateTime(lead.payment_due_date)}</span>
+        </div>
 
-      <div className="mt-5 grid grid-cols-3 gap-2">
-        <ActionChip
-          label="Call"
-          icon={<Phone className="h-4 w-4" />}
-          onClick={(event) => {
-            event.stopPropagation();
-            if (!telUrl) {
-              toast.error('Mobile number not available.');
-              return;
-            }
-            window.location.href = telUrl;
-          }}
-          className="bg-indigo-50 text-indigo-700"
-        />
-        <ActionChip
-          label="WhatsApp"
-          onClick={(event) => {
-            event.stopPropagation();
-            if (!whatsAppUrl) {
-              toast.error('Mobile number not available.');
-              return;
-            }
-            window.open(whatsAppUrl, '_blank', 'noopener,noreferrer');
-          }}
-          className="bg-emerald-50 text-[#10B981]"
-        />
-        <ActionChip
-          label="Update"
-          icon={<SquarePen className="h-4 w-4" />}
-          onClick={(event) => {
-            event.stopPropagation();
-            onOpen();
-          }}
-          className="bg-violet-50 text-violet-700"
-        />
-      </div>
-    </button>
+        <div className="mt-5 grid grid-cols-3 gap-2">
+          <ActionChip
+            label="Call"
+            icon={<Phone className="h-4 w-4" />}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (!telUrl) {
+                toast.error('Mobile number not available.');
+                return;
+              }
+              window.location.href = telUrl;
+            }}
+            className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
+          />
+          <ActionChip
+            label="WhatsApp"
+            icon={<MessageCircle className="h-4 w-4" />}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (!whatsAppUrl) {
+                toast.error('Mobile number not available.');
+                return;
+              }
+              window.open(whatsAppUrl, '_blank', 'noopener,noreferrer');
+            }}
+            className="bg-emerald-50 text-[#10B981] hover:bg-emerald-100 transition-colors"
+          />
+          <ActionChip
+            label="Update"
+            icon={<SquarePen className="h-4 w-4" />}
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpen();
+            }}
+            className="bg-violet-50 text-violet-700 hover:bg-violet-100 transition-colors"
+          />
+        </div>
+      </motion.button>
+    </div>
   );
 };
 

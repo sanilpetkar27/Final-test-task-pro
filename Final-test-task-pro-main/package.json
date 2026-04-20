@@ -12,6 +12,7 @@
     "@sentry/react": "^10.42.0",
     "@supabase/supabase-js": "^2.90.1",
     "@vercel/analytics": "^2.0.1",
+    "framer-motion": "^12.38.0",
     "lucide-react": "^0.562.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",

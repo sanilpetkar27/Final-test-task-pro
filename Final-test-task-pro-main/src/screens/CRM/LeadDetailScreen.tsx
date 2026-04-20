@@ -10,6 +10,7 @@ import {
   Save,
   Send,
   X,
+  Sparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Employee } from '../../../types';
@@ -73,7 +74,7 @@ const LeadDetailScreen: React.FC<LeadDetailScreenProps> = ({
   const [isRecording, setIsRecording] = useState(false);
   const [paymentForm, setPaymentForm] = useState({
     totalAmount: lead.total_amount ? String(lead.total_amount) : '',
-    advancePaid: lead.advance_paid ? String(lead.advance_paid) : '',
+    newPaymentAmount: '',
     paymentStatus: lead.payment_status || 'pending',
     paymentDueDate: toDateTimeLocalValue(lead.payment_due_date),
     paymentReminderEnabled: Boolean(lead.payment_reminder_enabled),
@@ -95,7 +96,7 @@ const LeadDetailScreen: React.FC<LeadDetailScreenProps> = ({
     setDraftMessage(buildDraftMessage(lead));
     setPaymentForm({
       totalAmount: lead.total_amount ? String(lead.total_amount) : '',
-      advancePaid: lead.advance_paid ? String(lead.advance_paid) : '',
+      newPaymentAmount: '',
       paymentStatus: lead.payment_status || 'pending',
       paymentDueDate: toDateTimeLocalValue(lead.payment_due_date),
       paymentReminderEnabled: Boolean(lead.payment_reminder_enabled),
@@ -153,10 +154,10 @@ const LeadDetailScreen: React.FC<LeadDetailScreenProps> = ({
     () =>
       calculateBalanceDue({
         total_amount: paymentForm.totalAmount ? Number(paymentForm.totalAmount) : lead.total_amount,
-        advance_paid: paymentForm.advancePaid ? Number(paymentForm.advancePaid) : lead.advance_paid,
+        advance_paid: (lead.advance_paid || 0) + (paymentForm.newPaymentAmount ? Number(paymentForm.newPaymentAmount) : 0),
         balance_due: lead.balance_due,
       }),
-    [lead.advance_paid, lead.balance_due, lead.total_amount, paymentForm.advancePaid, paymentForm.totalAmount],
+    [lead.advance_paid, lead.balance_due, lead.total_amount, paymentForm.newPaymentAmount, paymentForm.totalAmount],
   );
   const timelineActivities = useMemo(() => [...activities].reverse(), [activities]);
   const telUrl = buildTelUrl(lead.mobile);
@@ -252,9 +253,12 @@ const LeadDetailScreen: React.FC<LeadDetailScreenProps> = ({
   const handleSavePayment = async () => {
     setSavingPayment(true);
     try {
+      const addedPayment = paymentForm.newPaymentAmount.trim() ? Number(paymentForm.newPaymentAmount) : 0;
+      const newAdvancePaid = (lead.advance_paid || 0) + addedPayment;
+
       const payload = {
         total_amount: paymentForm.totalAmount.trim() ? Number(paymentForm.totalAmount) : null,
-        advance_paid: paymentForm.advancePaid.trim() ? Number(paymentForm.advancePaid) : null,
+        advance_paid: newAdvancePaid,
         payment_status: paymentForm.paymentStatus || null,
         payment_due_date: paymentForm.paymentDueDate ? new Date(paymentForm.paymentDueDate).toISOString() : null,
         payment_reminder_enabled: paymentForm.paymentReminderEnabled,
@@ -276,11 +280,21 @@ const LeadDetailScreen: React.FC<LeadDetailScreenProps> = ({
       }
 
       onLeadUpdated(normalizeLead((data || {}) as Record<string, unknown>));
-      await createActivity({
-        activity_type: 'payment',
-        note: `Payment status updated to ${payload.payment_status || 'pending'}`,
-        amount: payload.advance_paid,
-      });
+      
+      if (addedPayment > 0) {
+        await createActivity({
+          activity_type: 'payment',
+          note: `Payment received in phase. Status: ${payload.payment_status || 'pending'}`,
+          amount: addedPayment,
+        });
+      } else {
+        await createActivity({
+          activity_type: 'payment',
+          note: `Payment terms updated to ${payload.payment_status || 'pending'}`,
+        });
+      }
+      
+      setPaymentForm(prev => ({ ...prev, newPaymentAmount: '' }));
       toast.success('Payment details updated.');
     } catch (error) {
       console.error('Unexpected payment update failure:', error);
@@ -567,8 +581,8 @@ const LeadDetailScreen: React.FC<LeadDetailScreenProps> = ({
                       <Field label="Total Amount">
                         <input type="number" min="0" value={paymentForm.totalAmount} onChange={(event) => setPaymentForm((prev) => ({ ...prev, totalAmount: event.target.value }))} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[var(--accent)]" />
                       </Field>
-                      <Field label="Advance Paid">
-                        <input type="number" min="0" value={paymentForm.advancePaid} onChange={(event) => setPaymentForm((prev) => ({ ...prev, advancePaid: event.target.value }))} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[var(--accent)]" />
+                      <Field label={`Total Received: ${formatCurrency(lead.advance_paid || 0)}`}>
+                        <input type="number" min="0" value={paymentForm.newPaymentAmount} onChange={(event) => setPaymentForm((prev) => ({ ...prev, newPaymentAmount: event.target.value }))} placeholder="Log new payment amount..." className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[var(--accent)]" />
                       </Field>
                       <Field label="Payment Status">
                         <select value={paymentForm.paymentStatus} onChange={(event) => setPaymentForm((prev) => ({ ...prev, paymentStatus: event.target.value }))} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[var(--accent)]">
@@ -638,7 +652,13 @@ const LeadDetailScreen: React.FC<LeadDetailScreenProps> = ({
                       <input type="number" min="0" value={activityAmount} onChange={(event) => setActivityAmount(event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[var(--accent)]" placeholder="0" />
                     </Field>
                   </div>
-                  <textarea value={activityNote} onChange={(event) => setActivityNote(event.target.value)} rows={4} className="mt-4 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[var(--accent)]" placeholder="Add a note for this follow-up" />
+                  <div className="relative mt-4">
+                    <textarea value={activityNote} onChange={(event) => setActivityNote(event.target.value)} rows={4} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[var(--accent)]" placeholder="Add a note for this follow-up" />
+                    <button type="button" onClick={() => toast.info('AI setup pending Phase 2')} className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-xl bg-violet-50 px-3 py-1.5 text-xs font-bold text-violet-600 transition hover:bg-violet-100">
+                      <Sparkles className="h-3.5 w-3.5" />
+                      Improve
+                    </button>
+                  </div>
                   <button type="button" onClick={() => void handleLogActivity()} disabled={loggingActivity} className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(79,70,229,0.22)] disabled:opacity-60">
                     <Save className="h-4 w-4" />
                     {loggingActivity ? 'Saving...' : 'Log Activity'}
@@ -662,7 +682,13 @@ const LeadDetailScreen: React.FC<LeadDetailScreenProps> = ({
       {isDraftOpen ? (
         <BottomSheet title="Draft Message" onClose={() => setIsDraftOpen(false)}>
           <p className="text-sm text-slate-500">Message context includes {lead.name} and {lead.requirement || 'their requirement'}.</p>
-          <textarea value={draftMessage} onChange={(event) => setDraftMessage(event.target.value)} rows={7} className="mt-4 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[var(--accent)]" />
+          <div className="relative mt-4">
+            <textarea value={draftMessage} onChange={(event) => setDraftMessage(event.target.value)} rows={7} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[var(--accent)] pb-14" />
+            <button type="button" onClick={() => toast.info('AI setup pending Phase 2')} className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 px-4 py-2 text-xs font-bold text-white shadow-md transition hover:scale-105">
+              <Sparkles className="h-3.5 w-3.5" />
+              Rewrite Magic
+            </button>
+          </div>
           <div className="mt-4 flex flex-wrap gap-3">
             <button type="button" onClick={() => void handleCopyDraft()} className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">
               <Copy className="h-4 w-4" />
