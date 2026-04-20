@@ -24,6 +24,8 @@ type LeadDraft = {
   nextFollowUp: string;
 };
 
+const GEMINI_API_KEY = 'AIzaSyAdOHVLF40eNJbdmc_0D1XkEZIGYu4OOIU';
+
 const LEAD_EXTRACTION_SYSTEM_PROMPT = `Extract lead information from this WhatsApp conversation or screenshot. Return JSON only with these fields:
 {
   name: string or null,
@@ -113,9 +115,13 @@ const inferLeadFromChatText = (rawText: string): LeadDraft | null => {
   const text = String(rawText || '').trim();
   if (!text) return null;
 
+  // Strip WhatsApp timestamp prefixes like [12/04/2025, 10:32 AM] or [12/04, 10:32]
+  const cleanLine = (line: string) =>
+    line.replace(/^\[.*?\]\s*/, '').trim();
+
   const lines = text
     .split(/\r?\n/)
-    .map((line) => line.trim())
+    .map((line) => cleanLine(line.trim()))
     .filter(Boolean);
 
   const mobileMatch = text.match(/(?:\+91[\s-]?)?(\d[\d\s-]{8,}\d)/);
@@ -123,9 +129,15 @@ const inferLeadFromChatText = (rawText: string): LeadDraft | null => {
 
   let name = '';
   for (const line of lines) {
-    const match = line.match(/^([^:]{2,40}):/);
+    // match "Name: message" pattern - name is before the first colon
+    const match = line.match(/^([^:]{2,60}):/);
     const candidate = String(match?.[1] || '').trim();
-    if (candidate && !/^me$/i.test(candidate) && !/^you$/i.test(candidate)) {
+    // Skip common WhatsApp UI/system words and self-references
+    if (
+      candidate &&
+      !/^(me|you|i|system|messages|whatsapp)$/i.test(candidate) &&
+      !/^\d/.test(candidate) // skip lines starting with digits (timestamps)
+    ) {
       name = candidate;
       break;
     }
@@ -134,7 +146,7 @@ const inferLeadFromChatText = (rawText: string): LeadDraft | null => {
   let requirement = '';
   for (const line of lines) {
     if (/^me\s*:/i.test(line)) continue;
-    const content = line.replace(/^[^:]{1,40}:\s*/, '').trim();
+    const content = line.replace(/^[^:]{1,60}:\s*/, '').trim();
     if (!content) continue;
     if (mobile && content.includes(mobile)) continue;
     if (/\b(need|looking for|want|require|interested in)\b/i.test(content)) {
@@ -290,26 +302,37 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({
   ) => {
     setExtracting(true);
     try {
-      const { data, error } = await supabase.functions.invoke('extract-lead', {
-        body: {
-          systemPrompt: LEAD_EXTRACTION_SYSTEM_PROMPT,
-          companyId,
-          currentUserId: currentUser.id,
-          ...payload,
-        },
-      });
+      // Try direct Gemini API first (no backend needed)
+      const isChat = payload.inputType === 'chat';
+      const conversation = isChat ? String(payload.conversation || '') : null;
+      const imageBase64 = !isChat ? String(payload.imageBase64 || '') : null;
+      const mimeType = !isChat ? String(payload.mimeType || 'image/png') : null;
 
-      if (error) {
-        throw error;
+      const textPart = { text: `${LEAD_EXTRACTION_SYSTEM_PROMPT}\n\n${conversation || 'Extract from image.'}` };
+      const parts = imageBase64
+        ? [textPart, { inlineData: { mimeType, data: imageBase64 } }]
+        : [textPart];
+
+      const geminiRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts }], generationConfig: { temperature: 0.1 } }),
+        }
+      );
+      const geminiData = await geminiRes.json();
+      if (geminiRes.ok) {
+        const rawText: string = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        const extracted = normalizeExtractedLeadDraft(rawText);
+        if (extracted && (extracted.name || extracted.mobile)) {
+          setExtractedDraft(extracted);
+          toast.success('Lead details extracted.');
+          return;
+        }
       }
 
-      const extracted = normalizeExtractedLeadDraft(data);
-      if (extracted) {
-        setExtractedDraft(extracted);
-        toast.success('Lead details extracted.');
-        return;
-      }
-
+      // Fallback to regex parser for chat
       if (fallback) {
         const fallbackResult = fallback();
         if (fallbackResult) {
@@ -330,7 +353,6 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({
           return;
         }
       }
-
       toast.error('Lead extraction is unavailable right now.');
     } finally {
       setExtracting(false);
