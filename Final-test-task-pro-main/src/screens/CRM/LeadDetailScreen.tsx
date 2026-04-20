@@ -49,20 +49,40 @@ const GEMINI_API_KEY = 'AIzaSyAdOHVLF40eNJbdmc_0D1XkEZIGYu4OOIU';
 const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite'];
 
 const geminiRequest = async (body: object): Promise<string> => {
+  const isRateLimit = (msg: string) =>
+    msg.toLowerCase().includes('quota') || msg.toLowerCase().includes('rate') || msg.toLowerCase().includes('429');
+  const isOverloaded = (msg: string, status: number) =>
+    msg.toLowerCase().includes('high demand') || msg.toLowerCase().includes('overloaded') || status === 503;
+
+  const parseRetrySeconds = (msg: string): number => {
+    const match = msg.match(/retry in ([\d.]+)s/i);
+    return match ? Math.ceil(parseFloat(match[1])) + 2 : 60;
+  };
+
   for (const model of GEMINI_MODELS) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    const data = await response.json();
-    const errMsg: string = data?.error?.message || '';
-    // if overloaded, try next model; otherwise throw or return
+    let response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    let data = await response.json();
+    let errMsg: string = data?.error?.message || '';
+
+    // Rate limited — auto-wait and retry once on the same model
+    if (!response.ok && isRateLimit(errMsg)) {
+      const waitSecs = parseRetrySeconds(errMsg);
+      toast.info(`Rate limit hit. Auto-retrying in ${waitSecs}s...`);
+      await new Promise((r) => setTimeout(r, waitSecs * 1000));
+      response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      data = await response.json();
+      errMsg = data?.error?.message || '';
+    }
+
     if (!response.ok) {
-      if (errMsg.toLowerCase().includes('high demand') || errMsg.toLowerCase().includes('overloaded') || response.status === 503) {
+      if (isOverloaded(errMsg, response.status)) {
         console.warn(`[Gemini] ${model} overloaded, trying next model...`);
         continue;
+      }
+      if (isRateLimit(errMsg)) {
+        const waitSecs = parseRetrySeconds(errMsg);
+        throw new Error(`Rate limit hit. Please wait ${waitSecs}s and try again.`);
       }
       throw new Error(errMsg || 'API Error');
     }
