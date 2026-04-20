@@ -4,6 +4,8 @@ import {
   CheckCircle2,
   Clock3,
   Copy,
+  ImagePlus,
+  ClipboardPaste,
   MessageSquareText,
   Mic,
   Phone,
@@ -74,6 +76,13 @@ const LeadDetailScreen: React.FC<LeadDetailScreenProps> = ({
   const [isRecording, setIsRecording] = useState(false);
   const [improvingNote, setImprovingNote] = useState(false);
   const [rewritingDraft, setRewritingDraft] = useState(false);
+  const [isChatDumpOpen, setIsChatDumpOpen] = useState(false);
+  const [chatDumpText, setChatDumpText] = useState('');
+  const [parsingChat, setParsingChat] = useState(false);
+  const [chatDumpResult, setChatDumpResult] = useState('');
+  const [isScreenshotOCROpen, setIsScreenshotOCROpen] = useState(false);
+  const [ocrProcessing, setOcrProcessing] = useState(false);
+  const [ocrResult, setOcrResult] = useState('');
   const [paymentForm, setPaymentForm] = useState({
     totalAmount: lead.total_amount ? String(lead.total_amount) : '',
     newPaymentAmount: '',
@@ -284,6 +293,116 @@ const LeadDetailScreen: React.FC<LeadDetailScreenProps> = ({
       toast.error('AI Failed: ' + err.message, { id: toastId });
     } finally {
       setRewritingDraft(false);
+    }
+  };
+
+  const handleAIChatDump = async () => {
+    if (!chatDumpText.trim()) {
+      toast.error('Paste a WhatsApp conversation first.');
+      return;
+    }
+    setParsingChat(true);
+    setChatDumpResult('');
+    const toastId = toast.loading('AI is reading the conversation...');
+    try {
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
+      const prompt = `You are a CRM assistant analyzing a pasted WhatsApp conversation about a business lead named "${lead.name}". Extract the following in a clean, short bullet format:\n- **Summary**: 1-2 sentence summary of the conversation\n- **Requirement**: What the client wants\n- **Budget**: Any budget/price mentioned\n- **Next Step**: Suggested follow-up action\n- **Sentiment**: Positive / Neutral / Negative\n\nCRITICAL: Output ONLY the bullet points. No introductory text.\n\nConversation:\n${chatDumpText.trim()}`;
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.4 } }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error?.message || 'API Error');
+      const result = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      setChatDumpResult(result.trim());
+      toast.success('Conversation analyzed!', { id: toastId });
+    } catch (err: any) {
+      console.error(err);
+      toast.error('AI Failed: ' + err.message, { id: toastId });
+    } finally {
+      setParsingChat(false);
+    }
+  };
+
+  const handleLogChatDumpAsActivity = async () => {
+    if (!chatDumpResult.trim()) return;
+    setLoggingActivity(true);
+    try {
+      await createActivity({
+        activity_type: 'whatsapp',
+        note: `[AI Chat Summary]\n${chatDumpResult}`,
+      });
+      toast.success('Chat summary logged to timeline!');
+      setChatDumpText('');
+      setChatDumpResult('');
+      setIsChatDumpOpen(false);
+    } catch (err: any) {
+      toast.error('Could not log activity: ' + err.message);
+    } finally {
+      setLoggingActivity(false);
+    }
+  };
+
+  const handleScreenshotOCR = async (file: File) => {
+    setOcrProcessing(true);
+    setOcrResult('');
+    const toastId = toast.loading('AI is reading your screenshot...');
+    try {
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result.split(',')[1]);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const mimeType = file.type || 'image/png';
+      const prompt = `You are a CRM assistant. This is a screenshot of a WhatsApp conversation about a business lead named "${lead.name}". Read the text in the image and extract:\n- **Summary**: 1-2 sentence summary\n- **Requirement**: What the client wants\n- **Budget**: Any budget/price mentioned\n- **Next Step**: Suggested follow-up action\n- **Sentiment**: Positive / Neutral / Negative\n\nCRITICAL: Output ONLY the bullet points. No introductory text.`;
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [
+            { text: prompt },
+            { inlineData: { mimeType, data: base64 } }
+          ] }],
+          generationConfig: { temperature: 0.3 },
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error?.message || 'API Error');
+      const result = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      setOcrResult(result.trim());
+      toast.success('Screenshot analyzed!', { id: toastId });
+    } catch (err: any) {
+      console.error(err);
+      toast.error('AI Failed: ' + err.message, { id: toastId });
+    } finally {
+      setOcrProcessing(false);
+    }
+  };
+
+  const handleLogOCRAsActivity = async () => {
+    if (!ocrResult.trim()) return;
+    setLoggingActivity(true);
+    try {
+      await createActivity({
+        activity_type: 'whatsapp',
+        note: `[AI Screenshot Summary]\n${ocrResult}`,
+      });
+      toast.success('Screenshot summary logged to timeline!');
+      setOcrResult('');
+      setIsScreenshotOCROpen(false);
+    } catch (err: any) {
+      toast.error('Could not log activity: ' + err.message);
+    } finally {
+      setLoggingActivity(false);
     }
   };
 
@@ -628,6 +747,34 @@ const LeadDetailScreen: React.FC<LeadDetailScreenProps> = ({
                   />
                 </section>
 
+                <section className="rounded-[1.9rem] border border-violet-200/80 bg-gradient-to-br from-violet-50 via-white to-fuchsia-50 px-5 py-5 shadow-[0_16px_34px_rgba(139,92,246,0.08)]">
+                  <div className="mb-4 flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-violet-500" />
+                    <h3 className="text-lg font-black text-slate-950">WhatsApp AI Tools</h3>
+                  </div>
+                  <p className="text-sm text-slate-500">Parse conversations or screenshots instantly with AI — zero manual data entry.</p>
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setIsChatDumpOpen(true)}
+                      className="flex flex-col items-center gap-2 rounded-2xl border border-violet-200 bg-white px-4 py-5 text-center transition hover:border-violet-400 hover:shadow-md"
+                    >
+                      <ClipboardPaste className="h-7 w-7 text-violet-500" />
+                      <span className="text-sm font-bold text-slate-800">Paste Chat</span>
+                      <span className="text-[11px] text-slate-400">Copy from WhatsApp</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsScreenshotOCROpen(true)}
+                      className="flex flex-col items-center gap-2 rounded-2xl border border-fuchsia-200 bg-white px-4 py-5 text-center transition hover:border-fuchsia-400 hover:shadow-md"
+                    >
+                      <ImagePlus className="h-7 w-7 text-fuchsia-500" />
+                      <span className="text-sm font-bold text-slate-800">Screenshot</span>
+                      <span className="text-[11px] text-slate-400">Upload & OCR</span>
+                    </button>
+                  </div>
+                </section>
+
                 {lead.stage === 'won' ? (
                   <section className="rounded-[1.9rem] border border-slate-200/80 bg-white px-5 py-5 shadow-[0_16px_34px_rgba(15,23,42,0.05)]">
                     <div className="flex items-center justify-between gap-3">
@@ -846,6 +993,86 @@ const LeadDetailScreen: React.FC<LeadDetailScreenProps> = ({
               {loggingActivity ? 'Saving...' : 'Save Note'}
             </button>
           </div>
+        </BottomSheet>
+      ) : null}
+
+      {isChatDumpOpen ? (
+        <BottomSheet title="Paste WhatsApp Chat" onClose={() => { setIsChatDumpOpen(false); setChatDumpResult(''); }}>
+          <p className="text-sm text-slate-500">Copy-paste the full WhatsApp conversation below and let AI extract all key details for {lead.name}.</p>
+          <textarea
+            value={chatDumpText}
+            onChange={(e) => setChatDumpText(e.target.value)}
+            rows={8}
+            className="mt-4 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-violet-400"
+            placeholder={'[12/04/2025, 10:32 AM] Client: Hi I need a 2BHK flat\n[12/04/2025, 10:33 AM] You: Sure, what is your budget?\n...'}
+            disabled={parsingChat}
+          />
+          <div className="mt-3 flex justify-end">
+            <button
+              type="button"
+              onClick={() => void handleAIChatDump()}
+              disabled={parsingChat}
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 px-5 py-2.5 text-xs font-bold text-white shadow-md transition hover:scale-105 disabled:opacity-70"
+            >
+              <Sparkles className={`h-4 w-4 ${parsingChat ? 'animate-spin' : ''}`} />
+              {parsingChat ? 'Analyzing...' : 'Parse with AI'}
+            </button>
+          </div>
+          {chatDumpResult ? (
+            <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
+              <p className="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-emerald-600">AI Summary</p>
+              <div className="whitespace-pre-wrap text-sm leading-7 text-slate-800">{chatDumpResult}</div>
+              <div className="mt-4 flex gap-3">
+                <button type="button" onClick={() => void handleLogChatDumpAsActivity()} disabled={loggingActivity} className="rounded-2xl bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-white disabled:opacity-60">
+                  {loggingActivity ? 'Saving...' : 'Save to Timeline'}
+                </button>
+                <button type="button" onClick={() => { setActivityNote(chatDumpResult); setIsChatDumpOpen(false); setChatDumpResult(''); toast.success('Pasted into Quick Log!'); }} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">
+                  Copy to Quick Log
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </BottomSheet>
+      ) : null}
+
+      {isScreenshotOCROpen ? (
+        <BottomSheet title="Screenshot OCR" onClose={() => { setIsScreenshotOCROpen(false); setOcrResult(''); }}>
+          <p className="text-sm text-slate-500">Upload a WhatsApp screenshot and AI will extract all key details for {lead.name}.</p>
+          <label className="mt-4 flex cursor-pointer flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center transition hover:border-fuchsia-400 hover:bg-fuchsia-50">
+            <ImagePlus className="h-10 w-10 text-fuchsia-400" />
+            <span className="text-sm font-bold text-slate-700">Tap to upload screenshot</span>
+            <span className="text-[11px] text-slate-400">Supports JPG, PNG, WEBP</span>
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void handleScreenshotOCR(file);
+              }}
+              disabled={ocrProcessing}
+            />
+          </label>
+          {ocrProcessing ? (
+            <div className="mt-4 flex items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-6">
+              <Sparkles className="h-5 w-5 animate-spin text-fuchsia-500" />
+              <p className="text-sm font-bold text-slate-600">AI is reading the screenshot...</p>
+            </div>
+          ) : null}
+          {ocrResult ? (
+            <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
+              <p className="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-emerald-600">AI Summary</p>
+              <div className="whitespace-pre-wrap text-sm leading-7 text-slate-800">{ocrResult}</div>
+              <div className="mt-4 flex gap-3">
+                <button type="button" onClick={() => void handleLogOCRAsActivity()} disabled={loggingActivity} className="rounded-2xl bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-white disabled:opacity-60">
+                  {loggingActivity ? 'Saving...' : 'Save to Timeline'}
+                </button>
+                <button type="button" onClick={() => { setActivityNote(ocrResult); setIsScreenshotOCROpen(false); setOcrResult(''); toast.success('Pasted into Quick Log!'); }} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">
+                  Copy to Quick Log
+                </button>
+              </div>
+            </div>
+          ) : null}
         </BottomSheet>
       ) : null}
     </>

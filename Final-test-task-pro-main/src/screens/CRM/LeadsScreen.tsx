@@ -67,6 +67,20 @@ const LeadsScreen: React.FC<LeadsScreenProps> = ({ companyId, currentUser, emplo
     void loadLeads();
   }, [companyId]);
 
+  // PWA Share Target: detect if launched via native Share menu
+  const [sharedText, setSharedText] = useState('');
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const shared = params.get('shared');
+    const text = params.get('shared_text') || params.get('shared_title') || '';
+    if (shared === 'true' && text) {
+      setSharedText(text);
+      toast.success('Received shared content from WhatsApp!');
+      // Clean URL without reload
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
+
   const actNowLeads = useMemo(() => {
     return [...leads]
       .filter((lead) => {
@@ -137,6 +151,20 @@ const LeadsScreen: React.FC<LeadsScreenProps> = ({ companyId, currentUser, emplo
             </button>
           </div>
         </div>
+
+        {sharedText ? (
+          <div className="rounded-[2rem] border border-violet-300 bg-gradient-to-r from-violet-50 to-fuchsia-50 p-5 shadow-[0_12px_30px_rgba(139,92,246,0.12)]">
+            <div className="flex items-center gap-2 mb-2">
+              <MessageCircle className="h-5 w-5 text-violet-500" />
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-violet-600">Shared from WhatsApp</p>
+            </div>
+            <p className="text-sm text-slate-700 whitespace-pre-wrap leading-6 max-h-32 overflow-y-auto">{sharedText}</p>
+            <div className="mt-3 flex gap-3">
+              <button type="button" onClick={() => { navigator.clipboard.writeText(sharedText); toast.success('Copied!'); }} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700">Copy</button>
+              <button type="button" onClick={() => setSharedText('')} className="rounded-xl bg-slate-100 px-4 py-2 text-xs font-bold text-slate-500">Dismiss</button>
+            </div>
+          </div>
+        ) : null}
 
         <div className="rounded-[2rem] border border-slate-200/80 bg-gradient-to-br from-white via-white to-slate-50 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
           <div className="flex items-center justify-between gap-4">
