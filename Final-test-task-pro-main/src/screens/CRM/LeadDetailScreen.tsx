@@ -45,6 +45,8 @@ type LeadDetailScreenProps = {
   onLeadUpdated: (lead: CRMLead) => void;
 };
 
+const GEMINI_API_KEY = 'AIzaSyAdOHVLF40eNJbdmc_0D1XkEZIGYu4OOIU';
+
 const buildDraftMessage = (lead: CRMLead): string =>
   `Hi ${lead.name},\n\nFollowing up regarding ${lead.requirement || 'your requirement'}.\nLet me know a convenient time to connect.`;
 
@@ -244,7 +246,7 @@ const LeadDetailScreen: React.FC<LeadDetailScreenProps> = ({
     setImprovingNote(true);
     const toastId = toast.loading('AI is analyzing your note...');
     try {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || 'AIzaSyAdOHVLF40eNJbdmc_0D1XkEZIGYu4OOIU';
+      const apiKey = GEMINI_API_KEY;
       
       const prompt = `You are a professional CRM assistant. Improve the following quick note into a single polished, professional business log entry. CRITICAL RULE: DO NOT provide options. DO NOT include any conversational text like "Here is an option". Output ONLY the exact final revised sentence and absolutely nothing else. Here is the raw note: "${activityNote.trim()}"`;
 
@@ -272,7 +274,7 @@ const LeadDetailScreen: React.FC<LeadDetailScreenProps> = ({
     setRewritingDraft(true);
     const toastId = toast.loading('AI is composing the perfect WhatsApp pitch...');
     try {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || 'AIzaSyAdOHVLF40eNJbdmc_0D1XkEZIGYu4OOIU';
+      const apiKey = GEMINI_API_KEY;
 
       const prompt = `You are an expert sales representative. Draft a friendly, concise, and professional WhatsApp follow-up message to a lead named "${lead.name}". Their exact requirement/interest is: "${lead.requirement || 'unknown products'}". My name is ${currentUser.name}. Keep it under 3 short paragraphs. Include a gentle call to action. Do not use placeholders like [Insert Link]. Make it sound human and persuasive. Do not use emojis aggressively. CRITICAL RULE: DO NOT include any conversational text like "Here is your draft:". Output ONLY the exact generated WhatsApp message text and absolutely nothing else.`;
 
@@ -305,10 +307,12 @@ const LeadDetailScreen: React.FC<LeadDetailScreenProps> = ({
     setChatDumpResult('');
     const toastId = toast.loading('AI is reading the conversation...');
     try {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
+      const apiKey = GEMINI_API_KEY;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+      console.log('[ChatDump] API Key length:', apiKey?.length, '| URL starts with:', url.slice(0, 80));
       const prompt = `You are a CRM assistant analyzing a pasted WhatsApp conversation about a business lead named "${lead.name}". Extract the following in a clean, short bullet format:\n- **Summary**: 1-2 sentence summary of the conversation\n- **Requirement**: What the client wants\n- **Budget**: Any budget/price mentioned\n- **Next Step**: Suggested follow-up action\n- **Sentiment**: Positive / Neutral / Negative\n\nCRITICAL: Output ONLY the bullet points. No introductory text.\n\nConversation:\n${chatDumpText.trim()}`;
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+      const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.4 } }),
@@ -350,7 +354,7 @@ const LeadDetailScreen: React.FC<LeadDetailScreenProps> = ({
     setOcrResult('');
     const toastId = toast.loading('AI is reading your screenshot...');
     try {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
+      const apiKey = GEMINI_API_KEY;
       const base64 = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => {
