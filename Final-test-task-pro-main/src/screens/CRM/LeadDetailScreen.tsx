@@ -46,6 +46,30 @@ type LeadDetailScreenProps = {
 };
 
 const GEMINI_API_KEY = 'AIzaSyAdOHVLF40eNJbdmc_0D1XkEZIGYu4OOIU';
+const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite'];
+
+const geminiRequest = async (body: object): Promise<string> => {
+  for (const model of GEMINI_MODELS) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await response.json();
+    const errMsg: string = data?.error?.message || '';
+    // if overloaded, try next model; otherwise throw or return
+    if (!response.ok) {
+      if (errMsg.toLowerCase().includes('high demand') || errMsg.toLowerCase().includes('overloaded') || response.status === 503) {
+        console.warn(`[Gemini] ${model} overloaded, trying next model...`);
+        continue;
+      }
+      throw new Error(errMsg || 'API Error');
+    }
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  }
+  throw new Error('All Gemini models are currently busy. Please try again in a moment.');
+};
 
 const buildDraftMessage = (lead: CRMLead): string =>
   `Hi ${lead.name},\n\nFollowing up regarding ${lead.requirement || 'your requirement'}.\nLet me know a convenient time to connect.`;
@@ -246,20 +270,8 @@ const LeadDetailScreen: React.FC<LeadDetailScreenProps> = ({
     setImprovingNote(true);
     const toastId = toast.loading('AI is analyzing your note...');
     try {
-      const apiKey = GEMINI_API_KEY;
-      
       const prompt = `You are a professional CRM assistant. Improve the following quick note into a single polished, professional business log entry. CRITICAL RULE: DO NOT provide options. DO NOT include any conversational text like "Here is an option". Output ONLY the exact final revised sentence and absolutely nothing else. Here is the raw note: "${activityNote.trim()}"`;
-
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.7 } })
-      });
-      
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error?.message || 'API Error');
-      
-      const result = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      const result = await geminiRequest({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.7 } });
       setActivityNote(result.trim());
       toast.success('Note enhanced!', { id: toastId });
     } catch (err: any) {
@@ -274,20 +286,8 @@ const LeadDetailScreen: React.FC<LeadDetailScreenProps> = ({
     setRewritingDraft(true);
     const toastId = toast.loading('AI is composing the perfect WhatsApp pitch...');
     try {
-      const apiKey = GEMINI_API_KEY;
-
       const prompt = `You are an expert sales representative. Draft a friendly, concise, and professional WhatsApp follow-up message to a lead named "${lead.name}". Their exact requirement/interest is: "${lead.requirement || 'unknown products'}". My name is ${currentUser.name}. Keep it under 3 short paragraphs. Include a gentle call to action. Do not use placeholders like [Insert Link]. Make it sound human and persuasive. Do not use emojis aggressively. CRITICAL RULE: DO NOT include any conversational text like "Here is your draft:". Output ONLY the exact generated WhatsApp message text and absolutely nothing else.`;
-
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.7 } })
-      });
-      
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error?.message || 'API Error');
-      
-      const result = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      const result = await geminiRequest({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.7 } });
       setDraftMessage(result.trim());
       toast.success('Message rewritten!', { id: toastId });
     } catch (err: any) {
@@ -307,19 +307,8 @@ const LeadDetailScreen: React.FC<LeadDetailScreenProps> = ({
     setChatDumpResult('');
     const toastId = toast.loading('AI is reading the conversation...');
     try {
-      const apiKey = GEMINI_API_KEY;
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-      console.log('[ChatDump] API Key length:', apiKey?.length, '| URL starts with:', url.slice(0, 80));
       const prompt = `You are a CRM assistant analyzing a pasted WhatsApp conversation about a business lead named "${lead.name}". Extract the following in a clean, short bullet format:\n- **Summary**: 1-2 sentence summary of the conversation\n- **Requirement**: What the client wants\n- **Budget**: Any budget/price mentioned\n- **Next Step**: Suggested follow-up action\n- **Sentiment**: Positive / Neutral / Negative\n\nCRITICAL: Output ONLY the bullet points. No introductory text.\n\nConversation:\n${chatDumpText.trim()}`;
-
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.4 } }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error?.message || 'API Error');
-      const result = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      const result = await geminiRequest({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.4 } });
       setChatDumpResult(result.trim());
       toast.success('Conversation analyzed!', { id: toastId });
     } catch (err: any) {
@@ -354,7 +343,6 @@ const LeadDetailScreen: React.FC<LeadDetailScreenProps> = ({
     setOcrResult('');
     const toastId = toast.loading('AI is reading your screenshot...');
     try {
-      const apiKey = GEMINI_API_KEY;
       const base64 = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => {
@@ -364,24 +352,12 @@ const LeadDetailScreen: React.FC<LeadDetailScreenProps> = ({
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
-
       const mimeType = file.type || 'image/png';
       const prompt = `You are a CRM assistant. This is a screenshot of a WhatsApp conversation about a business lead named "${lead.name}". Read the text in the image and extract:\n- **Summary**: 1-2 sentence summary\n- **Requirement**: What the client wants\n- **Budget**: Any budget/price mentioned\n- **Next Step**: Suggested follow-up action\n- **Sentiment**: Positive / Neutral / Negative\n\nCRITICAL: Output ONLY the bullet points. No introductory text.`;
-
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [
-            { text: prompt },
-            { inlineData: { mimeType, data: base64 } }
-          ] }],
-          generationConfig: { temperature: 0.3 },
-        }),
+      const result = await geminiRequest({
+        contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType, data: base64 } }] }],
+        generationConfig: { temperature: 0.3 },
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error?.message || 'API Error');
-      const result = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
       setOcrResult(result.trim());
       toast.success('Screenshot analyzed!', { id: toastId });
     } catch (err: any) {
