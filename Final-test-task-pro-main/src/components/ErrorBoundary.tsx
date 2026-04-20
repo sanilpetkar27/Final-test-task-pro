@@ -11,25 +11,6 @@ interface State {
   errorInfo: React.ErrorInfo | null;
 }
 
-class DevErrorTrigger extends Component<{}, { shouldThrow: boolean }> {
-  state = { shouldThrow: false };
-
-  render() {
-    if (this.state.shouldThrow) {
-      throw new Error('Test error boundary');
-    }
-
-    return (
-      <button
-        type="button"
-        onClick={() => this.setState({ shouldThrow: true })}
-        className="fixed bottom-4 right-4 z-50 rounded-md bg-yellow-500 px-2.5 py-1 text-[10px] font-semibold text-white shadow-lg hover:bg-yellow-600"
-      >
-        Trigger Error
-      </button>
-    );
-  }
-}
 
 // Note: Error boundaries do not catch async errors (Promise rejections, event handlers, setTimeout).
 // For async failures, use try/catch and surface errors via toasts or inline UI.
@@ -113,7 +94,6 @@ class ErrorBoundary extends Component<Props, State> {
     return (
       <>
         {this.props.children}
-        {import.meta.env.DEV && <DevErrorTrigger />}
       </>
     );
   }

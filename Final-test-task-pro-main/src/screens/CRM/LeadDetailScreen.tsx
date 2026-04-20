@@ -70,6 +70,7 @@ const LeadDetailScreen: React.FC<LeadDetailScreenProps> = ({
   const [isRescheduleOpen, setIsRescheduleOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isVoiceNoteOpen, setIsVoiceNoteOpen] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
   const [paymentForm, setPaymentForm] = useState({
     totalAmount: lead.total_amount ? String(lead.total_amount) : '',
     advancePaid: lead.advance_paid ? String(lead.advance_paid) : '',
@@ -427,6 +428,31 @@ const LeadDetailScreen: React.FC<LeadDetailScreenProps> = ({
     }
   };
 
+  const handleStartRecording = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      toast.error('Voice input is not supported in your browser.');
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onstart = () => setIsRecording(true);
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setVoiceNote((prev) => prev ? `${prev} ${transcript}` : transcript);
+    };
+    recognition.onerror = () => {
+      toast.error('Voice capture failed. Try again.');
+      setIsRecording(false);
+    };
+    recognition.onend = () => setIsRecording(false);
+
+    recognition.start();
+  };
+
   return (
     <>
       <div className="fixed inset-0 z-[110] bg-slate-950/25 backdrop-blur-[2px]">
@@ -705,8 +731,23 @@ const LeadDetailScreen: React.FC<LeadDetailScreenProps> = ({
 
       {isVoiceNoteOpen ? (
         <BottomSheet title="Voice Note" onClose={() => setIsVoiceNoteOpen(false)}>
-          <p className="text-sm text-slate-500">Voice capture can plug in later. For now this logs a note into follow-up history.</p>
-          <textarea value={voiceNote} onChange={(event) => setVoiceNote(event.target.value)} rows={5} className="mt-4 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[var(--accent)]" placeholder="Add your note" />
+          <p className="text-sm text-slate-500">Tap below to speak, or type your note manually.</p>
+          <div className="my-6 flex justify-center">
+            <button
+              type="button"
+              onClick={handleStartRecording}
+              disabled={isRecording}
+              className={`flex h-16 w-16 items-center justify-center rounded-full transition-all ${
+                isRecording 
+                  ? 'bg-red-500 text-white shadow-[0_0_20px_rgba(239,68,68,0.5)] animate-pulse' 
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              <Mic className="h-7 w-7" />
+            </button>
+          </div>
+          {isRecording && <p className="mb-4 text-center text-xs font-bold text-red-500 animate-pulse">Listening...</p>}
+          <textarea value={voiceNote} onChange={(event) => setVoiceNote(event.target.value)} rows={5} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[var(--accent)]" placeholder="Your note will appear here..." />
           <div className="mt-4 flex gap-3">
             <button type="button" onClick={() => setIsVoiceNoteOpen(false)} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">Cancel</button>
             <button type="button" onClick={() => void handleSaveVoiceNote()} disabled={loggingActivity} className="rounded-2xl bg-[#2563EB] px-4 py-3 text-sm font-semibold text-white disabled:opacity-60">

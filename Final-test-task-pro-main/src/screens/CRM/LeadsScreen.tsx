@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { MessageSquareMore, Phone, Plus, RefreshCcw, SquarePen } from 'lucide-react';
+import { Phone, Plus, RefreshCcw, SquarePen } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Employee } from '../../../types';
 import { supabase } from '../../lib/supabase';
@@ -126,14 +126,6 @@ const LeadsScreen: React.FC<LeadsScreenProps> = ({ companyId, currentUser, emplo
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => toast('Open a lead to draft or send messages.')}
-              className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-[0_10px_24px_rgba(15,23,42,0.06)] transition hover:border-[var(--accent)]/20 hover:text-[var(--accent)]"
-              aria-label="Messages"
-            >
-              <MessageSquareMore className="h-5 w-5" />
-            </button>
             <button
               type="button"
               onClick={() => setIsAddLeadOpen(true)}
