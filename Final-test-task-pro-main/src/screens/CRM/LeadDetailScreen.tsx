@@ -239,7 +239,7 @@ const LeadDetailScreen: React.FC<LeadDetailScreenProps> = ({
       
       const prompt = `You are a professional CRM assistant. Improve the following quick note into a polished, professional business log entry. Keep it concise, remove filler, and organize it clearly. Here is the raw note: "${activityNote.trim()}"`;
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.7 } })
@@ -267,7 +267,7 @@ const LeadDetailScreen: React.FC<LeadDetailScreenProps> = ({
 
       const prompt = `You are an expert sales representative. Draft a friendly, concise, and professional WhatsApp follow-up message to a lead named "${lead.name}". Their exact requirement/interest is: "${lead.requirement || 'unknown products'}". My name is ${currentUser.name}. Keep it under 3 short paragraphs. Include a gentle call to action. Do not use placeholders like [Insert Link]. Make it sound human and persuasive. Do not use emojis aggressively.`;
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.7 } })
