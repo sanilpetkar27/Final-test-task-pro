@@ -333,11 +333,20 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({
         const resData = await res.json();
         if (res.ok) {
           rawText = resData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          console.log(`[AddLeadAI] Got response from ${model}, rawText length: ${rawText.length}`);
           break;
         }
         const errMsg: string = resData?.error?.message || '';
-        const isOverloaded = errMsg.toLowerCase().includes('high demand') || errMsg.toLowerCase().includes('overloaded') || res.status === 503;
-        if (!isOverloaded) break; // non-retryable error
+        console.warn(`[AddLeadAI] ${model} failed: ${errMsg.slice(0, 120)}`);
+        // Retry on overload OR rate limit — both are temporary
+        const isRetryable =
+          errMsg.toLowerCase().includes('high demand') ||
+          errMsg.toLowerCase().includes('overloaded') ||
+          errMsg.toLowerCase().includes('quota') ||
+          errMsg.toLowerCase().includes('rate') ||
+          res.status === 503 ||
+          res.status === 429;
+        if (!isRetryable) break; // genuine API error, don't try next model
       }
 
       if (rawText) {
