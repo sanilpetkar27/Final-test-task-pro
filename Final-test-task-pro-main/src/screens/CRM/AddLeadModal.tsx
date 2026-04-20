@@ -310,6 +310,7 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({
     fallback?: () => LeadDraft | null,
   ) => {
     setExtracting(true);
+    const toastId = toast.loading('Extracting with AI...');
     try {
       const isChat = payload.inputType === 'chat';
       const conversation = isChat ? String(payload.conversation || '') : null;
@@ -322,9 +323,13 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({
         : [textPart];
 
       const body = JSON.stringify({ contents: [{ parts }], generationConfig: { temperature: 0.1 } });
-      const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite'];
+      // gemini-2.0-flash-lite does NOT support vision/images — exclude for image mode
+      const models = isChat
+        ? ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite']
+        : ['gemini-2.5-flash', 'gemini-2.0-flash'];
 
       let rawText = '';
+      let lastErrMsg = '';
       for (const model of models) {
         const res = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`,
@@ -333,56 +338,65 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({
         const resData = await res.json();
         if (res.ok) {
           rawText = resData.candidates?.[0]?.content?.parts?.[0]?.text || '';
-          console.log(`[AddLeadAI] Got response from ${model}, rawText length: ${rawText.length}`);
+          console.log(`[AddLeadAI] ✅ ${model} responded. rawText:`, rawText.slice(0, 200));
           break;
         }
-        const errMsg: string = resData?.error?.message || '';
-        console.warn(`[AddLeadAI] ${model} failed: ${errMsg.slice(0, 120)}`);
-        // Retry on overload OR rate limit — both are temporary
+        lastErrMsg = resData?.error?.message || `HTTP ${res.status}`;
+        console.warn(`[AddLeadAI] ❌ ${model} failed:`, lastErrMsg.slice(0, 200));
         const isRetryable =
-          errMsg.toLowerCase().includes('high demand') ||
-          errMsg.toLowerCase().includes('overloaded') ||
-          errMsg.toLowerCase().includes('quota') ||
-          errMsg.toLowerCase().includes('rate') ||
+          lastErrMsg.toLowerCase().includes('high demand') ||
+          lastErrMsg.toLowerCase().includes('overloaded') ||
+          lastErrMsg.toLowerCase().includes('quota') ||
+          lastErrMsg.toLowerCase().includes('rate') ||
           res.status === 503 ||
           res.status === 429;
-        if (!isRetryable) break; // genuine API error, don't try next model
+        if (!isRetryable) break;
       }
 
       if (rawText) {
+        console.log('[AddLeadAI] Attempting to parse:', rawText.slice(0, 300));
         const extracted = normalizeExtractedLeadDraft(rawText);
-        if (extracted && (extracted.name || extracted.mobile)) {
+        console.log('[AddLeadAI] Parsed draft:', extracted);
+        if (extracted && (extracted.name || extracted.mobile || extracted.requirement)) {
           setExtractedDraft(extracted);
-          toast.success('Lead details extracted.');
+          toast.success('Lead details extracted.', { id: toastId });
           return;
         }
+        toast.error('AI responded but could not parse lead fields. Check console.', { id: toastId });
+        return;
       }
 
-      // Fallback to regex parser
+      // Fallback to regex parser for chat
       if (fallback) {
         const fallbackResult = fallback();
         if (fallbackResult && (fallbackResult.name || fallbackResult.mobile)) {
           setExtractedDraft(fallbackResult);
-          toast.success('Lead details extracted.');
+          toast.success('Lead details extracted.', { id: toastId });
           return;
         }
       }
 
-      toast.error('AI could not extract lead details. Please fill in manually.');
-    } catch (error) {
-      console.error('Lead extraction failed:', error);
+      const isRateLimit = lastErrMsg.toLowerCase().includes('quota') || lastErrMsg.toLowerCase().includes('rate');
+      toast.error(
+        isRateLimit
+          ? 'API rate limit hit. Please wait 60s and try again.'
+          : 'AI could not extract lead details. Please fill in manually.',
+        { id: toastId }
+      );
+    } catch (error: any) {
+      console.error('[AddLeadAI] Exception:', error);
       if (fallback) {
         const fallbackResult = fallback();
         if (fallbackResult) {
           setExtractedDraft(fallbackResult);
-          toast.success('Lead details extracted.');
+          toast.success('Lead details extracted.', { id: toastId });
           return;
         }
       }
-      toast.error('Lead extraction is unavailable right now.');
+      toast.error('Lead extraction failed: ' + (error?.message || 'Unknown error'), { id: toastId });
     } finally {
       setExtracting(false);
-    }
+    } }
   };
 
   const handleManualSubmit = async (event: React.FormEvent) => {
