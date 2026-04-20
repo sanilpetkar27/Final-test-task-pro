@@ -72,6 +72,8 @@ const LeadDetailScreen: React.FC<LeadDetailScreenProps> = ({
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isVoiceNoteOpen, setIsVoiceNoteOpen] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [improvingNote, setImprovingNote] = useState(false);
+  const [rewritingDraft, setRewritingDraft] = useState(false);
   const [paymentForm, setPaymentForm] = useState({
     totalAmount: lead.total_amount ? String(lead.total_amount) : '',
     newPaymentAmount: '',
@@ -222,6 +224,66 @@ const LeadDetailScreen: React.FC<LeadDetailScreenProps> = ({
       toast.error('Could not update stage.');
     } finally {
       setStageUpdating(false);
+    }
+  };
+
+  const handleAIImproveNote = async () => {
+    if (!activityNote.trim()) {
+      toast.error('Please enter some text to improve.');
+      return;
+    }
+    setImprovingNote(true);
+    const toastId = toast.loading('AI is analyzing your note...');
+    try {
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || 'AIzaSyAdOHVLF40eNJbdmc_0D1XkEZIGYu4OOIU';
+      
+      const prompt = `You are a professional CRM assistant. Improve the following quick note into a polished, professional business log entry. Keep it concise, remove filler, and organize it clearly. Here is the raw note: "${activityNote.trim()}"`;
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.7 } })
+      });
+      
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error?.message || 'API Error');
+      
+      const result = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      setActivityNote(result.trim());
+      toast.success('Note enhanced!', { id: toastId });
+    } catch (err: any) {
+      console.error(err);
+      toast.error('AI Failed: ' + err.message, { id: toastId });
+    } finally {
+      setImprovingNote(false);
+    }
+  };
+
+  const handleAIRewriteDraft = async () => {
+    setRewritingDraft(true);
+    const toastId = toast.loading('AI is composing the perfect WhatsApp pitch...');
+    try {
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || 'AIzaSyAdOHVLF40eNJbdmc_0D1XkEZIGYu4OOIU';
+
+      const prompt = `You are an expert sales representative. Draft a friendly, concise, and professional WhatsApp follow-up message to a lead named "${lead.name}". Their exact requirement/interest is: "${lead.requirement || 'unknown products'}". My name is ${currentUser.name}. Keep it under 3 short paragraphs. Include a gentle call to action. Do not use placeholders like [Insert Link]. Make it sound human and persuasive. Do not use emojis aggressively.`;
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.7 } })
+      });
+      
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error?.message || 'API Error');
+      
+      const result = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      setDraftMessage(result.trim());
+      toast.success('Message rewritten!', { id: toastId });
+    } catch (err: any) {
+      console.error(err);
+      toast.error('AI Failed: ' + err.message, { id: toastId });
+    } finally {
+      setRewritingDraft(false);
     }
   };
 
@@ -653,10 +715,10 @@ const LeadDetailScreen: React.FC<LeadDetailScreenProps> = ({
                     </Field>
                   </div>
                   <div className="relative mt-4">
-                    <textarea value={activityNote} onChange={(event) => setActivityNote(event.target.value)} rows={4} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[var(--accent)]" placeholder="Add a note for this follow-up" />
-                    <button type="button" onClick={() => toast.info('AI setup pending Phase 2')} className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-xl bg-violet-50 px-3 py-1.5 text-xs font-bold text-violet-600 transition hover:bg-violet-100">
-                      <Sparkles className="h-3.5 w-3.5" />
-                      Improve
+                    <textarea value={activityNote} onChange={(event) => setActivityNote(event.target.value)} rows={4} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[var(--accent)]" placeholder="Add a note for this follow-up" disabled={improvingNote} />
+                    <button type="button" onClick={() => void handleAIImproveNote()} disabled={improvingNote} className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-xl bg-violet-50 px-3 py-1.5 text-xs font-bold text-violet-600 transition hover:bg-violet-100 disabled:opacity-50">
+                      <Sparkles className={`h-3.5 w-3.5 ${improvingNote ? 'animate-pulse' : ''}`} />
+                      {improvingNote ? 'Improving...' : 'Improve'}
                     </button>
                   </div>
                   <button type="button" onClick={() => void handleLogActivity()} disabled={loggingActivity} className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(79,70,229,0.22)] disabled:opacity-60">
@@ -683,10 +745,10 @@ const LeadDetailScreen: React.FC<LeadDetailScreenProps> = ({
         <BottomSheet title="Draft Message" onClose={() => setIsDraftOpen(false)}>
           <p className="text-sm text-slate-500">Message context includes {lead.name} and {lead.requirement || 'their requirement'}.</p>
           <div className="relative mt-4">
-            <textarea value={draftMessage} onChange={(event) => setDraftMessage(event.target.value)} rows={7} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[var(--accent)] pb-14" />
-            <button type="button" onClick={() => toast.info('AI setup pending Phase 2')} className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 px-4 py-2 text-xs font-bold text-white shadow-md transition hover:scale-105">
-              <Sparkles className="h-3.5 w-3.5" />
-              Rewrite Magic
+            <textarea value={draftMessage} onChange={(event) => setDraftMessage(event.target.value)} rows={7} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[var(--accent)] pb-14" disabled={rewritingDraft} />
+            <button type="button" onClick={() => void handleAIRewriteDraft()} disabled={rewritingDraft} className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 px-4 py-2 text-xs font-bold text-white shadow-md transition hover:scale-105 disabled:opacity-70 disabled:hover:scale-100">
+              <Sparkles className={`h-3.5 w-3.5 ${rewritingDraft ? 'animate-spin opacity-80' : ''}`} />
+              {rewritingDraft ? 'Rewriting...' : 'Rewrite Magic'}
             </button>
           </div>
           <div className="mt-4 flex flex-wrap gap-3">
