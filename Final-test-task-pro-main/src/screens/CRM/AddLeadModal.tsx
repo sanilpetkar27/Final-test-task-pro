@@ -396,7 +396,7 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({
       toast.error('Lead extraction failed: ' + (error?.message || 'Unknown error'), { id: toastId });
     } finally {
       setExtracting(false);
-    } }
+    }
   };
 
   const handleManualSubmit = async (event: React.FormEvent) => {
